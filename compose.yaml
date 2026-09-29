@@ -1,0 +1,43 @@
+# Local PostgreSQL demonstration only. AI secrets are deliberately not passed through.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: notes
+      POSTGRES_PASSWORD: local-demo-only
+      POSTGRES_DB: notes
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes -d notes"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: .
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment: &backend-env
+      NOTES_DATABASE_URL: postgresql+psycopg://notes:local-demo-only@db:5432/notes
+      NOTES_PROVIDER: mock
+      NOTES_ALLOW_LIVE_REQUESTS: "false"
+      NOTES_AUTO_WORKER: "false"
+      NOTES_PUBLIC_ORIGIN: http://127.0.0.1:8000
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    build: .
+    environment: *backend-env
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  postgres-data:
