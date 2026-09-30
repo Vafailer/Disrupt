@@ -30,6 +30,7 @@ def test_cloudru_contract_uses_fake_transport_only():
         assert body["model"] == "test-model"
         assert body["messages"][1] == {"role": "user", "content": "Мысль"}
         assert body["max_tokens"] == 4000
+        assert body["response_format"] == {"type": "json_object"}
         return httpx.Response(200, json=completion())
 
     provider = CloudRuProvider("fake-test-key", "test-model", transport=httpx.MockTransport(handler))

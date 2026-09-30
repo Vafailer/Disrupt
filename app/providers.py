@@ -99,6 +99,7 @@ class CloudRuProvider:
                         "model": self._model,
                         "temperature": 0.2,
                         "max_tokens": 4000,
+                        "response_format": {"type": "json_object"},
                         "messages": [
                             {"role": "system", "content": SYSTEM_PROMPT},
                             {"role": "user", "content": text},
