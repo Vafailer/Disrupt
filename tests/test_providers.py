@@ -136,6 +136,56 @@ def test_mock_does_not_read_any_real_key(monkeypatch):
     assert isinstance(make_provider(settings), MockProvider)
 
 
+def test_live_worker_reads_key_from_secret_file(tmp_path, monkeypatch):
+    secret = tmp_path / "cloudru-key"
+    secret.write_text("fake-file-key\n", encoding="utf-8")
+    monkeypatch.delenv("NOTES_CLOUDRU_API_KEY", raising=False)
+    monkeypatch.setenv("NOTES_CLOUDRU_API_KEY_FILE", str(secret))
+    settings = Settings(
+        provider="cloudru",
+        allow_live_requests=True,
+        cloudru_model="test-model",
+        live_call_limit=1,
+        live_user_call_limit=1,
+    )
+    provider = make_provider(settings)
+    assert isinstance(provider, CloudRuProvider)
+    assert provider._api_key == "fake-file-key"
+
+
+def test_live_api_starts_without_cloudru_secret(app_factory, monkeypatch):
+    monkeypatch.delenv("NOTES_CLOUDRU_API_KEY", raising=False)
+    monkeypatch.delenv("NOTES_CLOUDRU_API_KEY_FILE", raising=False)
+    app = app_factory(
+        provider="cloudru",
+        auto_worker=False,
+        allow_live_requests=True,
+        cloudru_model="test-model",
+        live_call_limit=5,
+        live_user_call_limit=2,
+    )
+    with TestClient(app) as public_api:
+        response = public_api.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok", "provider": "cloudru", "simulation": False}
+
+
+def test_key_env_and_file_are_mutually_exclusive(tmp_path, monkeypatch):
+    secret = tmp_path / "cloudru-key"
+    secret.write_text("file-key", encoding="utf-8")
+    monkeypatch.setenv("NOTES_CLOUDRU_API_KEY", "environment-key")
+    monkeypatch.setenv("NOTES_CLOUDRU_API_KEY_FILE", str(secret))
+    settings = Settings(
+        provider="cloudru",
+        allow_live_requests=True,
+        cloudru_model="test-model",
+        live_call_limit=1,
+        live_user_call_limit=1,
+    )
+    with pytest.raises(ValueError, match="either"):
+        make_provider(settings)
+
+
 def test_live_requires_opt_in_and_budgets():
     with pytest.raises(ValueError, match="Live mode requires"):
         Settings(provider="cloudru")
@@ -185,9 +235,15 @@ def test_live_usage_reports_reserved_calls(app, client):
         live_client.cookies.update(client.cookies)
         usage = live_client.get("/api/v1/provider/usage").json()
         assert usage == {
-            "provider":"cloudru", "simulation":False, "model":"test-model",
-            "global_used":0, "global_limit":5, "global_remaining":5,
-            "user_used":0, "user_limit":3, "user_remaining":3,
+            "provider": "cloudru",
+            "simulation": False,
+            "model": "test-model",
+            "global_used": 0,
+            "global_limit": 5,
+            "global_remaining": 5,
+            "user_used": 0,
+            "user_limit": 3,
+            "user_remaining": 3,
         }
 
 

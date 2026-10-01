@@ -7,7 +7,7 @@ from typing import Protocol
 import httpx
 from pydantic import ValidationError
 
-from app.config import Settings
+from app.config import Settings, read_secret_file
 from app.schemas import StructuredNote
 
 SYSTEM_PROMPT = """Ты помогаешь структурировать мысли пользователя на русском языке.
@@ -149,6 +149,11 @@ def make_provider(settings: Settings) -> LLMProvider:
         return MockProvider()  # Do not even read the credential in this branch.
     # Settings validates the independent opt-in and budgets before this secret is read.
     key = os.environ.get("NOTES_CLOUDRU_API_KEY", "")
+    key_file = os.environ.get("NOTES_CLOUDRU_API_KEY_FILE", "")
+    if key and key_file:
+        raise ValueError("Use either NOTES_CLOUDRU_API_KEY or NOTES_CLOUDRU_API_KEY_FILE")
+    if key_file:
+        key = read_secret_file(key_file)
     if not key:
-        raise ValueError("Live mode requires NOTES_CLOUDRU_API_KEY")
+        raise ValueError("Live worker requires NOTES_CLOUDRU_API_KEY or NOTES_CLOUDRU_API_KEY_FILE")
     return CloudRuProvider(key, settings.cloudru_model)

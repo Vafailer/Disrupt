@@ -2,7 +2,19 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
+from urllib.parse import quote_plus
+
+
+def read_secret_file(path: str, *, maximum: int = 16384) -> str:
+    value = Path(path).read_text(encoding="utf-8")
+    if len(value) > maximum:
+        raise ValueError("Secret file is too large")
+    value = value.strip("\r\n")
+    if not value or "\x00" in value:
+        raise ValueError("Secret file is empty or invalid")
+    return value
 
 
 @dataclass(frozen=True)
@@ -42,8 +54,20 @@ class Settings:
                 raise ValueError(f"{name} must be true or false")
             return value == "true"
 
+        database_url = os.environ.get("NOTES_DATABASE_URL")
+        password_file = os.environ.get("NOTES_DATABASE_PASSWORD_FILE")
+        if database_url and password_file:
+            raise ValueError("Use either NOTES_DATABASE_URL or NOTES_DATABASE_PASSWORD_FILE")
+        if password_file:
+            password = quote_plus(read_secret_file(password_file, maximum=4096))
+            user = quote_plus(os.environ.get("NOTES_DATABASE_USER", "notes"))
+            host = os.environ.get("NOTES_DATABASE_HOST", "db")
+            port = int(os.environ.get("NOTES_DATABASE_PORT", "5432"))
+            name = quote_plus(os.environ.get("NOTES_DATABASE_NAME", "notes"))
+            database_url = f"postgresql+psycopg://{user}:{password}@{host}:{port}/{name}"
+
         return cls(
-            database_url=os.environ.get("NOTES_DATABASE_URL", cls.database_url),
+            database_url=database_url or cls.database_url,
             provider=os.environ.get("NOTES_PROVIDER", "mock"),
             auto_worker=flag("NOTES_AUTO_WORKER", True),
             secure_cookies=flag("NOTES_SECURE_COOKIES", False),
