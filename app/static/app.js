@@ -4,8 +4,12 @@ let csrf = '', currentNote = null, epoch = 0, notesOffset = 0, pendingCapture = 
 const statusLabels = {queued:'В очереди', running:'Обработка', succeeded:'Готово', failed:'Ошибка'};
 const conclusionLabels = {proposed:'Предложен', accepted:'Принят', rejected:'Отклонён'};
 const errors = {
+  provider_bad_request:'Cloud.ru отклонил параметры запроса (HTTP 400/422). Проверьте совместимость выбранной модели.',
   provider_auth:'Нет доступа к модели. Проверьте настройки сервера.',
+  provider_model_not_found:'Cloud.ru не нашёл выбранную модель (HTTP 404). Проверьте ID модели и доступ команды.',
   provider_rate_limit:'Провайдер ограничил запросы. Автоматического повтора не будет.',
+  provider_unavailable:'Cloud.ru временно недоступен (HTTP 5xx). Оригинал сохранён; автоматического повтора не было.',
+  provider_conflict:'Cloud.ru отклонил запрос из-за конфликта. Автоматического повтора не было.',
   budget_exhausted:'Лимит обращений к модели исчерпан.',
   execution_unknown:'Обработка прервалась. Оригинал сохранён; автоматического повтора не будет.',
   provider_timeout_unknown:'Модель не ответила вовремя. Запрос мог быть оплачен; повтор не выполнялся.',
@@ -30,6 +34,11 @@ async function api(path, options = {}) {
 function showUser(user) {
   csrf = user.csrf_token; $('username').textContent = user.username;
   $('auth').hidden = true; $('account').hidden = false; $('workspace').hidden = false;
+}
+async function loadProviderUsage() {
+  const usage = await api('/api/v1/provider/usage');
+  if (usage.simulation) return;
+  $('mode').textContent = `Cloud.ru подключён · модель ${usage.model} · использовано ${usage.global_used} из ${usage.global_limit}, осталось ${usage.global_remaining}. Одна новая заметка — один запрос.`;
 }
 async function loadNotes(reset = true) {
   if (reset) { notesOffset = 0; $('notes').replaceChildren(); }
@@ -118,7 +127,11 @@ async function pollJob(id, currentEpoch) {
       $('thought').value = ''; pendingCapture = null;
       await loadNotes(); await loadJobs(); await openNote(job.note_id); return;
     }
-    if (job.status === 'failed') { await loadJobs(); throw new Error(errors[job.error_code] || `Ошибка обработки: ${job.error_code}. Оригинал сохранён.`); }
+    if (job.status === 'failed') {
+      pendingCapture = null;
+      await loadJobs(); await loadProviderUsage();
+      throw new Error(errors[job.error_code] || `Ошибка обработки: ${job.error_code}. Оригинал сохранён. Повторная отправка создаст новый запрос.`);
+    }
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   if (currentEpoch===epoch) message('Запись сохранена. Обработка ещё продолжается — проверьте последние задания позже.');
@@ -128,7 +141,7 @@ $('auth-form').onsubmit = async event => {
   buttons.forEach(b => b.disabled=true);
   try {
     const user = await api(`/api/v1/auth/${event.submitter.value}`, {method:'POST',body:JSON.stringify({username:$('login').value,password:$('password').value})});
-    $('password').value=''; showUser(user); await loadNotes(); await loadJobs(); message();
+    $('password').value=''; showUser(user); await loadProviderUsage(); await loadNotes(); await loadJobs(); message();
   } catch(e) { message(e.message); } finally { buttons.forEach(b => b.disabled=false); }
 };
 $('logout').onclick = async () => {
@@ -187,7 +200,7 @@ window.addEventListener('beforeunload',event=>{if(dirty()){event.preventDefault(
     $('mode').textContent = health.simulation
       ? 'Демонстрационный режим: запросы к ИИ не отправляются. Встроенный пример использует подготовленный ответ; другой текст получает только простую разметку.'
       : 'Cloud.ru подключён: обработка новой записи расходует запросы к модели.';
-    try { showUser(await api('/api/v1/auth/me')); await loadNotes(); await loadJobs(); }
+    try { showUser(await api('/api/v1/auth/me')); await loadProviderUsage(); await loadNotes(); await loadJobs(); }
     catch(e) { if (!e.message.includes('Войдите') && !e.message.includes('Сессия')) message(e.message); }
   } catch(e) { $('mode').textContent='Не удалось связаться с приложением.'; message(e.message); }
 })();

@@ -30,8 +30,9 @@ DEMO_TEXT = (
 
 
 class ProviderError(Exception):
-    def __init__(self, code: str):
+    def __init__(self, code: str, *, http_status: int | None = None):
         self.code = code
+        self.http_status = http_status
         super().__init__(code)
 
 
@@ -107,10 +108,23 @@ class CloudRuProvider:
                     },
                 ) as response:
                     if response.status_code != 200:
-                        code = {401: "provider_auth", 403: "provider_auth", 429: "provider_rate_limit"}.get(
-                            response.status_code, "provider_http_error"
-                        )
-                        raise ProviderError(code)
+                        code = {
+                            400: "provider_bad_request",
+                            401: "provider_auth",
+                            403: "provider_auth",
+                            404: "provider_model_not_found",
+                            408: "provider_timeout_unknown",
+                            409: "provider_conflict",
+                            422: "provider_bad_request",
+                            429: "provider_rate_limit",
+                            500: "provider_unavailable",
+                            502: "provider_unavailable",
+                            503: "provider_unavailable",
+                            504: "provider_timeout_unknown",
+                        }.get(response.status_code, f"provider_http_{response.status_code}")
+                        # Persist the status class/code only. The provider response may contain
+                        # user text or infrastructure details and is deliberately discarded.
+                        raise ProviderError(code, http_status=response.status_code)
                     content = bytearray()
                     for chunk in response.iter_bytes():
                         content.extend(chunk)

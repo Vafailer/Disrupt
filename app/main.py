@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.config import Settings
 from app.db import make_database
-from app.models import Job, LoginSession, Note, Revision, User
+from app.models import Job, LoginSession, Note, ProviderBudget, Revision, User
 from app.providers import DEMO_TEXT
 from app.schemas import ConclusionEdit, Credentials, NoteEdit, TextCapture
 from app.security import (
@@ -207,6 +207,26 @@ def create_app(settings: Settings | None = None, provider=None):
         session = get_login_session(request, db)
         user = db.get(User, session.user_id)
         return {"id": user.id, "username": user.username, "csrf_token": session.csrf_token}
+
+    @app.get("/api/v1/provider/usage")
+    def provider_usage(request: Request, db=Depends(database)):
+        session = get_login_session(request, db)
+        user = db.get(User, session.user_id)
+        if settings.provider == "mock":
+            return {"provider": "mock", "simulation": True}
+        budget = db.get(ProviderBudget, "cloudru")
+        used = budget.reserved_calls if budget else 0
+        return {
+            "provider": "cloudru",
+            "simulation": False,
+            "model": settings.cloudru_model,
+            "global_used": used,
+            "global_limit": settings.live_call_limit,
+            "global_remaining": max(0, settings.live_call_limit - used),
+            "user_used": user.live_calls,
+            "user_limit": settings.live_user_call_limit,
+            "user_remaining": max(0, settings.live_user_call_limit - user.live_calls),
+        }
 
     @app.post("/api/v1/auth/logout", status_code=204)
     def logout(request: Request, response: Response, db=Depends(database)):

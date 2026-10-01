@@ -3,9 +3,11 @@ from dataclasses import replace
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.config import Settings
+from app.main import create_app
 from app.models import Job, ProviderBudget, User
 from app.providers import CloudRuProvider, MockProvider, ProviderError, make_provider
 from app.worker import Worker
@@ -42,11 +44,14 @@ def test_cloudru_contract_uses_fake_transport_only():
 @pytest.mark.parametrize(
     "status,code",
     [
+        (400, "provider_bad_request"),
         (401, "provider_auth"),
         (403, "provider_auth"),
+        (404, "provider_model_not_found"),
         (429, "provider_rate_limit"),
-        (500, "provider_http_error"),
-        (302, "provider_http_error"),
+        (500, "provider_unavailable"),
+        (503, "provider_unavailable"),
+        (302, "provider_http_302"),
     ],
 )
 def test_cloud_errors_sanitized_and_not_retried(status, code):
@@ -62,6 +67,7 @@ def test_cloud_errors_sanitized_and_not_retried(status, code):
     with pytest.raises(ProviderError) as exc:
         provider.structure("Мысль")
     assert exc.value.code == code
+    assert exc.value.http_status == status
     assert "sensitive" not in str(exc.value)
     assert len(calls) == 1
 
@@ -162,6 +168,27 @@ def test_budget_reservation_is_durable_and_capped(app, client):
     with app.state.sessions() as db:
         assert db.get(ProviderBudget, "cloudru").reserved_calls == 1
         assert db.get(User, user["id"]).live_calls == 1
+
+
+def test_live_usage_reports_reserved_calls(app, client):
+    register(client)
+    settings = replace(
+        app.state.settings,
+        provider="cloudru",
+        allow_live_requests=True,
+        cloudru_model="test-model",
+        live_call_limit=5,
+        live_user_call_limit=3,
+    )
+    live_app = create_app(settings, provider=MockProvider())
+    with TestClient(live_app) as live_client:
+        live_client.cookies.update(client.cookies)
+        usage = live_client.get("/api/v1/provider/usage").json()
+        assert usage == {
+            "provider":"cloudru", "simulation":False, "model":"test-model",
+            "global_used":0, "global_limit":5, "global_remaining":5,
+            "user_used":0, "user_limit":3, "user_remaining":3,
+        }
 
 
 def test_mock_worker_does_not_consume_cloud_queue(app, client):
