@@ -1,18 +1,18 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let csrf = '', currentNote = null, epoch = 0, notesOffset = 0, pendingCapture = null;
-const statusLabels = {queued:'В очереди', running:'Обработка', succeeded:'Готово', failed:'Ошибка'};
+const statusLabels = {queued:'В очереди', running:'Разбираем запись', succeeded:'Готово', failed:'Не получилось'};
 const conclusionLabels = {proposed:'Предложен', accepted:'Принят', rejected:'Отклонён'};
 const errors = {
-  provider_bad_request:'Cloud.ru отклонил параметры запроса (HTTP 400/422). Проверьте совместимость выбранной модели.',
+  provider_bad_request:'Cloud.ru отклонил запрос. Проверьте выбранную модель.',
   provider_auth:'Нет доступа к модели. Проверьте настройки сервера.',
-  provider_model_not_found:'Cloud.ru не нашёл выбранную модель (HTTP 404). Проверьте ID модели и доступ команды.',
-  provider_rate_limit:'Провайдер ограничил запросы. Автоматического повтора не будет.',
-  provider_unavailable:'Cloud.ru временно недоступен (HTTP 5xx). Оригинал сохранён; автоматического повтора не было.',
-  provider_conflict:'Cloud.ru отклонил запрос из-за конфликта. Автоматического повтора не было.',
-  budget_exhausted:'Достигнут лимит обращений, заданный при запуске приложения. Исходный текст сохранён. Чтобы сделать ещё один запрос, перезапустите сервер и укажите лимит больше числа уже учтённых обращений.',
-  execution_unknown:'Обработка прервалась. Оригинал сохранён; автоматического повтора не будет.',
-  provider_timeout_unknown:'Модель не ответила вовремя. Запрос мог быть оплачен; повтор не выполнялся.',
+  provider_model_not_found:'Модель не найдена. Проверьте её название и доступ команды.',
+  provider_rate_limit:'Cloud.ru ограничил запросы. Повтора не было.',
+  provider_unavailable:'Cloud.ru сейчас недоступен. Запись сохранена, повтора не было.',
+  provider_conflict:'Cloud.ru отклонил запрос. Повтора не было.',
+  budget_exhausted:'Лимит приложения исчерпан. Запись сохранена. Для нового запроса увеличьте лимит при запуске.',
+  execution_unknown:'Обработка прервалась. Запись сохранена, повтора не было.',
+  provider_timeout_unknown:'Модель не ответила вовремя. Запрос мог быть учтён. Повтора не было.',
 };
 function message(text = '') { $('message').textContent = text; }
 function authMessage(text = '') {
@@ -42,12 +42,12 @@ function showUser(user) {
 async function loadProviderUsage() {
   const usage = await api('/api/v1/provider/usage');
   if (usage.simulation) return;
-  $('mode').textContent = `Режим Cloud.ru · модель ${usage.model} · использовано ${usage.global_used} из ${usage.global_limit}, осталось ${usage.global_remaining}. Подключение подтвердится после первой готовой заметки.`;
+  $('mode').textContent = `Cloud.ru · ${usage.model} · обращений в приложении ${usage.global_used}/${usage.global_limit}`;
 }
 async function loadNotes(reset = true) {
   if (reset) { notesOffset = 0; $('notes').replaceChildren(); }
   const list = await api(`/api/v1/notes?limit=20&offset=${notesOffset}`);
-  if (!list.length && notesOffset === 0) $('notes').append(element('p','Здесь появятся ваши заметки.'));
+  if (!list.length && notesOffset === 0) $('notes').append(element('p','Пока нет заметок.'));
   for (const note of list) {
     const button = element('button', note.title);
     button.onclick = () => openNote(note.id).catch(e => message(e.message));
@@ -79,11 +79,11 @@ function renderNote(note) {
   currentNote = note; $('capture-card').hidden = true; $('note-card').hidden = false;
   $('original').textContent = note.original_text; $('title').value = note.title;
   $('markdown').value = note.markdown; renderMarkdown(note.markdown);
-  $('note-mode').textContent = `Версия ${note.version} · ${note.provider === 'mock' ? 'Демонстрационная обработка' : 'Cloud.ru'}`;
+  $('note-mode').textContent = `Версия ${note.version} · ${note.provider === 'mock' ? 'Демо' : 'Cloud.ru'}`;
   $('history').replaceChildren(); $('conclusions').replaceChildren();
   if (!note.conclusions.length) $('conclusions').append(element('p', note.provider === 'mock'
-    ? 'Выводов нет. В режиме имитации они подготовлены только для встроенного примера.'
-    : 'Для этой записи модель не предложила дополнительных выводов.'));
+    ? 'В демо выводы есть только у примера.'
+    : 'Для этой записи выводов нет.'));
   for (const c of note.conclusions) {
     const block = element('div','', 'conclusion');
     block.append(element('div', conclusionLabels[c.status], 'status'), element('p',c.text), element('p',c.source_quote,'quote'));
@@ -91,7 +91,7 @@ function renderNote(note) {
     for (const [status,label] of [['accepted','Принять'],['rejected','Отклонить']]) {
       const button = element('button',label,'secondary'); button.disabled = c.status === status;
       button.onclick = async () => {
-        if (dirty()) return message('Сначала сохраните правки заметки, затем выберите статус вывода.');
+        if (dirty()) return message('Сначала сохраните правки.');
         button.disabled = true;
         try {
           renderNote(await api(`/api/v1/notes/${note.id}/conclusions/${c.id}`, {
@@ -113,7 +113,7 @@ async function loadJobs() {
   for (const job of jobs) {
     const row = element('div','','job');
     row.append(element('p',`${statusLabels[job.status]} · ${new Date(job.created_at*1000).toLocaleString('ru-RU')}`));
-    if (job.status === 'failed') row.append(element('p',errors[job.error_code] || `Обработка не завершилась (${job.error_code}). Оригинал сохранён.`));
+    if (job.status === 'failed') row.append(element('p',errors[job.error_code] || `Не удалось обработать запись. Она сохранена. Код: ${job.error_code}.`));
     if (job.note_id) {
       const button = element('button','Открыть заметку','quiet');
       button.onclick = () => openNote(job.note_id).catch(e => message(e.message)); row.append(button);
@@ -134,11 +134,11 @@ async function pollJob(id, currentEpoch) {
     if (job.status === 'failed') {
       pendingCapture = null;
       await loadJobs(); await loadProviderUsage();
-      throw new Error(errors[job.error_code] || `Ошибка обработки: ${job.error_code}. Оригинал сохранён. Повторная отправка создаст новый запрос.`);
+      throw new Error(errors[job.error_code] || `Не удалось обработать запись. Она сохранена. Код: ${job.error_code}.`);
     }
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
-  if (currentEpoch===epoch) message('Запись сохранена. Обработка ещё продолжается — проверьте последние задания позже.');
+  if (currentEpoch===epoch) message('Запись сохранена. Обработка ещё идёт.');
 }
 $('auth-form').onsubmit = async event => {
   event.preventDefault();
@@ -146,7 +146,7 @@ $('auth-form').onsubmit = async event => {
   const password = $('password').value;
   const action = event.submitter?.value || 'login';
   if (!/^[A-Za-zА-Яа-яЁё0-9_.-]{3,64}$/u.test(username)) {
-    authMessage('Имя должно содержать от 3 до 64 символов. Можно использовать русские и латинские буквы, цифры, точку, дефис и подчёркивание.');
+    authMessage('Имя должно содержать от 3 до 64 символов. Можно по-русски.');
     $('login').focus(); return;
   }
   if ([...password].length < 10 || [...password].length > 128) {
@@ -160,9 +160,7 @@ $('auth-form').onsubmit = async event => {
     const user = await api(`/api/v1/auth/${action}`, {method:'POST',body:JSON.stringify({username,password})});
     $('password').value=''; showUser(user); await loadProviderUsage(); await loadNotes(); await loadJobs(); message();
   } catch(e) {
-    authMessage(action === 'login' && e.message === 'Неверное имя или пароль'
-      ? 'Неверное имя или пароль. Если вы впервые вошли в этот режим, нажмите «Создать аккаунт».'
-      : e.message);
+    authMessage(e.message);
   } finally { buttons.forEach(b => b.disabled=false); }
 };
 $('logout').onclick = async () => {
@@ -172,19 +170,19 @@ $('logout').onclick = async () => {
 };
 $('example').onclick = async () => {
   try {
-    if ($('thought').value.trim() && !confirm('Заменить введённый текст демонстрационным примером?')) return;
+    if ($('thought').value.trim() && !confirm('Заменить ваш текст примером?')) return;
     $('thought').value = (await api('/api/v1/example')).text;
   } catch(e) { message(e.message); }
 };
 $('capture-form').onsubmit = async event => {
   event.preventDefault(); const text = $('thought').value;
-  if (!text.trim()) return message('Добавьте хотя бы одну мысль.');
+  if (!text.trim()) return message('Напишите что-нибудь.');
   // Keep the same key after a network error: retrying must not create another paid job.
   if (!pendingCapture || pendingCapture.text !== text) pendingCapture = {text,key:crypto.randomUUID()};
   $('capture-submit').disabled = true; $('thought').disabled=true; $('example').disabled=true;
   try {
     const job = await api('/api/v1/captures/text',{method:'POST',headers:{'Idempotency-Key':pendingCapture.key},body:JSON.stringify({text})});
-    message('Оригинал сохранён.'); await loadJobs(); await pollJob(job.id,epoch);
+    message('Запись сохранена.'); await loadJobs(); await pollJob(job.id,epoch);
   } catch(e) { message(e.message); } finally {
     $('capture-submit').disabled=false; $('thought').disabled=false; $('example').disabled=false;
   }
@@ -193,7 +191,7 @@ $('edit-form').onsubmit = async event => {
   event.preventDefault(); const button = event.target.querySelector('button'); button.disabled=true;
   try {
     renderNote(await api(`/api/v1/notes/${currentNote.id}`,{method:'PATCH',body:JSON.stringify({version:currentNote.version,title:$('title').value,markdown:$('markdown').value})}));
-    await loadNotes(); message('Правки сохранены. Оригинал не изменён.');
+    await loadNotes(); message('Правки сохранены.');
   } catch(e) { message(e.message); } finally { button.disabled=false; }
 };
 $('markdown').oninput = () => renderMarkdown($('markdown').value);
@@ -219,8 +217,8 @@ window.addEventListener('beforeunload',event=>{if(dirty()){event.preventDefault(
   try {
     const health = await api('/health');
     $('mode').textContent = health.simulation
-      ? 'Демонстрационный режим: запросы к ИИ не отправляются. Встроенный пример использует подготовленный ответ; другой текст получает только простую разметку.'
-      : 'Режим Cloud.ru выбран. Подключение подтвердится после первой готовой заметки.';
+      ? 'Демо без ИИ. Для примера есть готовый ответ, остальные записи просто размечаются.'
+      : 'Cloud.ru выбран. Подключение проверится после первой готовой заметки.';
     try { showUser(await api('/api/v1/auth/me')); await loadProviderUsage(); await loadNotes(); await loadJobs(); }
     catch(e) { if (!e.message.includes('Войдите') && !e.message.includes('Сессия')) message(e.message); }
   } catch(e) { $('mode').textContent='Не удалось связаться с приложением.'; message(e.message); }

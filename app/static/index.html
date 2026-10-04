@@ -3,50 +3,49 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Умные заметки — мысли по местам</title>
+  <title>Умные заметки</title>
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/auth.css">
   <script src="/static/app.js" defer></script>
 </head>
 <body>
-  <header><a href="/" class="brand">Умные заметки<span>Береста / прототип</span></a><div id="account" hidden><span id="username"></span><button id="logout" class="quiet">Выйти</button></div></header>
+  <header><a href="/" class="brand">Умные заметки<span>Береста</span></a><div id="account" hidden><span id="username"></span><button id="logout" class="quiet">Выйти</button></div></header>
   <div id="mode" class="banner">Проверяем состояние приложения…</div>
   <p id="message" role="status" aria-live="polite"></p>
   <main>
     <section id="auth" class="card auth">
-      <p class="eyebrow">Место для ваших мыслей</p>
-      <h1>Сначала мысль.<br>Потом порядок.</h1>
-      <p>Соберите запись в понятную структуру. Оригинал останется рядом, а возможные выводы можно принять или отклонить.</p>
+      <p class="eyebrow">Береста</p>
+      <h1>Записывайте как есть</h1>
+      <p>Мы соберём ваши мысли в заметку. Исходный текст останется рядом.</p>
       <form id="auth-form" novalidate>
         <label for="login">Имя пользователя</label><input id="login" name="username" autocomplete="username" required minlength="3" maxlength="64" pattern="[A-Za-zА-Яа-яЁё0-9_.-]+" placeholder="Например, Марк">
-        <p class="field-hint">От 3 символов. Можно использовать русские и латинские буквы, цифры, точку, дефис и подчёркивание.</p>
+        <p class="field-hint">От 3 символов. Можно по-русски.</p>
         <label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="128" placeholder="Не менее 10 символов">
-        <p class="field-hint">Если это первый вход в текущем режиме, сначала создайте аккаунт.</p>
         <div class="actions"><button type="submit" value="login">Войти</button><button type="submit" value="register" class="secondary">Создать аккаунт</button></div>
         <p id="auth-message" role="alert" aria-live="assertive" hidden></p>
       </form>
     </section>
     <div id="workspace" class="workspace" hidden>
-      <aside class="card"><p class="eyebrow">Личное пространство</p><h2>Мои заметки</h2><button id="new-note" class="secondary">+ Новая мысль</button><nav id="notes" aria-label="Заметки"></nav><button id="more-notes" class="quiet" hidden>Показать ещё</button></aside>
+      <aside class="card"><h2>Мои заметки</h2><button id="new-note" class="secondary">+ Новая запись</button><nav id="notes" aria-label="Заметки"></nav><button id="more-notes" class="quiet" hidden>Показать ещё</button></aside>
       <div>
         <section id="capture-card" class="card">
-          <p class="eyebrow">01 / Записать</p><h1>О чём думаете?</h1>
-          <p>Пишите как есть: обрывки идей, планы, сомнения. Не нужно заранее наводить порядок.</p>
-          <form id="capture-form"><label for="thought">Ваши мысли</label><textarea id="thought" rows="8" maxlength="12000" required placeholder="Сегодня обсуждали запуск…"></textarea><div class="actions"><button id="capture-submit" type="submit">Структурировать</button><button id="example" type="button" class="secondary">Попробовать пример</button></div></form>
+          <p class="eyebrow">Новая запись</p><h1>О чём думаете?</h1>
+          <p>Пишите как есть. Порядок наведём потом.</p>
+          <form id="capture-form"><label for="thought">Ваши мысли</label><textarea id="thought" rows="8" maxlength="12000" required placeholder="Сегодня обсуждали запуск…"></textarea><div class="actions"><button id="capture-submit" type="submit">Сделать заметку</button><button id="example" type="button" class="secondary">Попробовать пример</button></div></form>
           <p id="job-status" aria-live="polite"></p>
-          <details><summary>Последние записи и задания</summary><div id="jobs"></div></details>
+          <details><summary>Последние записи</summary><div id="jobs"></div></details>
         </section>
         <section id="note-card" class="card" hidden>
-          <p class="eyebrow">02 / Осмыслить</p><p id="note-mode" class="muted"></p>
-          <details><summary>Оригинал — сохранён без изменений</summary><pre id="original"></pre></details>
-          <form id="edit-form"><label for="title">Заголовок</label><input id="title" maxlength="200" required><label for="markdown">Заметка · Markdown</label><textarea id="markdown" rows="10" maxlength="24000" required></textarea><button type="submit">Сохранить правки</button></form>
-          <details open><summary>Предпросмотр разметки</summary><div id="preview"></div></details>
-          <h2>Возможные выводы</h2><p class="muted">Это предложения, а не факты из исходной записи. Принятие вывода не меняет оригинал.</p><div id="conclusions"></div>
-          <details><summary>История изменений</summary><button id="load-history" class="quiet">Показать версии</button><div id="history"></div></details>
+          <p class="eyebrow">Заметка</p><p id="note-mode" class="muted"></p>
+          <details><summary>Исходная запись</summary><pre id="original"></pre></details>
+          <form id="edit-form"><label for="title">Заголовок</label><input id="title" maxlength="200" required><label for="markdown">Текст заметки</label><textarea id="markdown" rows="10" maxlength="24000" required></textarea><button type="submit">Сохранить</button></form>
+          <details open><summary>Как выглядит заметка</summary><div id="preview"></div></details>
+          <h2>Выводы</h2><p class="muted">Проверьте их перед тем, как принять.</p><div id="conclusions"></div>
+          <details><summary>История</summary><button id="load-history" class="quiet">Показать версии</button><div id="history"></div></details>
         </section>
       </div>
     </div>
   </main>
-  <footer>Текстовый прототип · Голос и Telegram появятся следующим этапом.</footer>
+  <footer>Пока работают только текстовые заметки.</footer>
 </body>
 </html>
