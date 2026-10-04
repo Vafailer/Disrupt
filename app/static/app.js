@@ -15,6 +15,10 @@ const errors = {
   provider_timeout_unknown:'Модель не ответила вовремя. Запрос мог быть оплачен; повтор не выполнялся.',
 };
 function message(text = '') { $('message').textContent = text; }
+function authMessage(text = '') {
+  $('auth-message').textContent = text;
+  $('auth-message').hidden = !text;
+}
 function element(tag, text, className) {
   const el = document.createElement(tag); el.textContent = text;
   if (className) el.className = className;
@@ -137,12 +141,29 @@ async function pollJob(id, currentEpoch) {
   if (currentEpoch===epoch) message('Запись сохранена. Обработка ещё продолжается — проверьте последние задания позже.');
 }
 $('auth-form').onsubmit = async event => {
-  event.preventDefault(); const buttons = [...event.target.querySelectorAll('button')];
+  event.preventDefault();
+  const username = $('login').value.trim();
+  const password = $('password').value;
+  const action = event.submitter?.value || 'login';
+  if (!/^[A-Za-zА-Яа-яЁё0-9_.-]{3,64}$/u.test(username)) {
+    authMessage('Имя должно содержать от 3 до 64 символов. Можно использовать русские и латинские буквы, цифры, точку, дефис и подчёркивание.');
+    $('login').focus(); return;
+  }
+  if ([...password].length < 10 || [...password].length > 128) {
+    authMessage('Пароль должен содержать от 10 до 128 символов.');
+    $('password').focus(); return;
+  }
+  authMessage();
+  const buttons = [...event.target.querySelectorAll('button')];
   buttons.forEach(b => b.disabled=true);
   try {
-    const user = await api(`/api/v1/auth/${event.submitter.value}`, {method:'POST',body:JSON.stringify({username:$('login').value,password:$('password').value})});
+    const user = await api(`/api/v1/auth/${action}`, {method:'POST',body:JSON.stringify({username,password})});
     $('password').value=''; showUser(user); await loadProviderUsage(); await loadNotes(); await loadJobs(); message();
-  } catch(e) { message(e.message); } finally { buttons.forEach(b => b.disabled=false); }
+  } catch(e) {
+    authMessage(action === 'login' && e.message === 'Неверное имя или пароль'
+      ? 'Неверное имя или пароль. Если вы впервые вошли в этот режим, нажмите «Создать аккаунт».'
+      : e.message);
+  } finally { buttons.forEach(b => b.disabled=false); }
 };
 $('logout').onclick = async () => {
   if (dirty() && !confirm('Выйти без сохранения правок?')) return;
@@ -199,7 +220,7 @@ window.addEventListener('beforeunload',event=>{if(dirty()){event.preventDefault(
     const health = await api('/health');
     $('mode').textContent = health.simulation
       ? 'Демонстрационный режим: запросы к ИИ не отправляются. Встроенный пример использует подготовленный ответ; другой текст получает только простую разметку.'
-      : 'Cloud.ru подключён: обработка новой записи расходует запросы к модели.';
+      : 'Режим Cloud.ru выбран. Подключение подтвердится после первой готовой заметки.';
     try { showUser(await api('/api/v1/auth/me')); await loadProviderUsage(); await loadNotes(); await loadJobs(); }
     catch(e) { if (!e.message.includes('Войдите') && !e.message.includes('Сессия')) message(e.message); }
   } catch(e) { $('mode').textContent='Не удалось связаться с приложением.'; message(e.message); }

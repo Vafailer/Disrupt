@@ -1,0 +1,14 @@
+.field-hint {
+  margin: 5px 0;
+  color: #677568;
+  font-size: 12px;
+}
+
+#auth-message {
+  padding: 10px 12px;
+  border: 1px solid #e8baa4;
+  border-radius: 8px;
+  background: #fff1e9;
+  color: #733d2d;
+  font-size: 14px;
+}

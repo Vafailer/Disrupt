@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Умные заметки — мысли по местам</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/auth.css">
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -16,10 +17,13 @@
       <p class="eyebrow">Место для ваших мыслей</p>
       <h1>Сначала мысль.<br>Потом порядок.</h1>
       <p>Соберите запись в понятную структуру. Оригинал останется рядом, а возможные выводы можно принять или отклонить.</p>
-      <form id="auth-form">
-        <label for="login">Имя пользователя</label><input id="login" name="username" autocomplete="username" required minlength="3" maxlength="64" pattern="[A-Za-z0-9_.\-]+" placeholder="Например, mark">
+      <form id="auth-form" novalidate>
+        <label for="login">Имя пользователя</label><input id="login" name="username" autocomplete="username" required minlength="3" maxlength="64" pattern="[A-Za-zА-Яа-яЁё0-9_.-]+" placeholder="Например, Марк">
+        <p class="field-hint">От 3 символов. Можно использовать русские и латинские буквы, цифры, точку, дефис и подчёркивание.</p>
         <label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="128" placeholder="Не менее 10 символов">
+        <p class="field-hint">Если это первый вход в текущем режиме, сначала создайте аккаунт.</p>
         <div class="actions"><button type="submit" value="login">Войти</button><button type="submit" value="register" class="secondary">Создать аккаунт</button></div>
+        <p id="auth-message" role="alert" aria-live="assertive" hidden></p>
       </form>
     </section>
     <div id="workspace" class="workspace" hidden>

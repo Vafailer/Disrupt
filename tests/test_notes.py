@@ -24,6 +24,18 @@ def ready_note(app, client):
     return client.get("/api/v1/notes/" + job["note_id"]).json()
 
 
+def test_cyrillic_username_can_register_and_log_in(client):
+    account = register(client, "Марк")
+    assert account["username"] == "марк"
+    assert client.post("/api/v1/auth/logout").status_code == 204
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": "МАРК", "password": "test-only-password-123"},
+    )
+    assert response.status_code == 200
+    assert response.json()["username"] == "марк"
+
+
 def test_full_note_lifecycle_and_restart(app, client, app_factory):
     register(client)
     note = ready_note(app, client)
