@@ -26,6 +26,7 @@ try {
     $model = Read-Host "Model ID [$defaultModel]"
     if ([string]::IsNullOrWhiteSpace($model)) { $model = $defaultModel }
 
+    Write-Host 'This is a lifetime cap for data/cloudru.db; restarting does not reset the counter.'
     $limitText = Read-Host 'Maximum number of Cloud.ru requests for this database [5]'
     if ([string]::IsNullOrWhiteSpace($limitText)) { $limitText = '5' }
     $requestLimit = 0
