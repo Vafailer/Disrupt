@@ -1,6 +1,5 @@
 import asyncio
 import copy
-import logging
 import re
 import secrets
 import time
@@ -16,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.config import Settings
 from app.db import make_database
+from app.error_logging import log_error
 from app.models import Job, LoginSession, Note, ProviderBudget, Revision, User
 from app.providers import DEMO_TEXT
 from app.schemas import ConclusionEdit, Credentials, NoteEdit, TextCapture
@@ -33,7 +33,6 @@ from app.services import capture_text, edit_note, job_view, note_view, owned_not
 from app.worker import Worker
 
 STATIC = Path(__file__).parent / "static"
-logger = logging.getLogger(__name__)
 
 
 class BodyLimit:
@@ -83,8 +82,13 @@ def create_app(settings: Settings | None = None, provider=None):
                 while not stop.is_set():
                     try:
                         await asyncio.to_thread(worker.run_once)
-                    except Exception:
-                        logger.error("Worker iteration failed; no provider retry scheduled")
+                    except Exception as exc:
+                        log_error(
+                            "worker_iteration_failed",
+                            "internal_error",
+                            log_file=settings.error_log_file,
+                            exception=exc,
+                        )
                     try:
                         await asyncio.wait_for(stop.wait(), timeout=0.5)
                     except TimeoutError:
@@ -110,7 +114,22 @@ def create_app(settings: Settings | None = None, provider=None):
 
     @app.middleware("http")
     async def security_headers(request, call_next):
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            request_id = secrets.token_hex(8)
+            log_error(
+                "request_failed",
+                "internal_error",
+                log_file=settings.error_log_file,
+                request_id=request_id,
+                method=request.method,
+                exception=exc,
+            )
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": "Внутренняя ошибка. Попробуйте позже.", "error_id": request_id},
+            )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"

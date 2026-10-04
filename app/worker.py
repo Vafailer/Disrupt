@@ -1,6 +1,5 @@
 """Durable at-most-once dispatch. Ambiguous failures never trigger an automatic retry."""
 
-import logging
 import time
 
 from pydantic import ValidationError
@@ -8,11 +7,10 @@ from sqlalchemy import select, update
 
 from app.config import Settings
 from app.db import make_database
+from app.error_logging import log_error
 from app.models import Capture, Job, Note, ProviderBudget, User, new_id
 from app.providers import ProviderError, make_provider, validate_result
 from app.services import save_revision
-
-logger = logging.getLogger(__name__)
 
 
 class Worker:
@@ -24,11 +22,17 @@ class Worker:
     def claim(self):
         now = time.time()
         with self.sessions() as db:
-            db.execute(
+            expired = db.execute(
                 update(Job)
                 .where(Job.status == "running", Job.lease_until < now)
                 .values(status="failed", error_code="execution_unknown", finished_at=now)
-            )
+            ).rowcount
+            if expired:
+                log_error(
+                    "job_lease_expired",
+                    "execution_unknown",
+                    log_file=self.settings.error_log_file,
+                )
             job_id = db.scalar(
                 select(Job.id)
                 .where(Job.status == "queued", Job.provider == self.settings.provider)
@@ -68,7 +72,15 @@ class Worker:
             raise ProviderError("budget_exhausted")
         db.commit()  # Reservation survives crashes; an uncertain call still consumes a slot.
 
-    def fail(self, job_id, code):
+    def fail(self, job_id, code, *, exception=None, http_status=None):
+        log_error(
+            "job_failed",
+            code,
+            log_file=self.settings.error_log_file,
+            job_id=job_id,
+            http_status=http_status,
+            exception=exception,
+        )
         with self.sessions() as db:
             db.execute(
                 update(Job)
@@ -117,13 +129,11 @@ class Worker:
                 save_revision(db, note)
                 db.commit()
         except ProviderError as exc:
-            self.fail(job_id, exc.code)
-        except ValidationError:
-            self.fail(job_id, "provider_invalid_response")
-        except Exception:
-            # Never log exceptions from a provider: they can contain credentials or note text.
-            logger.error("Job failed with an internal error: %s", job_id)
-            self.fail(job_id, "internal_error")
+            self.fail(job_id, exc.code, exception=exc, http_status=exc.http_status)
+        except ValidationError as exc:
+            self.fail(job_id, "provider_invalid_response", exception=exc)
+        except Exception as exc:
+            self.fail(job_id, "internal_error", exception=exc)
         return True
 
 

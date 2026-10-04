@@ -32,6 +32,7 @@ class Settings:
     max_pending_per_user: int = 10
     session_seconds: int = 86400
     lease_seconds: int = 120
+    error_log_file: str = "data/errors.log"
 
     def __post_init__(self):
         if self.provider not in {"mock", "cloudru"}:
@@ -77,4 +78,5 @@ class Settings:
             cloudru_model=os.environ.get("NOTES_CLOUDRU_MODEL", ""),
             live_call_limit=int(os.environ.get("NOTES_LIVE_CALL_LIMIT", "0")),
             live_user_call_limit=int(os.environ.get("NOTES_LIVE_USER_CALL_LIMIT", "0")),
+            error_log_file=os.environ.get("NOTES_ERROR_LOG_FILE", "data/errors.log"),
         )
