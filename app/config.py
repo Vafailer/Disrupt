@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import quote_plus
 
+PROGRAM_BASE_URL = "https://shared1.multitool.works:4000/v1"
+OFFICIAL_BASE_URL = "https://foundation-models.api.cloud.ru/v1"
+ALLOWED_MODEL_BASE_URLS = {PROGRAM_BASE_URL, OFFICIAL_BASE_URL}
+
 
 def read_secret_file(path: str, *, maximum: int = 16384) -> str:
     value = Path(path).read_text(encoding="utf-8")
@@ -27,6 +31,7 @@ class Settings:
     allow_registration: bool = True
     allow_live_requests: bool = False
     cloudru_model: str = ""
+    cloudru_base_url: str = PROGRAM_BASE_URL
     live_call_limit: int = 0
     live_user_call_limit: int = 0
     max_pending_per_user: int = 10
@@ -46,6 +51,8 @@ class Settings:
             or self.live_user_call_limit <= 0
         ):
             raise ValueError("Live mode requires explicit permission, model and positive call limits")
+        if self.provider == "cloudru" and self.cloudru_base_url.rstrip("/") not in ALLOWED_MODEL_BASE_URLS:
+            raise ValueError("Model base URL must be an approved HTTPS endpoint")
 
     @classmethod
     def from_env(cls):
@@ -76,6 +83,7 @@ class Settings:
             allow_registration=flag("NOTES_ALLOW_REGISTRATION", True),
             allow_live_requests=flag("NOTES_ALLOW_LIVE_REQUESTS", False),
             cloudru_model=os.environ.get("NOTES_CLOUDRU_MODEL", ""),
+            cloudru_base_url=os.environ.get("NOTES_CLOUDRU_BASE_URL", PROGRAM_BASE_URL),
             live_call_limit=int(os.environ.get("NOTES_LIVE_CALL_LIMIT", "0")),
             live_user_call_limit=int(os.environ.get("NOTES_LIVE_USER_CALL_LIMIT", "0")),
             error_log_file=os.environ.get("NOTES_ERROR_LOG_FILE", "data/errors.log"),

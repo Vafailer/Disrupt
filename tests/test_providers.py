@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app.config import Settings
+from app.config import OFFICIAL_BASE_URL, PROGRAM_BASE_URL, Settings
 from app.main import create_app
 from app.models import Job, ProviderBudget, User
 from app.providers import CloudRuProvider, MockProvider, ProviderError, make_provider
@@ -39,6 +39,34 @@ def test_cloudru_contract_uses_fake_transport_only():
     assert not requests  # Initialization does not discover models or validate credentials.
     assert provider.structure("Мысль").title == "Мысль"
     assert len(requests) == 1
+
+
+def test_program_gateway_is_the_default_and_official_endpoint_remains_available(monkeypatch):
+    assert CloudRuProvider("fake-test-key", "test-model").endpoint == (
+        PROGRAM_BASE_URL + "/chat/completions"
+    )
+    monkeypatch.setenv("NOTES_CLOUDRU_API_KEY", "fake-test-key")
+    settings = Settings(
+        provider="cloudru",
+        allow_live_requests=True,
+        cloudru_model="test-model",
+        cloudru_base_url=OFFICIAL_BASE_URL,
+        live_call_limit=1,
+        live_user_call_limit=1,
+    )
+    assert make_provider(settings).endpoint == OFFICIAL_BASE_URL + "/chat/completions"
+
+
+def test_unapproved_model_endpoint_is_rejected():
+    with pytest.raises(ValueError, match="approved HTTPS endpoint"):
+        Settings(
+            provider="cloudru",
+            allow_live_requests=True,
+            cloudru_model="test-model",
+            cloudru_base_url="https://other.example/v1",
+            live_call_limit=1,
+            live_user_call_limit=1,
+        )
 
 
 @pytest.mark.parametrize(
@@ -260,4 +288,4 @@ def test_mock_worker_does_not_consume_cloud_queue(app, client):
 
 def test_real_transport_is_blocked_by_test_suite():
     with pytest.raises(AssertionError, match="network"):
-        httpx.get("https://foundation-models.api.cloud.ru/v1/models")
+        httpx.get(PROGRAM_BASE_URL + "/models")

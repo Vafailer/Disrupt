@@ -8,7 +8,8 @@ x-backend-environment: &backend-environment
   NOTES_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
   NOTES_PROVIDER: cloudru
   NOTES_ALLOW_LIVE_REQUESTS: "true"
-  NOTES_CLOUDRU_MODEL: ${NOTES_CLOUDRU_MODEL:-ai-sage/GigaChat3-10B-A1.8B}
+  NOTES_CLOUDRU_MODEL: ${NOTES_CLOUDRU_MODEL:-deepseek-v4-flash}
+  NOTES_CLOUDRU_BASE_URL: ${NOTES_CLOUDRU_BASE_URL:-https://shared1.multitool.works:4000/v1}
   NOTES_LIVE_CALL_LIMIT: ${NOTES_LIVE_CALL_LIMIT:-100}
   NOTES_LIVE_USER_CALL_LIMIT: ${NOTES_LIVE_USER_CALL_LIMIT:-10}
   NOTES_AUTO_WORKER: "false"

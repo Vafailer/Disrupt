@@ -7,7 +7,7 @@ from typing import Protocol
 import httpx
 from pydantic import ValidationError
 
-from app.config import Settings, read_secret_file
+from app.config import ALLOWED_MODEL_BASE_URLS, PROGRAM_BASE_URL, Settings, read_secret_file
 from app.schemas import StructuredNote
 
 SYSTEM_PROMPT = """Ты помогаешь структурировать мысли пользователя на русском языке.
@@ -76,12 +76,23 @@ class MockProvider:
 
 
 class CloudRuProvider:
-    endpoint = "https://foundation-models.api.cloud.ru/v1/chat/completions"
+    endpoint = PROGRAM_BASE_URL + "/chat/completions"
 
-    def __init__(self, api_key: str, model: str, *, transport: httpx.BaseTransport | None = None):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        *,
+        base_url: str = PROGRAM_BASE_URL,
+        transport: httpx.BaseTransport | None = None,
+    ):
+        base_url = base_url.rstrip("/")
+        if base_url not in ALLOWED_MODEL_BASE_URLS:
+            raise ValueError("Model base URL must be an approved HTTPS endpoint")
         self._api_key = api_key
         self._model = model
         self._transport = transport
+        self.endpoint = base_url + "/chat/completions"
 
     def structure(self, text):
         try:
@@ -156,4 +167,4 @@ def make_provider(settings: Settings) -> LLMProvider:
         key = read_secret_file(key_file)
     if not key:
         raise ValueError("Live worker requires NOTES_CLOUDRU_API_KEY or NOTES_CLOUDRU_API_KEY_FILE")
-    return CloudRuProvider(key, settings.cloudru_model)
+    return CloudRuProvider(key, settings.cloudru_model, base_url=settings.cloudru_base_url)

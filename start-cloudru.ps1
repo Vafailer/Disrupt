@@ -22,7 +22,7 @@ try {
         throw 'API key is empty.'
     }
 
-    $defaultModel = 'ai-sage/GigaChat3-10B-A1.8B'
+    $defaultModel = 'deepseek-v4-flash'
     $model = Read-Host "Model ID [$defaultModel]"
     if ([string]::IsNullOrWhiteSpace($model)) { $model = $defaultModel }
 
@@ -38,6 +38,7 @@ try {
     $env:NOTES_ALLOW_LIVE_REQUESTS = 'true'
     $env:NOTES_CLOUDRU_API_KEY = $plainKey
     $env:NOTES_CLOUDRU_MODEL = $model
+    $env:NOTES_CLOUDRU_BASE_URL = 'https://shared1.multitool.works:4000/v1'
     $env:NOTES_LIVE_CALL_LIMIT = [string]$requestLimit
     $env:NOTES_LIVE_USER_CALL_LIMIT = [string]$requestLimit
     $env:NOTES_AUTO_WORKER = 'true'
@@ -55,6 +56,7 @@ try {
     Write-Host ''
     Write-Host "Application: http://127.0.0.1:8000" -ForegroundColor Green
     Write-Host "Model: $model"
+    Write-Host "API: $env:NOTES_CLOUDRU_BASE_URL"
     Write-Host "Lifetime request cap for data/cloudru.db: $requestLimit"
     Write-Host 'Keep this window open. Stop the server with Ctrl+C.'
     Write-Host ''
