@@ -38,7 +38,7 @@ function showUser(user) {
 async function loadProviderUsage() {
   const usage = await api('/api/v1/provider/usage');
   if (usage.simulation) return;
-  $('mode').textContent = `Cloud.ru подключён · модель ${usage.model} · использовано ${usage.global_used} из ${usage.global_limit}, осталось ${usage.global_remaining}. Одна новая заметка — один запрос.`;
+  $('mode').textContent = `Режим Cloud.ru · модель ${usage.model} · использовано ${usage.global_used} из ${usage.global_limit}, осталось ${usage.global_remaining}. Подключение подтвердится после первой готовой заметки.`;
 }
 async function loadNotes(reset = true) {
   if (reset) { notesOffset = 0; $('notes').replaceChildren(); }
