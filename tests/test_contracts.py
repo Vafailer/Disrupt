@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from app.config import Settings
 from app.contracts import AdminSummary, Percentage
 from app.main import create_app
+from app.schemas import IntegrationError, TelegramLink, TelegramText
 
 
 def test_admin_reference_shape_and_nulls():
@@ -38,6 +39,8 @@ def test_percentages_do_not_hide_missing_denominator(raw):
 def test_published_contract_marks_unimplemented_routes_and_valid_refs():
     spec = json.loads(Path("docs/integration-v1.openapi.json").read_text())
     assert spec["paths"]["/internal/v1/telegram/updates"]["post"]["x-implementation-status"] == "implemented"
+    assert spec["paths"]["/internal/v1/telegram/actions"]["post"]["x-implementation-status"] == "implemented"
+    assert spec["paths"]["/internal/v1/telegram/voice"]["post"]["x-implementation-status"] == "contract-only"
     assert spec["paths"]["/api/admin/summary"]["get"]["x-implementation-status"] == "contract-only"
     app = create_app(Settings(auto_worker=False, database_url="sqlite:///:memory:"))
     try:
@@ -62,3 +65,17 @@ def test_published_contract_marks_unimplemented_routes_and_valid_refs():
                 visit(child)
 
     visit(spec)
+
+
+def test_colleague_contract_filenames_share_one_schema_and_valid_examples():
+    spec = json.loads(Path("docs/integration-v1.openapi.json").read_text())
+    assert json.loads(Path("docs/integration-v1.yaml").read_text()) == spec
+    examples = json.loads(Path("docs/integration-v1-examples.json").read_text())
+    for example in examples["telegram_text"].values():
+        TelegramText.model_validate(example["request"])
+    TelegramLink.model_validate(examples["telegram_link"]["request"])
+    for example in examples["errors"]:
+        IntegrationError.model_validate(example["response"])
+    voice = spec["paths"]["/internal/v1/telegram/voice"]["post"]
+    fields = voice["requestBody"]["content"]["multipart/form-data"]["schema"]["properties"]
+    assert fields["bot_id"]["type"] == "string"

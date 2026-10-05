@@ -14,6 +14,11 @@ from app.main import create_app
 
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch):
+    # Mock tests must not initialize a workstation's proxy or require its SOCKS extras.
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(name.lower(), raising=False)
+
     def forbidden(*args, **kwargs):
         raise AssertionError("Real network access is forbidden in tests")
 

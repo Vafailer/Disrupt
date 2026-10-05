@@ -27,8 +27,19 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
+      - name: Read pinned colleague adapter without merging branches
+        run: |
+          git fetch --no-tags origin c63c3168aea59fb6d1c5dc50fd958346d43405c3
+          mkdir -p "$RUNNER_TEMP/beresta-telegram-adapter"
+          git archive c63c3168aea59fb6d1c5dc50fd958346d43405c3 telegram_adapter | tar -x -C "$RUNNER_TEMP/beresta-telegram-adapter"
       - run: python -m ruff check app tests migrations
+      - name: Check generated contract
+        run: |
+          PYTHONPATH=. python scripts/export_contract.py
+          git diff --exit-code -- docs/integration-v1.openapi.json docs/integration-v1.yaml docs/integration-v1-examples.json
       - run: python -m pytest -q
+        env:
+          TEST_TELEGRAM_ADAPTER_PATH: ${{ runner.temp }}/beresta-telegram-adapter
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

@@ -7,8 +7,6 @@ from fastapi import Depends, Query
 
 from app.config import Settings
 from app.contracts import (
-    ActionRequest,
-    ActionResponse,
     AdminSummary,
     AuthorizeRequest,
     AuthorizeResponse,
@@ -23,10 +21,6 @@ from app.security import require_internal_service
 
 app = create_app(Settings(auto_worker=False, database_url="sqlite:///:memory:"))
 implemented = set(app.openapi()["paths"])
-
-
-def actions(body: ActionRequest) -> ActionResponse:
-    raise NotImplementedError
 
 
 def claim(body: ClaimRequest) -> ClaimResponse:
@@ -53,7 +47,6 @@ def summary(
 
 
 for path, endpoint in [
-    ("/telegram/actions", actions),
     ("/deliveries/claim", claim),
     ("/deliveries/{delivery_id}/authorize", authorize),
     ("/deliveries/{delivery_id}/result", result),
@@ -64,7 +57,7 @@ for path, endpoint in [
         methods=["POST"],
         tags=["internal-v1"],
         dependencies=[Depends(require_internal_service)],
-        responses={c: {"model": IntegrationError} for c in (401, 403, 409, 413, 422, 429, 503)},
+        responses={c: {"model": IntegrationError} for c in (400, 401, 403, 409, 413, 422, 429, 503)},
     )
 app.add_api_route(
     "/api/admin/summary",
@@ -148,13 +141,17 @@ spec["paths"]["/internal/v1/telegram/voice"] = {
                         "properties": {
                             **{
                                 field: {
-                                    "type": "integer",
-                                    "format": "int64",
-                                    "minimum": 0 if field == "update_id" else 1,
+                                    "type": "string",
+                                    "pattern": "^[0-9]+$",
+                                    "description": "Decimal int64, maximum 9223372036854775807; "
+                                    + ("zero allowed" if field == "update_id" else "positive"),
                                 }
                                 for field in ["bot_id", "update_id", "telegram_user_id", "chat_id"]
                             },
-                            "audio": {"type": "string", "format": "binary"},
+                            "audio": {
+                                "type": "string", "format": "binary",
+                                "description": "At most 10485760 bytes and 180 seconds; validate actual media on server",
+                            },
                             "processing_mode": {"type": "string", "enum": ["ai"]},
                         },
                     }
@@ -181,10 +178,49 @@ spec["paths"]["/internal/v1/telegram/voice"] = {
                         }
                     },
                 }
-                for c in (401, 403, 409, 413, 422, 429, 503)
+                for c in (400, 401, 403, 409, 413, 422, 429, 503)
             },
         },
     }
 }
-Path("docs/integration-v1.openapi.json").write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n")
+base = {"bot_id": 1234567890123, "update_id": 12, "telegram_user_id": 2345678901234, "chat_id": 2345678901234}
+examples = {
+    "telegram_text": {
+        mode: {
+            "request": {**base, "text": "  Пример записи\n", "processing_mode": mode},
+            "response": json.loads(Path(f"docs/fixtures/telegram-save-{mode}.json").read_text()),
+        }
+        for mode in ("ai", "manual")
+    },
+    "telegram_link": {
+        "request": {**base, "code": "x" * 43},
+        "response": {"link_request_id": "00000000-0000-4000-8000-000000000103", "status": "pending"},
+    },
+    "telegram_action": {
+        "request": {
+            "bot_id": base["bot_id"], "update_id": 13,
+            "telegram_user_id": base["telegram_user_id"], "callback_token": "x" * 43,
+        },
+        "responses": [{"status": "completed"}, {"status": "already_completed"}],
+    },
+    "errors": json.loads(Path("docs/fixtures/integration-errors.json").read_text()),
+}
+for path, method in [
+    ("/internal/v1/telegram/link-request", "post"),
+    ("/internal/v1/telegram/updates", "post"),
+    ("/internal/v1/telegram/actions", "post"),
+    ("/internal/v1/telegram/voice", "post"),
+]:
+    for code, response in spec["paths"][path][method]["responses"].items():
+        values = {
+            item["response"]["error"]["code"]: {"value": item["response"]}
+            for item in examples["errors"] if str(item["http_status"]) == code
+        }
+        if values and "application/json" in response.get("content", {}):
+            response["content"]["application/json"]["examples"] = values
+serialized = json.dumps(spec, ensure_ascii=False, indent=2) + "\n"
+Path("docs/integration-v1.openapi.json").write_text(serialized)
+# JSON is also valid YAML. Both consumer filenames are generated from the same object.
+Path("docs/integration-v1.yaml").write_text(serialized)
+Path("docs/integration-v1-examples.json").write_text(json.dumps(examples, ensure_ascii=False, indent=2) + "\n")
 app.state.engine.dispose()

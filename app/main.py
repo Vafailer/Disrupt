@@ -17,6 +17,7 @@ from app.analytics import record_event
 from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
+from app.integration import IntegrationRejection
 from app.models import Capture, Job, LoginSession, Note, ProviderBudget, Revision, User
 from app.providers import DEMO_TEXT
 from app.routes.account import build_router as account_router
@@ -41,10 +42,10 @@ from app.worker import Worker
 STATIC = Path(__file__).parent / "static"
 
 
-def integration_error(status, message, *, operation_id=None, headers=None):
-    code = {
+def integration_error(status, message, *, code=None, operation_id=None, headers=None):
+    code = code or {
         401: "unauthorized", 403: "forbidden", 404: "not_found", 409: "conflict",
-        413: "payload_too_large", 422: "invalid_input", 429: "rate_limited", 503: "unavailable",
+        413: "input_too_large", 422: "invalid_input", 429: "rate_limited", 503: "unavailable",
     }.get(status, "internal_error")
     return JSONResponse(
         {"error": {"code": code, "message": message}, "operation_id": operation_id or secrets.token_hex(16)},
@@ -55,19 +56,30 @@ def integration_error(status, message, *, operation_id=None, headers=None):
 class BodyLimit:
     """Bound the actual body, including chunked requests, before JSON parsing."""
 
+    AUDIO_MAXIMUM = 10 * 1024 * 1024
+    MULTIPART_OVERHEAD = 64 * 1024
+
     def __init__(self, app, maximum=131072):
         self.app, self.maximum = app, maximum
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope["method"] not in {"POST", "PUT", "PATCH"}:
             return await self.app(scope, receive, send)
+        content_type = next((v.lower() for k, v in scope.get("headers", []) if k == b"content-type"), b"")
+        maximum = self.maximum
+        if (
+            scope["method"] == "POST"
+            and scope["path"] == "/internal/v1/telegram/voice"
+            and content_type.split(b";", 1)[0].strip() == b"multipart/form-data"
+        ):
+            maximum = self.AUDIO_MAXIMUM + self.MULTIPART_OVERHEAD
         body = bytearray()
         while True:
             message = await receive()
             if message["type"] == "http.disconnect":
                 return
             body.extend(message.get("body", b""))
-            if len(body) > self.maximum:
+            if len(body) > maximum:
                 response = (
                     integration_error(413, "Слишком большой запрос")
                     if scope["path"].startswith("/internal/")
@@ -168,6 +180,20 @@ def create_app(settings: Settings | None = None, provider=None):
     async def invalid_input(request, exc):
         # Do not echo password, token, or original text in validation errors.
         if request.url.path.startswith("/internal/"):
+            errors = exc.errors()
+            fields = {tuple(e["loc"]) for e in errors}
+            if request.url.path == "/internal/v1/telegram/link-request" and fields == {("body", "code")}:
+                if all(e["type"] in {"string_too_short", "string_too_long", "string_pattern_mismatch"} for e in errors):
+                    return integration_error(400, "Ссылка недействительна", code="invalid_link")
+            if request.url.path == "/internal/v1/telegram/actions" and fields == {("body", "callback_token")}:
+                if all(e["type"] in {"string_too_short", "string_too_long", "value_error"} for e in errors):
+                    return integration_error(400, "Кнопка недействительна", code="action_expired")
+            if request.url.path == "/internal/v1/telegram/updates" and fields == {("body", "text")}:
+                if all(e["type"] == "string_too_long" for e in errors):
+                    return integration_error(413, "Запись слишком большая", code="input_too_large")
+                body = exc.body
+                if isinstance(body, dict) and isinstance(body.get("text"), str) and not body["text"].strip():
+                    return integration_error(400, "В записи нет текста", code="empty_input")
             return integration_error(422, "Проверьте формат и длину ввода")
         return JSONResponse(
             status_code=422,
@@ -180,7 +206,11 @@ def create_app(settings: Settings | None = None, provider=None):
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request, exc):
         if request.url.path.startswith("/internal/"):
-            return integration_error(exc.status_code, str(exc.detail), headers=exc.headers)
+            return integration_error(
+                exc.status_code, str(exc.detail), headers=exc.headers,
+                code=exc.code if isinstance(exc, IntegrationRejection) else None,
+                operation_id=exc.operation_id if isinstance(exc, IntegrationRejection) else None,
+            )
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
 
     def database():

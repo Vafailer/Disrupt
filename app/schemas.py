@@ -199,7 +199,7 @@ class TelegramText(TelegramOperation, TextCapture):
 
 
 class TelegramLink(TelegramOperation):
-    code: str = Field(min_length=40, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+    code: str = Field(min_length=22, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class LinkCodeResponse(StrictModel):
@@ -220,6 +220,16 @@ class TelegramCaptureResponse(StrictModel):
     note_url: str
 
 
+class IntegrationErrorDetail(StrictModel):
+    code: Literal[
+        "unauthorized", "forbidden", "not_found", "conflict", "invalid_input",
+        "rate_limited", "unavailable", "internal_error", "telegram_not_linked",
+        "link_expired", "link_conflict", "invalid_link", "input_too_large",
+        "unsupported_audio", "empty_input", "action_forbidden", "action_expired", "quota_exceeded",
+    ]
+    message: str
+
+
 class IntegrationError(StrictModel):
-    error: dict[str, str]
+    error: IntegrationErrorDetail
     operation_id: str

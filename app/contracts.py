@@ -6,7 +6,7 @@ for implemented vs contract-only methods.
 
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.schemas import StrictModel, TelegramID
 
@@ -15,7 +15,14 @@ class ActionRequest(StrictModel):
     bot_id: TelegramID
     update_id: int = Field(ge=0, le=9223372036854775807)
     telegram_user_id: TelegramID
-    callback_token: str = Field(min_length=32, max_length=64)
+    callback_token: str = Field(min_length=1, max_length=64)
+
+    @field_validator("callback_token")
+    @classmethod
+    def telegram_callback_size(cls, value):
+        if len(value.encode()) > 64:
+            raise ValueError("Telegram callback data cannot exceed 64 bytes")
+        return value
 
 
 class ActionResponse(StrictModel):

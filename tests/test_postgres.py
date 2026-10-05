@@ -1,6 +1,7 @@
 """Optional smoke test against an isolated, local CI PostgreSQL database."""
 
 import os
+import time
 import uuid
 
 import pytest
@@ -65,7 +66,8 @@ def test_postgresql_internal_link_concurrent_updates_and_manual(monkeypatch):
 
     from sqlalchemy import func, select
 
-    from app.models import Capture, Inbox, Job, ProductEvent
+    from app.models import Capture, Inbox, Item, Job, Note, Outbox, ProductEvent, Reminder, Revision
+    from app.security import hash_token
 
     url = os.environ["TEST_POSTGRES_URL"]
     assert make_url(url).host in {"127.0.0.1", "localhost", "::1"}
@@ -117,5 +119,49 @@ def test_postgresql_internal_link_concurrent_updates_and_manual(monkeypatch):
                     db.scalar(select(func.count()).select_from(Inbox).where(Inbox.bot_id == base["bot_id"]))
                     == 2
                 )
+                note = db.scalar(select(Note).where(Note.user_id == owner["id"]))
+                item = Item(user_id=owner["id"], note_id=note.id, kind="task", text="Проверить callback")
+                db.add(item)
+                db.flush()
+                reminder = Reminder(
+                    user_id=owner["id"], note_id=note.id, item_id=item.id, scheduled_at=time.time(),
+                    timezone="Europe/Moscow", text="Проверить callback",
+                )
+                db.add(reminder)
+                db.flush()
+                callback_token = uuid.uuid4().hex + uuid.uuid4().hex
+                delivery = Outbox(
+                    user_id=owner["id"], reminder_id=reminder.id, bot_id=base["bot_id"], chat_id=base["chat_id"],
+                    generation=1, status="sent", authorized_at=time.time(), callback_token_hash=hash_token(callback_token),
+                )
+                db.add(delivery)
+                db.commit()
+                note_id, item_id, reminder_id = note.id, item.id, reminder.id
+
+            def click(update_id):
+                return client.post(
+                    "/internal/v1/telegram/actions", headers=headers,
+                    json={
+                        "bot_id": base["bot_id"], "telegram_user_id": base["telegram_user_id"],
+                        "update_id": update_id, "callback_token": callback_token,
+                    },
+                )
+
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                completed = list(pool.map(click, range(3, 7)))
+            assert all(r.status_code == 200 for r in completed), [r.text for r in completed]
+            assert sum(r.json()["status"] == "completed" for r in completed) == 1
+            assert click(3).json() == completed[0].json()
+            with app.state.sessions() as db:
+                assert db.get(Note, note_id).version == db.get(Item, item_id).version == 2
+                assert db.get(Reminder, reminder_id).status == "cancelled"
+                assert db.get(Reminder, reminder_id).generation == 2
+                assert db.scalar(
+                    select(func.count()).select_from(Revision).where(Revision.note_id == note_id)
+                ) == 2
+                events = db.scalars(
+                    select(ProductEvent).where(ProductEvent.user_id == owner["id"], ProductEvent.name == "task_completed")
+                ).all()
+                assert len(events) == 1 and events[0].channel == "telegram"
     finally:
         app.state.engine.dispose()

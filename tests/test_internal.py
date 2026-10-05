@@ -62,7 +62,9 @@ def test_link_requires_web_confirmation_and_hash_only(service):
     owner = register(client)
     code, payload, response = pending_link(client)
     assert response == {"link_request_id": code["link_request_id"], "status": "pending"}
-    assert message(client).status_code == 403
+    rejected = message(client)
+    assert rejected.status_code == 403
+    assert rejected.json()["error"]["code"] == "telegram_not_linked"
     with app.state.sessions() as db:
         link = db.get(LinkRequest, code["link_request_id"])
         assert link.code_hash != code["code"] and len(link.code_hash) == 64
@@ -83,7 +85,8 @@ def test_link_requires_web_confirmation_and_hash_only(service):
     assert client.post(path).json() == {"status": "confirmed"}
     assert client.post(path).json() == {"status": "confirmed"}
     assert count(app, TelegramIdentity) == 1
-    assert message(client).status_code == 200
+    assert message(client).json() == rejected.json()  # Terminal refusal stays terminal after linking.
+    assert message(client, update_id=3).status_code == 200
 
 
 def test_one_account_two_channels_and_stable_replay(service):
@@ -136,8 +139,8 @@ def test_disabled_service(client):
     "extra,expected",
     [
         ({"user_id": "attacker"}, 422),
-        ({"text": " "}, 422),
-        ({"text": "x" * 12001}, 422),
+        ({"text": " "}, 400),
+        ({"text": "x" * 12001}, 413),
         ({"chat_id": 1}, 403),
         ({"telegram_user_id": True}, 422),
         ({"bot_id": 2**63}, 422),
@@ -229,7 +232,12 @@ def test_no_automatic_merge_or_replacement(service):
     owner = linked(client)
     with TestClient(app) as other:
         register(other, "other")
-        code, _, _ = pending_link(other, update_id=3)
+        code = other.post("/api/v1/telegram/link-code").json()
+        result = other.post(
+            "/internal/v1/telegram/link-request", headers=HEADERS,
+            json={**BASE, "update_id": 3, "code": code["code"]},
+        )
+        assert result.status_code == 409 and result.json()["error"]["code"] == "link_conflict"
         assert other.post("/api/v1/telegram/links/" + code["link_request_id"] + "/confirm").status_code == 409
     with app.state.sessions() as db:
         assert db.scalar(select(TelegramIdentity)).user_id == owner["id"]
@@ -281,7 +289,7 @@ def test_internal_errors_body_limit_and_no_echo(service):
     _, client = service
     response = client.post("/internal/v1/telegram/updates", content=b"x" * 131073, headers=HEADERS)
     assert response.status_code == 413
-    assert response.json()["error"]["code"] == "payload_too_large"
+    assert response.json()["error"]["code"] == "input_too_large"
     bad = message(client, text="\x00sensitive-original")
     assert bad.status_code == 422 and "sensitive-original" not in bad.text
 
