@@ -1,7 +1,7 @@
 """No dotenv autoloading: mock configuration never reads a model credential."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 from urllib.parse import quote_plus
@@ -38,8 +38,11 @@ class Settings:
     session_seconds: int = 86400
     lease_seconds: int = 120
     error_log_file: str = "data/errors.log"
+    internal_api_token: str = field(default="", repr=False)
 
     def __post_init__(self):
+        if self.internal_api_token and len(self.internal_api_token) < 32:
+            raise ValueError("Internal API secret must contain at least 32 characters")
         if self.provider not in {"mock", "cloudru"}:
             raise ValueError("NOTES_PROVIDER must be mock or cloudru")
         if self.lease_seconds < 90:
@@ -74,7 +77,15 @@ class Settings:
             name = quote_plus(os.environ.get("NOTES_DATABASE_NAME", "notes"))
             database_url = f"postgresql+psycopg://{user}:{password}@{host}:{port}/{name}"
 
+        internal_token_file = os.environ.get("NOTES_INTERNAL_API_TOKEN_FILE")
+        internal_token = os.environ.get("NOTES_INTERNAL_API_TOKEN", "")
+        if internal_token_file and internal_token:
+            raise ValueError("Use either NOTES_INTERNAL_API_TOKEN or NOTES_INTERNAL_API_TOKEN_FILE")
+
         return cls(
+            internal_api_token=(
+                read_secret_file(internal_token_file, maximum=4096) if internal_token_file else internal_token
+            ),
             database_url=database_url or cls.database_url,
             provider=os.environ.get("NOTES_PROVIDER", "mock"),
             auto_worker=flag("NOTES_AUTO_WORKER", True),

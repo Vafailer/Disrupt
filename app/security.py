@@ -4,14 +4,37 @@ import hmac
 import secrets
 import time
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from app.models import LoginSession, LoginThrottle
+from app.models import LoginSession, LoginThrottle, User
 
 COOKIE_NAME = "notes_session"
+SERVICE_BEARER = HTTPBearer(auto_error=False, scheme_name="InternalServiceToken")
+
+
+def require_internal_service(
+    request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(SERVICE_BEARER)
+):
+    expected = request.app.state.settings.internal_api_token
+    if not expected:
+        raise HTTPException(503, "Внутренний API не настроен")
+    if (
+        credentials is None
+        or credentials.scheme.lower() != "bearer"
+        or not hmac.compare_digest(credentials.credentials.encode(), expected.encode())
+    ):
+        raise HTTPException(401, "Недопустимый сервисный секрет", headers={"WWW-Authenticate": "Bearer"})
+
+
+def require_admin(request, db):
+    session = get_login_session(request, db)
+    if db.get(User, session.user_id).role != "admin":
+        raise HTTPException(403, "Требуется роль admin")
+    return session
 
 
 def hash_token(value: str) -> str:
@@ -74,6 +97,6 @@ def get_login_session(request: Request, db, *, write=False) -> LoginSession:
         raise HTTPException(401, "Сессия истекла. Войдите снова")
     if write:
         check_origin(request)
-        if not hmac.compare_digest(request.headers.get("x-csrf-token", ""), session.csrf_token):
+        if not hmac.compare_digest(request.headers.get("x-csrf-token", "").encode(), session.csrf_token.encode()):
             raise HTTPException(403, "Неверный CSRF-токен")
     return session

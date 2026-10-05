@@ -16,6 +16,7 @@ class Credentials(StrictModel):
 
 class TextCapture(StrictModel):
     text: str = Field(min_length=1, max_length=12000)
+    processing_mode: Literal["ai", "manual"] = "ai"
 
     @field_validator("text")
     @classmethod
@@ -66,3 +67,44 @@ class NoteEdit(StrictModel):
 class ConclusionEdit(StrictModel):
     version: int = Field(ge=1)
     status: Literal["accepted", "rejected"]
+
+
+TelegramID = Annotated[int, Field(ge=1, le=9223372036854775807)]
+
+
+class TelegramOperation(StrictModel):
+    bot_id: TelegramID
+    update_id: int = Field(ge=0, le=9223372036854775807)
+    telegram_user_id: TelegramID
+    chat_id: TelegramID
+
+
+class TelegramText(TelegramOperation, TextCapture):
+    pass
+
+
+class TelegramLink(TelegramOperation):
+    code: str = Field(min_length=40, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class LinkCodeResponse(StrictModel):
+    link_request_id: str
+    code: str
+    expires_at: str
+
+
+class LinkResponse(StrictModel):
+    link_request_id: str
+    status: Literal["pending"]
+
+
+class TelegramCaptureResponse(StrictModel):
+    capture_id: str
+    job_id: str | None
+    status: Literal["saved"]
+    note_url: str
+
+
+class IntegrationError(StrictModel):
+    error: dict[str, str]
+    operation_id: str

@@ -79,7 +79,7 @@ function renderNote(note) {
   currentNote = note; $('capture-card').hidden = true; $('note-card').hidden = false;
   $('original').textContent = note.original_text; $('title').value = note.title;
   $('markdown').value = note.markdown; renderMarkdown(note.markdown);
-  $('note-mode').textContent = `Версия ${note.version} · ${note.provider === 'mock' ? 'Демо' : 'Cloud.ru'}`;
+  $('note-mode').textContent = `Версия ${note.version} · ${note.provider === 'manual' ? 'Без ИИ' : note.provider === 'mock' ? 'Демо' : 'Cloud.ru'}`;
   $('history').replaceChildren(); $('conclusions').replaceChildren();
   if (!note.conclusions.length) $('conclusions').append(element('p', note.provider === 'mock'
     ? 'В демо выводы есть только у примера.'
@@ -158,7 +158,7 @@ $('auth-form').onsubmit = async event => {
   buttons.forEach(b => b.disabled=true);
   try {
     const user = await api(`/api/v1/auth/${action}`, {method:'POST',body:JSON.stringify({username,password})});
-    $('password').value=''; showUser(user); await loadProviderUsage(); await loadNotes(); await loadJobs(); message();
+    $('password').value=''; showUser(user); await loadProviderUsage(); await loadNotes(); await loadJobs(); await openLinkedCapture(); message();
   } catch(e) {
     authMessage(e.message);
   } finally { buttons.forEach(b => b.disabled=false); }
@@ -176,15 +176,24 @@ $('example').onclick = async () => {
 };
 $('capture-form').onsubmit = async event => {
   event.preventDefault(); const text = $('thought').value;
+  const processing_mode = $('processing-mode').value;
   if (!text.trim()) return message('Напишите что-нибудь.');
   // Keep the same key after a network error: retrying must not create another paid job.
-  if (!pendingCapture || pendingCapture.text !== text) pendingCapture = {text,key:crypto.randomUUID()};
+  if (!pendingCapture || pendingCapture.text !== text || pendingCapture.processing_mode !== processing_mode) {
+    pendingCapture = {text,processing_mode,key:crypto.randomUUID()};
+  }
   $('capture-submit').disabled = true; $('thought').disabled=true; $('example').disabled=true;
+  $('processing-mode').disabled = true;
   try {
-    const job = await api('/api/v1/captures/text',{method:'POST',headers:{'Idempotency-Key':pendingCapture.key},body:JSON.stringify({text})});
-    message('Запись сохранена.'); await loadJobs(); await pollJob(job.id,epoch);
+    const job = await api('/api/v1/captures/text',{method:'POST',headers:{'Idempotency-Key':pendingCapture.key},body:JSON.stringify({text,processing_mode})});
+    message('Запись сохранена.');
+    if (processing_mode === 'manual') {
+      $('thought').value = ''; pendingCapture = null;
+      await loadNotes(); await openNote(job.note_id);
+    } else { await loadJobs(); await pollJob(job.id,epoch); }
   } catch(e) { message(e.message); } finally {
     $('capture-submit').disabled=false; $('thought').disabled=false; $('example').disabled=false;
+    $('processing-mode').disabled = false;
   }
 };
 $('edit-form').onsubmit = async event => {
@@ -213,13 +222,46 @@ $('load-history').onclick = async () => {
   } catch(e) { message(e.message); }
 };
 window.addEventListener('beforeunload',event=>{if(dirty()){event.preventDefault();event.returnValue='';}});
+async function loadTelegramLinks() {
+  const links = await api('/api/v1/telegram/links'); $('telegram-links').replaceChildren();
+  for (const identity of links.identities) {
+    $('telegram-links').append(element('p', `Связан Telegram ID ${identity.telegram_user_id}, бот ${identity.bot_id}.`));
+  }
+  for (const link of links.pending) {
+    const button = element('button', `Подтвердить мой Telegram ID ${link.telegram_user_id}`, 'secondary');
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        await api(`/api/v1/telegram/links/${link.link_request_id}/confirm`, {method:'POST'});
+        $('telegram-code').textContent = ''; await loadTelegramLinks(); message('Telegram связан.');
+      } catch(e) { message(e.message); button.disabled = false; }
+    };
+    $('telegram-links').append(button);
+  }
+  if (!links.pending.length && !links.identities.length) $('telegram-links').append(element('p', 'Запросов пока нет.'));
+}
+$('link-code').onclick = async () => {
+  try {
+    const link = await api('/api/v1/telegram/link-code', {method:'POST'});
+    $('telegram-code').textContent = `/start ${link.code}`;
+    await loadTelegramLinks();
+  } catch(e) { message(e.message); }
+};
+$('refresh-links').onclick = () => loadTelegramLinks().catch(e => message(e.message));
+async function openLinkedCapture() {
+  const id = new URLSearchParams(location.search).get('capture');
+  if (!id) return;
+  const capture = await api(`/api/v1/captures/${encodeURIComponent(id)}`);
+  if (capture.note_id) await openNote(capture.note_id);
+  else if (capture.job) await pollJob(capture.job.id, epoch);
+}
 (async () => {
   try {
     const health = await api('/health');
     $('mode').textContent = health.simulation
       ? 'Демо без ИИ. Для примера есть готовый ответ, остальные записи просто размечаются.'
       : 'Cloud.ru выбран. Подключение проверится после первой готовой заметки.';
-    try { showUser(await api('/api/v1/auth/me')); await loadProviderUsage(); await loadNotes(); await loadJobs(); }
+    try { showUser(await api('/api/v1/auth/me')); await loadProviderUsage(); await loadNotes(); await loadJobs(); await openLinkedCapture(); }
     catch(e) { if (!e.message.includes('Войдите') && !e.message.includes('Сессия')) message(e.message); }
   } catch(e) { $('mode').textContent='Не удалось связаться с приложением.'; message(e.message); }
 })();

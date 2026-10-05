@@ -154,8 +154,8 @@ def test_mock_does_not_read_any_real_key(monkeypatch):
     get = os.environ.get
 
     def guarded_get(name, default=None):
-        if "KEY" in name or "TOKEN" in name:
-            raise AssertionError("Credential must not be read in mock mode")
+        if name.startswith("NOTES_CLOUDRU") and ("KEY" in name or "TOKEN" in name):
+            raise AssertionError("Model credential must not be read in mock mode")
         return get(name, default)
 
     monkeypatch.setenv("NOTES_PROVIDER", "mock")

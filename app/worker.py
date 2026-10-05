@@ -5,6 +5,7 @@ import time
 from pydantic import ValidationError
 from sqlalchemy import select, update
 
+from app.analytics import record_event
 from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
@@ -26,13 +27,17 @@ class Worker:
                 update(Job)
                 .where(Job.status == "running", Job.lease_until < now)
                 .values(status="failed", error_code="execution_unknown", finished_at=now)
-            ).rowcount
+                .returning(Job.id, Job.user_id, Job.capture_id)
+            ).all()
             if expired:
                 log_error(
                     "job_lease_expired",
                     "execution_unknown",
                     log_file=self.settings.error_log_file,
                 )
+                for expired_id, user_id, capture_id in expired:
+                    capture = db.get(Capture, capture_id)
+                    record_event(db, user_id, "processing_failed", expired_id, capture.channel)
             job_id = db.scalar(
                 select(Job.id)
                 .where(Job.status == "queued", Job.provider == self.settings.provider)
@@ -82,11 +87,15 @@ class Worker:
             exception=exception,
         )
         with self.sessions() as db:
-            db.execute(
+            changed = db.execute(
                 update(Job)
                 .where(Job.id == job_id, Job.status == "running")
                 .values(status="failed", error_code=code, finished_at=time.time())
-            )
+            ).rowcount
+            if changed:
+                job = db.get(Job, job_id)
+                capture = db.get(Capture, job.capture_id)
+                record_event(db, job.user_id, "processing_failed", job_id, capture.channel)
             db.commit()
 
     def run_once(self):
@@ -127,6 +136,8 @@ class Worker:
                 db.add(note)
                 db.flush()
                 save_revision(db, note)
+                capture = db.get(Capture, capture_id)
+                record_event(db, user_id, "processing_completed", job_id, capture.channel)
                 db.commit()
         except ProviderError as exc:
             self.fail(job_id, exc.code, exception=exc, http_status=exc.http_status)
