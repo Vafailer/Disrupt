@@ -425,3 +425,22 @@ def test_malformed_batch_does_not_commit_partial_offset(settings):
             assert not calls and not settings.state_file.exists()
 
     asyncio.run(scenario())
+
+
+def test_redirect_cannot_be_mistaken_for_saved_capture(settings):
+    async def scenario():
+        bot, c, t, _, replies, _ = await session(
+            settings,
+            [message()],
+            lambda _: httpx.Response(307, headers={"Location": "https://evil.test"}, json=SAVED),
+        )
+        async with c, t:
+            with pytest.raises(RemoteFailure, match="core_redirect_refused"):
+                await bot.poll_once()
+            assert not replies and not settings.state_file.exists()
+
+    asyncio.run(scenario())
+
+
+def test_backoff_does_not_retry_before_long_provider_limit():
+    assert RemoteFailure(retry_after=600).retry_after == 600

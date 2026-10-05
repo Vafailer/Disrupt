@@ -16,7 +16,7 @@ class RemoteFailure(Exception):
         super().__init__(code)
         self.code = code
         self.fatal = fatal
-        self.retry_after = max(1, min(retry_after, 300))
+        self.retry_after = max(1, retry_after)
 
 
 class Rejected(Exception):
@@ -58,6 +58,8 @@ class CoreClient:
             )
         except httpx.HTTPError:
             raise RemoteFailure() from None
+        if 300 <= response.status_code < 400:
+            raise RemoteFailure("core_redirect_refused", fatal=True)
         if response.status_code >= 400:
             try:
                 code = response.json()["error"]["code"]
@@ -118,7 +120,7 @@ class TelegramClient:
             raise RemoteFailure("telegram_unknown") from None
         if not isinstance(data, dict):
             raise RemoteFailure("telegram_invalid_response")
-        if data.get("ok") is not True or response.is_error:
+        if data.get("ok") is not True or not response.is_success:
             code = data.get("error_code", response.status_code)
             params = data.get("parameters") or {}
             retry = params.get("retry_after", 3) if isinstance(params, dict) else 3
