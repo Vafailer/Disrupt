@@ -23,7 +23,8 @@ from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
 from app.routes.admin import build_router as admin_router
 from app.routes.internal import build_router as internal_router
-from app.schemas import ConclusionEdit, Credentials, NoteEdit, TextCapture
+from app.routes.structure import build_router as structure_router
+from app.schemas import ConclusionEdit, Credentials, NoteEdit, NoteResponse, NoteSummary, TextCapture
 from app.security import (
     COOKIE_NAME,
     DUMMY_PASSWORD_HASH,
@@ -34,7 +35,7 @@ from app.security import (
     throttle,
     verify_password,
 )
-from app.services import capture_text, edit_note, job_view, note_view, owned_note
+from app.services import capture_text, edit_note, job_view, note_view, owned_note, search_notes
 from app.worker import Worker
 
 STATIC = Path(__file__).parent / "static"
@@ -189,6 +190,7 @@ def create_app(settings: Settings | None = None, provider=None):
     app.include_router(account_router(database))
     app.include_router(admin_router(database, STATIC))
     app.include_router(internal_router(database, settings))
+    app.include_router(structure_router(database))
 
     @app.get("/health")
     def health(db=Depends(database)):
@@ -342,26 +344,28 @@ def create_app(settings: Settings | None = None, provider=None):
             raise HTTPException(404, "Задание не найдено")
         return job_view(db, job)
 
-    @app.get("/api/v1/notes")
+    @app.get("/api/v1/notes", response_model=list[NoteSummary], responses={200: {
+        "headers": {"X-Next-Notes-Offset": {"schema": {"type": "integer"}, "description": "Next offset, omitted on last page"}},
+    }})
     def list_notes(
         request: Request,
+        response: Response,
         limit: int = Query(20, ge=1, le=100),
         offset: int = Query(0, ge=0),
+        q: str | None = Query(None, max_length=200),
+        category_id: str | None = Query(None, max_length=36),
         db=Depends(database),
     ):
         session = get_login_session(request, db)
-        notes = db.scalars(
-            select(Note)
-            .where(Note.user_id == session.user_id)
-            .order_by(Note.updated_at.desc(), Note.id)
-            .offset(offset)
-            .limit(limit)
-        ).all()
+        notes = search_notes(db, session.user_id, q=q, category_id=category_id, limit=limit, offset=offset)
+        if len(notes) > limit:
+            response.headers["X-Next-Notes-Offset"] = str(offset + limit)
         return [
-            {"id": n.id, "title": n.title, "version": n.version, "updated_at": n.updated_at} for n in notes
+            {"id": n.id, "title": n.title, "version": n.version, "updated_at": n.updated_at,
+             "category_id": n.category_id} for n in notes[:limit]
         ]
 
-    @app.get("/api/v1/notes/{note_id}")
+    @app.get("/api/v1/notes/{note_id}", response_model=NoteResponse)
     def read_note(note_id: str, request: Request, db=Depends(database)):
         session = get_login_session(request, db)
         return note_view(db, owned_note(db, note_id, session.user_id))
@@ -375,14 +379,14 @@ def create_app(settings: Settings | None = None, provider=None):
         ).all()
         return [{"version": r.version, "created_at": r.created_at, **r.snapshot} for r in rows]
 
-    @app.patch("/api/v1/notes/{note_id}")
+    @app.patch("/api/v1/notes/{note_id}", response_model=NoteResponse)
     def update_note(note_id: str, body: NoteEdit, request: Request, db=Depends(database)):
         session = get_login_session(request, db, write=True)
         note = owned_note(db, note_id, session.user_id)
         edit_note(db, note, body.version, title=body.title, markdown=body.markdown)
         return note_view(db, note)
 
-    @app.patch("/api/v1/notes/{note_id}/conclusions/{conclusion_id}")
+    @app.patch("/api/v1/notes/{note_id}/conclusions/{conclusion_id}", response_model=NoteResponse)
     def update_conclusion(
         note_id: str, conclusion_id: str, body: ConclusionEdit, request: Request, db=Depends(database)
     ):

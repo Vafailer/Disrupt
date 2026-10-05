@@ -157,7 +157,7 @@ def test_error_preserves_original_without_retry(app, client):
     class Failing:
         calls = 0
 
-        def structure(self, text):
+        def structure(self, text, *, categories=()):
             self.calls += 1
             raise ProviderError("provider_timeout_unknown")
 
@@ -177,7 +177,7 @@ def test_error_preserves_original_without_retry(app, client):
 
 def test_ungrounded_quote_is_rejected(app, client):
     class BadProvider:
-        def structure(self, text):
+        def structure(self, text, *, categories=()):
             note = MockProvider().structure(DEMO_TEXT)
             note.conclusions[0].source_quote = "Этого никто не писал"
             return note

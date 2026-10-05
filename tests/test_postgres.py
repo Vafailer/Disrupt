@@ -39,6 +39,23 @@ def test_postgresql_migration_and_note_roundtrip(monkeypatch):
             == 200
         )
         assert client.patch(path, json={"version": 1, "title": "Старая", "markdown": "x"}).status_code == 409
+        note = client.get(path).json()
+        assert note["items"][1]["kind"] == "task" and note["items"][1]["due_at"] is None
+        assert client.get("/api/v1/notes", params={"q": "ОПЛАТУ"}).json()[0]["id"] == note["id"]
+        assert client.get("/api/v1/notes", params={"q": "%_"}).json() == []
+        task = note["items"][1]
+        edited = client.patch(
+            path + "/items/" + task["id"],
+            json={
+                "version": 2,
+                "kind": "task",
+                "text": "Позвонить после обсуждения",
+                "status": "completed",
+            },
+        )
+        assert edited.status_code == 200 and edited.json()["version"] == 3
+        assert edited.json()["items"][1]["status"] == "completed"
+        assert client.get("/api/v1/notes", params={"q": "ОБСУЖДЕНИЯ"}).json()[0]["id"] == note["id"]
 
 
 @pytest.mark.skipif(not os.environ.get("TEST_POSTGRES_URL"), reason="Local PostgreSQL is not configured")

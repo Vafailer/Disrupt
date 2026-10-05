@@ -9,9 +9,9 @@ from app.analytics import record_event
 from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
-from app.models import Capture, Job, Note, ProviderBudget, User, new_id
+from app.models import Capture, Category, Item, Job, Note, ProviderBudget, User, new_id
 from app.providers import ProviderError, make_provider, validate_result
-from app.services import save_revision
+from app.services import ensure_category, lock_account, save_revision
 
 
 class Worker:
@@ -107,11 +107,20 @@ class Worker:
                 job = db.get(Job, job_id)
                 original = db.get(Capture, job.capture_id).original_text
                 capture_id, user_id = job.capture_id, job.user_id
+                category_context = {
+                    category.name: category.id
+                    for category in db.scalars(
+                        select(Category).where(Category.user_id == user_id).order_by(Category.id).limit(100)
+                    )
+                }
                 if self.settings.provider == "cloudru":
                     self.reserve_budget(db, user_id)
-            result = validate_result(self.provider.structure(original), original)
+            result = validate_result(
+                self.provider.structure(original, categories=tuple(category_context)), original
+            )
             now = time.time()
             with self.sessions() as db:
+                lock_account(db, user_id)
                 completed = db.execute(
                     update(Job)
                     .where(Job.id == job_id, Job.status == "running", Job.lease_until >= now)
@@ -133,7 +142,40 @@ class Worker:
                         {"id": new_id(), **c.model_dump(), "status": "proposed"} for c in result.conclusions
                     ],
                 )
+                if result.category_name:
+                    existing_id = next(
+                        (
+                            category_id
+                            for name, category_id in category_context.items()
+                            if name.casefold() == result.category_name.casefold()
+                        ),
+                        None,
+                    )
+                    category = (
+                        db.scalar(
+                            select(Category).where(Category.id == existing_id, Category.user_id == user_id)
+                        )
+                        if existing_id
+                        else ensure_category(db, user_id, result.category_name, proposed=True)
+                    )
+                    note.category_id = category.id if category else None
                 db.add(note)
+                db.flush()
+                for position, item in enumerate(result.items):
+                    db.add(
+                        Item(
+                            user_id=user_id,
+                            note_id=note.id,
+                            kind=item.kind,
+                            text=item.text,
+                            source_quote=item.source_quote,
+                            due_text=item.due_text,
+                            due_at=None,
+                            status="open",
+                            version=1,
+                            position=position,
+                        )
+                    )
                 db.flush()
                 save_revision(db, note)
                 capture = db.get(Capture, capture_id)

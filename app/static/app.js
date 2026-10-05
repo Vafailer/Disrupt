@@ -1,6 +1,10 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let csrf = '', currentNote = null, epoch = 0, notesOffset = 0, pendingCapture = null;
+let categories = [], searchOperation = null, notesGeneration = 0, noteBusy = false;
+let activeFilter = {q:'',category:''};
+const itemEditors = new Map(), busyControls = new Map();
+const itemLabels = {note:'Заметка', idea:'Идея', task:'Задача', goal:'Цель', plan:'План'};
 const statusLabels = {queued:'В очереди', running:'Разбираем запись', succeeded:'Готово', failed:'Не получилось'};
 const conclusionLabels = {proposed:'Предложен', accepted:'Принят', rejected:'Отклонён'};
 const errors = {
@@ -24,7 +28,7 @@ function element(tag, text, className) {
   if (className) el.className = className;
   return el;
 }
-async function api(path, options = {}) {
+async function api(path, options = {}, withHeaders = false) {
   const response = await fetch(path, {
     ...options, credentials:'same-origin', headers:{
       'Content-Type':'application/json', 'X-CSRF-Token':csrf, ...options.headers,
@@ -33,7 +37,7 @@ async function api(path, options = {}) {
   if (response.status === 204) return null;
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || 'Не удалось выполнить запрос');
-  return data;
+  return withHeaders ? {data,headers:response.headers} : data;
 }
 function showUser(user) {
   csrf = user.csrf_token; $('username').textContent = user.username;
@@ -45,15 +49,20 @@ async function loadProviderUsage() {
   $('mode').textContent = `Cloud.ru · ${usage.model} · обращений в приложении ${usage.global_used}/${usage.global_limit}`;
 }
 async function loadNotes(reset = true) {
-  if (reset) { notesOffset = 0; $('notes').replaceChildren(); }
-  const list = await api(`/api/v1/notes?limit=20&offset=${notesOffset}`);
-  if (!list.length && notesOffset === 0) $('notes').append(element('p','Пока нет заметок.'));
+  if (reset) { notesGeneration++; notesOffset = 0; $('notes').replaceChildren(); }
+  const generation = notesGeneration, currentEpoch = epoch, context = searchOperation;
+  const query = new URLSearchParams({limit:'20',offset:String(notesOffset)});
+  if (activeFilter.q) query.set('q',activeFilter.q);
+  if (activeFilter.category) query.set('category_id',activeFilter.category);
+  const {data:list,headers} = await api(`/api/v1/notes?${query}`,{},true);
+  if (generation !== notesGeneration || currentEpoch !== epoch) return;
+  if (!list.length && notesOffset === 0) $('notes').append(element('p','Записей не найдено.'));
   for (const note of list) {
     const button = element('button', note.title);
-    button.onclick = () => openNote(note.id).catch(e => message(e.message));
+    button.onclick = () => openNote(note.id,{userAction:true,search:context}).catch(e => message(e.message));
     $('notes').append(button);
   }
-  notesOffset += list.length; $('more-notes').hidden = list.length < 20;
+  notesOffset += list.length; $('more-notes').hidden = !headers.has('X-Next-Notes-Offset');
 }
 function renderMarkdown(text) {
   const preview = $('preview'); preview.replaceChildren();
@@ -72,13 +81,52 @@ function renderMarkdown(text) {
     }
   }
 }
-function dirty() {
-  return currentNote && ($('title').value !== currentNote.title || $('markdown').value !== currentNote.markdown);
+function hasDrafts(except = null) {
+  if (!currentNote) return false;
+  if (except !== 'note' && ($('title').value !== currentNote.title || $('markdown').value !== currentNote.markdown)) return true;
+  if (except !== 'new' && $('item-text').value.trim()) return true;
+  for (const [id,editor] of itemEditors) {
+    if (id === except) continue;
+    if (editor.text.value !== editor.item.text || editor.kind.value !== editor.item.kind || editor.status.value !== editor.item.status) return true;
+  }
+  return false;
+}
+function dirty() { return hasDrafts(); }
+function setNoteBusy(value) {
+  noteBusy = value;
+  if (value) {
+    for (const control of $('note-card').querySelectorAll('input,textarea,select,button')) {
+      if (!busyControls.has(control)) busyControls.set(control,control.disabled);
+      control.disabled = true;
+    }
+  } else {
+    for (const [control,disabled] of busyControls) control.disabled = disabled;
+    busyControls.clear();
+    $('confirm-structure').disabled = Boolean(currentNote?.structure_confirmed_at);
+  }
+}
+async function mutateNote(suffix, method, body, text, except = null) {
+  if (noteBusy) return;
+  if (hasDrafts(except)) return message('Сначала сохраните остальные правки.');
+  const id = currentNote.id, currentEpoch = epoch;
+  setNoteBusy(true);
+  try {
+    const note = await api(`/api/v1/notes/${id}${suffix}`,{method,body:JSON.stringify({...body,version:currentNote.version})});
+    if (currentEpoch !== epoch || currentNote?.id !== id) return;
+    renderNote(note); setNoteBusy(true);
+    await loadNotes(); message(text);
+  } catch(e) { message(e.message); }
+  finally { setNoteBusy(false); }
 }
 function renderNote(note) {
   currentNote = note; $('capture-card').hidden = true; $('note-card').hidden = false;
   $('original').textContent = note.original_text; $('title').value = note.title;
   $('markdown').value = note.markdown; renderMarkdown(note.markdown);
+  $('original-details').open = false;
+  fillCategoryOptions($('note-category'),false,note.category_id || '');
+  $('structure-status').textContent = note.structure_confirmed_at ? 'Вы проверили структуру этой записи.' : 'Проверьте текст, задачи и категорию.';
+  $('confirm-structure').disabled = Boolean(note.structure_confirmed_at);
+  renderItems(note);
   $('note-mode').textContent = `Версия ${note.version} · ${note.provider === 'manual' ? 'Без ИИ' : note.provider === 'mock' ? 'Демо' : 'Cloud.ru'}`;
   $('history').replaceChildren(); $('conclusions').replaceChildren();
   if (!note.conclusions.length) $('conclusions').append(element('p', note.provider === 'mock'
@@ -91,22 +139,27 @@ function renderNote(note) {
     for (const [status,label] of [['accepted','Принять'],['rejected','Отклонить']]) {
       const button = element('button',label,'secondary'); button.disabled = c.status === status;
       button.onclick = async () => {
-        if (dirty()) return message('Сначала сохраните правки.');
-        button.disabled = true;
-        try {
-          renderNote(await api(`/api/v1/notes/${note.id}/conclusions/${c.id}`, {
-            method:'PATCH',body:JSON.stringify({version:currentNote.version,status}),
-          })); message('Статус вывода сохранён.');
-        } catch (e) { message(e.message); button.disabled = false; }
+        await mutateNote(`/conclusions/${c.id}`,'PATCH',{status},'Статус вывода сохранён.');
       };
       actions.append(button);
     }
     block.append(actions); $('conclusions').append(block);
   }
 }
-async function openNote(id) {
+async function openNote(id, {userAction = false, search = null} = {}) {
+  if (noteBusy) return message('Дождитесь сохранения.');
   if (dirty() && !confirm('Есть несохранённые правки. Открыть другую заметку?')) return;
-  renderNote(await api(`/api/v1/notes/${id}`)); message();
+  const currentEpoch = epoch;
+  setNoteBusy(true);
+  try {
+    await loadCategories();
+    const note = await api(`/api/v1/notes/${id}`);
+    if (currentEpoch !== epoch) return;
+    renderNote(note); setNoteBusy(true); message();
+    if (userAction) await api(`/api/v1/notes/${id}/opened`,{
+      method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID(),search_operation_id:search}),
+    });
+  } finally { setNoteBusy(false); }
 }
 async function loadJobs() {
   const jobs = await api('/api/v1/jobs'); $('jobs').replaceChildren();
@@ -116,7 +169,7 @@ async function loadJobs() {
     if (job.status === 'failed') row.append(element('p',errors[job.error_code] || `Не удалось обработать запись. Она сохранена. Код: ${job.error_code}.`));
     if (job.note_id) {
       const button = element('button','Открыть заметку','quiet');
-      button.onclick = () => openNote(job.note_id).catch(e => message(e.message)); row.append(button);
+      button.onclick = () => openNote(job.note_id,{userAction:true}).catch(e => message(e.message)); row.append(button);
     } else row.append(element('pre',job.original_text));
     $('jobs').append(row);
   }
@@ -158,7 +211,7 @@ $('auth-form').onsubmit = async event => {
   buttons.forEach(b => b.disabled=true);
   try {
     const user = await api(`/api/v1/auth/${action}`, {method:'POST',body:JSON.stringify({username,password})});
-    $('password').value=''; showUser(user); await loadProviderUsage(); await loadNotes(); await loadJobs(); await openLinkedCapture(); message();
+    $('password').value=''; showUser(user); await loadProviderUsage(); await loadCategories(); await loadNotes(); await loadJobs(); await openLinkedCapture(); message();
   } catch(e) {
     authMessage(e.message);
   } finally { buttons.forEach(b => b.disabled=false); }
@@ -197,14 +250,12 @@ $('capture-form').onsubmit = async event => {
   }
 };
 $('edit-form').onsubmit = async event => {
-  event.preventDefault(); const button = event.target.querySelector('button'); button.disabled=true;
-  try {
-    renderNote(await api(`/api/v1/notes/${currentNote.id}`,{method:'PATCH',body:JSON.stringify({version:currentNote.version,title:$('title').value,markdown:$('markdown').value})}));
-    await loadNotes(); message('Правки сохранены.');
-  } catch(e) { message(e.message); } finally { button.disabled=false; }
+  event.preventDefault();
+  await mutateNote('','PATCH',{title:$('title').value,markdown:$('markdown').value},'Правки сохранены.','note');
 };
 $('markdown').oninput = () => renderMarkdown($('markdown').value);
 $('new-note').onclick = () => {
+  if (noteBusy) return message('Дождитесь сохранения.');
   if (dirty() && !confirm('Есть несохранённые правки. Перейти к новой записи?')) return;
   currentNote=null; $('note-card').hidden=true; $('capture-card').hidden=false; message();
   loadJobs().catch(e=>message(e.message));
@@ -222,6 +273,103 @@ $('load-history').onclick = async () => {
   } catch(e) { message(e.message); }
 };
 window.addEventListener('beforeunload',event=>{if(dirty()){event.preventDefault();event.returnValue='';}});
+function fillCategoryOptions(select, all, value = select.value) {
+  select.replaceChildren();
+  if (all) select.append(new Option('Все категории',''));
+  select.append(new Option('Без категории',all ? 'none' : ''));
+  for (const category of categories) select.append(new Option(category.name,category.id));
+  select.value = value;
+}
+async function loadCategories() {
+  categories = await api('/api/v1/categories');
+  fillCategoryOptions($('category-filter'),true);
+  if (currentNote) fillCategoryOptions($('note-category'),false,currentNote.category_id || '');
+  $('categories').replaceChildren();
+  for (const category of categories) {
+    const row = element('form','','category-row'), input = document.createElement('input');
+    input.value = category.name; input.maxLength = 100; input.required = true;
+    input.setAttribute('aria-label',`Название категории ${category.name}`);
+    const button = element('button','Переименовать','quiet'); button.type = 'submit';
+    row.append(input,button);
+    row.onsubmit = async event => {
+      event.preventDefault(); button.disabled = true;
+      try {
+        await api(`/api/v1/categories/${category.id}`,{method:'PATCH',body:JSON.stringify({version:category.version,name:input.value})});
+        await loadCategories(); message('Название категории сохранено.');
+      } catch(e) { message(e.message); } finally { button.disabled = false; }
+    };
+    $('categories').append(row);
+  }
+}
+$('category-form').onsubmit = async event => {
+  event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true;
+  try {
+    await api('/api/v1/categories',{method:'POST',body:JSON.stringify({name:$('category-name').value})});
+    $('category-name').value = ''; await loadCategories(); message('Категория добавлена.');
+  } catch(e) { message(e.message); } finally { button.disabled = false; }
+};
+$('search-form').onsubmit = async event => {
+  event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true;
+  try {
+    const operation = crypto.randomUUID();
+    await api('/api/v1/search/events',{method:'POST',body:JSON.stringify({operation_id:operation})});
+    searchOperation = operation;
+    activeFilter = {q:$('search-query').value.trim(),category:$('category-filter').value};
+    await loadNotes(); message();
+  } catch(e) { message(e.message); } finally { button.disabled = false; }
+};
+$('clear-search').onclick = () => {
+  $('search-query').value = ''; $('category-filter').value = ''; searchOperation = null;
+  activeFilter = {q:'',category:''};
+  loadNotes().catch(e => message(e.message));
+};
+$('note-category').onchange = async () => {
+  await mutateNote('/category','PATCH',{category_id:$('note-category').value || null},'Категория записи сохранена.');
+  $('note-category').value = currentNote.category_id || '';
+};
+$('confirm-structure').onclick = () => mutateNote('/confirm-structure','POST',{},'Структура подтверждена.');
+function renderItems(note) {
+  itemEditors.clear(); $('items').replaceChildren(); $('item-text').value = '';
+  if (!note.items.length) $('items').append(element('p','Можно добавить задачу или идею вручную.'));
+  for (const item of note.items) {
+    const form = element('form','','item'), kind = document.createElement('select');
+    kind.id = `kind-${item.id}`;
+    for (const [value,label] of Object.entries(itemLabels)) kind.append(new Option(label,value));
+    kind.value = item.kind;
+    const kindLabel = element('label','Тип'); kindLabel.htmlFor = kind.id;
+    const text = document.createElement('textarea'); text.id = `text-${item.id}`;
+    text.rows = 2; text.maxLength = 1500; text.required = true; text.value = item.text;
+    const textLabel = element('label','Текст'); textLabel.htmlFor = text.id;
+    const status = document.createElement('select'); status.id = `status-${item.id}`;
+    status.append(new Option('В работе','open'),new Option('Выполнена','completed')); status.value = item.status;
+    const statusLabel = element('label','Статус'); statusLabel.htmlFor = status.id;
+    const updateStatus = () => {
+      status.hidden = statusLabel.hidden = kind.value !== 'task';
+      if (kind.value !== 'task') status.value = 'open';
+    };
+    kind.onchange = updateStatus; updateStatus();
+    form.append(kindLabel,kind,textLabel,text,statusLabel,status);
+    if (item.due_text) form.append(element('p',`Срок из записи «${item.due_text}». Время напоминания ещё не подтверждено.`,'muted'));
+    if (item.source_quote) {
+      const quote = document.createElement('details');
+      quote.append(element('summary','Фрагмент исходника'),element('pre',item.source_quote)); form.append(quote);
+    }
+    const button = element('button','Сохранить элемент','secondary'); button.type = 'submit'; form.append(button);
+    form.onsubmit = async event => {
+      event.preventDefault();
+      await mutateNote(`/items/${item.id}`,'PATCH',{kind:kind.value,text:text.value,status:status.value},'Элемент сохранён.',item.id);
+    };
+    itemEditors.set(item.id,{item,text,kind,status}); $('items').append(form);
+  }
+}
+$('item-form').onsubmit = async event => {
+  event.preventDefault();
+  await mutateNote('/items','POST',{kind:$('item-kind').value,text:$('item-text').value},'Элемент добавлен.','new');
+};
+$('original-details').ontoggle = () => {
+  if (!$('original-details').open || !currentNote) return;
+  api(`/api/v1/notes/${currentNote.id}/original-opened`,{method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID()})}).catch(e => message(e.message));
+};
 async function loadTelegramLinks() {
   const links = await api('/api/v1/telegram/links'); $('telegram-links').replaceChildren();
   for (const identity of links.identities) {
@@ -261,7 +409,7 @@ async function openLinkedCapture() {
     $('mode').textContent = health.simulation
       ? 'Демо без ИИ. Для примера есть готовый ответ, остальные записи просто размечаются.'
       : 'Cloud.ru выбран. Подключение проверится после первой готовой заметки.';
-    try { showUser(await api('/api/v1/auth/me')); await loadProviderUsage(); await loadNotes(); await loadJobs(); await openLinkedCapture(); }
+    try { showUser(await api('/api/v1/auth/me')); await loadProviderUsage(); await loadCategories(); await loadNotes(); await loadJobs(); await openLinkedCapture(); }
     catch(e) { if (!e.message.includes('Войдите') && !e.message.includes('Сессия')) message(e.message); }
   } catch(e) { $('mode').textContent='Не удалось связаться с приложением.'; message(e.message); }
 })();

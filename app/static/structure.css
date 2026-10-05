@@ -1,0 +1,33 @@
+select {
+  width: 100%;
+  border: 1px solid #cad3c7;
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #24352d;
+  background: #fff;
+  font: inherit;
+}
+
+select:focus {
+  outline: 2px solid #719079;
+  outline-offset: 2px;
+}
+
+.item {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #e3e7dd;
+  border-radius: 10px;
+}
+
+.item button, #item-form button, #category-form button {
+  margin-top: 12px;
+}
+
+.category-row {
+  margin-top: 14px;
+}
+
+.category-row button {
+  margin-top: 8px;
+}

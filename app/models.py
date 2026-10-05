@@ -152,6 +152,7 @@ class Category(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(100))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 class Item(Base):
@@ -168,6 +169,9 @@ class Item(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     due_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     category_id: Mapped[str | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    source_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    due_text: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class Reminder(Base):
