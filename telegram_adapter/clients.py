@@ -71,6 +71,8 @@ class CoreClient:
                 and response.status_code in {400, 403, 409, 413, 422, 429}
             ):
                 raise Rejected(code)
+            if response.status_code == 409 and code == "conflict":
+                raise RemoteFailure("core_update_conflict", fatal=True)
             # A missing route / service credential error is NOT a rejected user message.
             # Stop without acknowledging its update so deployment can be repaired safely.
             retry = response.headers.get("Retry-After", "3")

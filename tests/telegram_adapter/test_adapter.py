@@ -142,6 +142,43 @@ def test_missing_core_or_auth_halts_without_losing_message(settings, status):
     asyncio.run(scenario())
 
 
+def test_payload_conflict_halts_without_advancing_offset(settings):
+    async def scenario():
+        def core(request):
+            if json.loads(request.content)["update_id"] == 11:
+                return httpx.Response(409, json={"error": {"code": "conflict"}})
+            return httpx.Response(200, json=SAVED)
+
+        bot, c, t, calls, replies, _ = await session(
+            settings, [message(10), message(11), message(12)], core
+        )
+        async with c, t:
+            with pytest.raises(RemoteFailure, match="core_update_conflict") as caught:
+                await bot.poll_once()
+            assert caught.value.fatal
+            assert len(calls) == 2
+            assert len(replies) == 1
+            assert OffsetStore(settings.state_file, settings.bot_id).offset == 11
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("code", ["link_expired", "action_expired", "link_conflict", "invalid_link"])
+def test_known_409_rejection_completes_update(settings, code):
+    async def scenario():
+        bot, c, t, calls, replies, _ = await session(
+            settings, [message()],
+            lambda _: httpx.Response(409, json={"error": {"code": code, "message": "private"}}),
+        )
+        async with c, t:
+            await bot.poll_once()
+            assert len(calls) == len(replies) == 1
+            assert "private" not in str(replies)
+            assert OffsetStore(settings.state_file, settings.bot_id).offset == 11
+
+    asyncio.run(scenario())
+
+
 def test_not_linked_is_explained_without_claiming_saved(settings):
     async def scenario():
         bot, c, t, _, replies, _ = await session(
