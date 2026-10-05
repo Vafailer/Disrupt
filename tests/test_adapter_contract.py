@@ -1,9 +1,7 @@
-"""Run the colleague's unchanged, pinned client against the real in-process API."""
+"""Run the current checkout adapter against the real in-process API."""
 
 import asyncio
 import importlib
-import os
-import sys
 import time
 from pathlib import Path
 
@@ -20,18 +18,13 @@ from tests.test_telegram_actions import task as prepared_task  # noqa: F401
 
 
 @pytest.fixture
-def adapter(monkeypatch):
-    path = os.environ.get("TEST_TELEGRAM_ADAPTER_PATH")
-    if not path:
-        pytest.skip("Set TEST_TELEGRAM_ADAPTER_PATH to the pinned colleague adapter snapshot")
-    assert (Path(path) / "telegram_adapter" / "clients.py").is_file()
-    monkeypatch.syspath_prepend(path)
+def adapter():
+    root = Path(__file__).resolve().parents[1]
     names = ("clients", "config", "bot", "state")
     modules = {name: importlib.import_module("telegram_adapter." + name) for name in names}
-    yield modules
-    for name in list(sys.modules):
-        if name == "telegram_adapter" or name.startswith("telegram_adapter."):
-            del sys.modules[name]
+    for name, module in modules.items():
+        assert Path(module.__file__).resolve() == root / "telegram_adapter" / (name + ".py")
+    return modules
 
 
 def settings(adapter, tmp_path):
@@ -179,3 +172,44 @@ def test_real_adapter_runs_task_callback(request, adapter, tmp_path):
 
     with app.state.sessions() as db:
         assert db.get(Note, ids["note"]).version == 2
+
+
+def test_real_payload_conflict_keeps_checkpoint(app_factory, adapter, tmp_path):
+    app = app_factory(internal_api_token=SERVICE_TOKEN)
+    with TestClient(app) as browser:
+        linked(browser)
+        config = settings(adapter, tmp_path)
+        replies = []
+
+        class Telegram:
+            async def reply(self, chat_id, text, url=None):
+                replies.append(text)
+
+            async def call(self, method, payload):
+                assert method == "getUpdates"
+                return [{
+                    "update_id": update_id,
+                    "message": {
+                        "from": {"id": BASE["telegram_user_id"]},
+                        "chat": {"type": "private", "id": BASE["chat_id"]},
+                        "text": "changed" if update_id == 2 else "later",
+                    },
+                } for update_id in (2, 3)]
+
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app)) as client:
+                core = adapter["clients"].CoreClient(client, config)
+                await core.post("/telegram/updates", {**BASE, "update_id": 2, "text": "original"})
+                state = adapter["state"].OffsetStore(config.state_file, config.bot_id)
+                state.advance(1)
+                bot = adapter["bot"].Bot(config, core, Telegram(), state)
+                with pytest.raises(adapter["clients"].RemoteFailure, match="core_update_conflict") as error:
+                    await bot.poll_once()
+                assert error.value.fatal
+                assert adapter["state"].OffsetStore(config.state_file, config.bot_id).offset == 2
+                assert not replies
+
+        asyncio.run(run())
+        with app.state.sessions() as db:
+            assert [c.original_text for c in db.scalars(select(Capture)).all()] == ["original"]
+            assert db.scalar(select(Inbox).where(Inbox.update_id == 3)) is None

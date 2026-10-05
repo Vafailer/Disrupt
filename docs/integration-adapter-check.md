@@ -1,8 +1,10 @@
 # Сверка ядра и Telegram адаптера
 
-Проверяем нашу ветку `feature/integration-v1-core` с адаптером коллеги
-из `codex/telegram-adapter`, коммит `c63c3168aea59fb6d1c5dc50fd958346d43405c3`.
-Его код используется без изменений. Ветки не объединены.
+Ветка `integration/telegram-core-v1` объединяет ядро
+`a83026ca86b710bbbfec0e1dc71b868340cefe41` и адаптер
+`4a83b13be14fc5637a19f67d2b4089f73b819fca`.
+Тесты и CI используют адаптер из текущего checkout. Проверка пути импорта
+не позволяет незаметно подставить старый снимок.
 
 ## Что исправлено в ядре
 
@@ -38,10 +40,9 @@ POST /internal/v1/telegram/actions выполняет задачу по хешу
 Для обновления из корня выполнить `PYTHONPATH=. python scripts/export_contract.py`.
 Методы без реализации помечены contract-only.
 
-В адаптере нужно отдельно обработать `409 conflict`. Сейчас он повторяет
-неизменяемый конфликт update ID бесконечно. Следует остановить процесс без
-подтверждения update и передать ошибку оператору. Известные бизнес-коды 409
-при этом остаются обычными отказами пользователю. Клиентский файл не меняли.
+Адаптер обрабатывает `409 conflict` как фатальную ошибку без продвижения
+checkpoint. Известные бизнес-коды 409 остаются отказами с ответом пользователю.
+Это проверено отдельно и через настоящий FastAPI с ASGITransport.
 
 `app/audio_storage.py` и `app/routes/audio.py` пишет основатель.
 Наш middleware готов принять multipart, но самого voice маршрута пока нет.
@@ -54,23 +55,18 @@ POST /internal/v1/telegram/actions выполняет задачу по хешу
 NOTES_INTERNAL_API_TOKEN_FILE ядра и BERESTA_SERVICE_TOKEN_FILE адаптера должны
 содержать один сервисный секрет. Telegram токен в ядро не передаётся.
 
-В обеих ветках изменён только один общий файл, AGENTS.md. При объединении
-сохранить правила совместной работы коллеги и наши правила оформления текста.
-Изменения CI в нашей ветке добавляют проверку клиента по фиксированному SHA.
-Это временная проверка совместимости, после объединения можно использовать
-адаптер из общего checkout. Название нашей ветки не менять.
+При объединении пересекался только AGENTS.md. Правила совместной работы
+и оформления текста сохранены. Конфликтов в коде ядра не было.
 
 ## Как повторить проверку
 
-Из корня, оставаясь в своей ветке, получить клиент в отдельный временный каталог.
-Не использовать checkout или merge для этого.
+Из корня интеграционной ветки выполнить
 
 ```sh
-git fetch origin
-mkdir -p /tmp/beresta-telegram-adapter
-git archive c63c3168aea59fb6d1c5dc50fd958346d43405c3 telegram_adapter | tar -x -C /tmp/beresta-telegram-adapter
-TEST_TELEGRAM_ADAPTER_PATH=/tmp/beresta-telegram-adapter python -m pytest -q
-python -m ruff check app tests migrations scripts
+python -m pytest -q
+python -m ruff check app tests migrations scripts telegram_adapter
+PYTHONPATH=. python scripts/export_contract.py
+git diff --exit-code -- docs/integration-v1.openapi.json docs/integration-v1.yaml docs/integration-v1-examples.json
 ```
 
 Тесты используют настоящие CoreClient и Bot коллеги с нашим FastAPI через
@@ -87,7 +83,9 @@ ASGITransport. Ответы Telegram подменены. Проверяются 
 Ключ Cloud.ru не читается и не используется. Успех этих тестов не означает
 готовность всего MVP.
 
-Локальная проверка 5 октября 2026 года прошла с 126 passed и 2 skipped.
-Пропущены PostgreSQL-тесты, локального сервера БД нет. Линтер и проверка
-синтаксиса основного веба прошли. Повторная генерация контрактов даёт те же
-файлы. PostgreSQL 17, миграции и конкурентный callback проверяет CI этой ветки.
+Локальная проверка объединенного checkout прошла с 176 passed и 2 skipped.
+Пропущены PostgreSQL-тесты, локального сервера БД нет. Линтер, проверка
+синтаксиса основного веба и повторная генерация контрактов прошли.
+UI-тест с jsdom локально не запущен, поскольку нет npm и jsdom.
+PostgreSQL 17, конкурентный callback, миграции и UI-тест проверяет CI.
+Статус CI следует проверять для точного SHA интеграционной ветки.
