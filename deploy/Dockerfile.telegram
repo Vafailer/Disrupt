@@ -1,0 +1,9 @@
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY telegram_adapter/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && groupadd --gid 1000 bot && useradd --uid 1000 --gid 1000 --create-home bot
+COPY --chown=bot:bot telegram_adapter ./telegram_adapter
+RUN mkdir -p /app/data && chown bot:bot /app/data
+USER bot
+CMD ["python", "-m", "telegram_adapter"]
