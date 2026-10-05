@@ -1,0 +1,147 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const {randomUUID} = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const {JSDOM} = require('jsdom');
+
+const staticRoot = path.join(__dirname, '../app/static');
+const dom = new JSDOM(fs.readFileSync(path.join(staticRoot, 'index.html'), 'utf8'), {
+  url: 'https://beresta.invalid/', runScripts: 'outside-only',
+});
+const w = dom.window;
+const $ = id => w.document.getElementById(id);
+Object.defineProperty(w.crypto, 'randomUUID', {value: randomUUID});
+w.confirm = () => false;
+
+const note = {
+  id: randomUUID(), capture_id: randomUUID(), title: 'План', original_text: 'Позвонить Оле завтра',
+  markdown: '## <script>alert(1)</script>', conclusions: [], provider: 'mock', version: 1,
+  category_id: randomUUID(), category_name: 'Работа', structure_confirmed_at: null,
+  created_at: 1791220000, updated_at: 1791220000,
+  items: [{id: randomUUID(), kind: 'task', text: 'Позвонить Оле', status: 'open', version: 1,
+    source_quote: 'Позвонить Оле завтра', due_text: 'завтра', due_at: null}],
+};
+note.items[0].note_id = note.id;
+const categories = [{id: note.category_id, name: 'Работа', version: 1}];
+const calls = [];
+let pauseItem = false, completeItem = null, conflictNextItem = false;
+
+function reply(data, status = 200, headers = {}) {
+  return {ok: status >= 200 && status < 300, status, headers: new Headers(headers),
+    json: async () => structuredClone(data)};
+}
+w.fetch = async (input, options = {}) => {
+  const url = new URL(input, w.location.href), method = options.method || 'GET';
+  const body = options.body ? JSON.parse(options.body) : null;
+  calls.push({url, method, body, options});
+  if (url.pathname === '/health') return reply({simulation:true});
+  if (url.pathname === '/api/v1/auth/me') return reply({username:'Тест',csrf_token:'test-csrf'});
+  if (url.pathname === '/api/v1/provider/usage') return reply({simulation:true});
+  if (url.pathname === '/api/v1/jobs') return reply([]);
+  if (url.pathname === '/api/v1/categories') return reply(categories);
+  if (url.pathname === '/api/v1/notes') {
+    const offset = Number(url.searchParams.get('offset'));
+    return reply(offset ? [] : [{id:note.id,title:note.title}], 200,
+      url.searchParams.has('q') && !offset ? {'X-Next-Notes-Offset':'1'} : {});
+  }
+  if (url.pathname === `/api/v1/notes/${note.id}` && method === 'GET') return reply(note);
+  if (url.pathname === `/api/v1/notes/${note.id}/items/${note.items[0].id}`) {
+    assert.equal(options.headers['X-CSRF-Token'],'test-csrf');
+    assert.equal(body.version,note.version);
+    if (conflictNextItem) {
+      conflictNextItem = false;
+      return reply({detail:'Заметка уже изменена. Обновите её перед сохранением'},409);
+    }
+    const save = () => {
+      Object.assign(note.items[0],{text:body.text,kind:body.kind,status:body.status,version:note.items[0].version + 1});
+      note.version++; note.structure_confirmed_at = 1791220010;
+      return reply(note);
+    };
+    if (pauseItem) return new Promise(resolve => {completeItem = () => resolve(save());});
+    return save();
+  }
+  if (url.pathname === `/api/v1/categories/${categories[0].id}` && method === 'PATCH') {
+    assert.equal(body.version,categories[0].version);
+    categories[0].name = body.name; categories[0].version++;
+    note.category_name = body.name;
+    return reply(categories[0]);
+  }
+  if (url.pathname === '/api/v1/search/events' || /\/(opened|original-opened)$/.test(url.pathname)) return reply(null,204);
+  throw new Error(`Unexpected request ${method} ${url.pathname}`);
+};
+
+async function until(condition) {
+  for (let count = 0; count < 100; count++) {
+    if (condition()) return;
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  throw new Error(`UI did not settle. ${$('message').textContent}`);
+}
+function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true})); }
+
+(async () => {
+  try {
+    w.eval(fs.readFileSync(path.join(staticRoot, 'app.js'), 'utf8'));
+    await until(() => $('notes').querySelector('button'));
+    $('notes').querySelector('button').click();
+    await until(() => $('items').querySelector('textarea') && !$('title').disabled);
+    assert.equal($('preview').querySelector('script'),null);
+    assert.ok($('preview').textContent.includes('<script>'));
+    assert.equal(calls.filter(c => c.url.pathname.endsWith('/opened')).length,1);
+
+    let editor = $('items').querySelector('textarea');
+    editor.value = 'Уточнить время звонка';
+    pauseItem = true;
+    submit($('items').querySelector('form'));
+    await until(() => completeItem !== null);
+    assert.equal($('title').disabled,true);
+    assert.equal(editor.disabled,true);
+    $('new-note').click();
+    assert.equal($('note-card').hidden,false);
+    assert.equal($('message').textContent,'Дождитесь сохранения.');
+    completeItem();
+    await until(() => $('note-mode').textContent.includes('Версия 2') && !$('title').disabled);
+    assert.equal($('items').querySelector('textarea').value,'Уточнить время звонка');
+    assert.equal($('confirm-structure').disabled,true);
+
+    editor = $('items').querySelector('textarea');
+    editor.value = 'Не терять эту правку';
+    const readsBefore = calls.filter(c => c.url.pathname === `/api/v1/notes/${note.id}`).length;
+    $('notes').querySelector('button').click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.filter(c => c.url.pathname === `/api/v1/notes/${note.id}`).length,readsBefore);
+    assert.equal(editor.value,'Не терять эту правку');
+    pauseItem = false; conflictNextItem = true;
+    submit($('items').querySelector('form'));
+    await until(() => $('message').textContent.includes('уже изменена') && !editor.disabled);
+    assert.equal(editor.value,'Не терять эту правку');
+    assert.ok($('note-mode').textContent.includes('Версия 2'));
+    editor.value = note.items[0].text;
+
+    $('search-query').value = 'РУССКОЕ'; $('category-filter').value = note.category_id;
+    submit($('search-form'));
+    await until(() => !$('more-notes').hidden);
+    const search = calls.find(c => c.url.pathname === '/api/v1/search/events');
+    assert.ok(search.body.operation_id);
+    let list = calls.filter(c => c.url.pathname === '/api/v1/notes').at(-1);
+    assert.equal(list.url.searchParams.get('q'),'РУССКОЕ');
+    assert.equal(list.url.searchParams.get('category_id'),note.category_id);
+    $('search-query').value = 'Ещё не отправлено'; $('more-notes').click();
+    await until(() => $('more-notes').hidden);
+    list = calls.filter(c => c.url.pathname === '/api/v1/notes').at(-1);
+    assert.equal(list.url.searchParams.get('q'),'РУССКОЕ');
+    assert.equal(list.url.searchParams.get('offset'),'1');
+    $('notes').querySelector('button').click();
+    await until(() => calls.filter(c => c.url.pathname.endsWith('/opened')).length === 2 && !$('title').disabled);
+    assert.equal(calls.filter(c => c.url.pathname.endsWith('/opened')).at(-1).body.search_operation_id,search.body.operation_id);
+
+    const row = $('categories').querySelector('form');
+    row.querySelector('input').value = 'Проект'; submit(row);
+    await until(() => $('note-category').selectedOptions[0].textContent === 'Проект');
+    assert.equal($('note-category').value,note.category_id);
+    assert.equal(calls.filter(c => c.url.pathname === '/api/v1/search/events').length,1);
+    console.log('Web DOM checks passed: drafts, conflicts, version, XSS, search, pagination, events and category rename.');
+  } finally { dom.window.close(); }
+})().catch(error => {console.error(error);process.exitCode = 1;});

@@ -1,0 +1,197 @@
+{
+  "telegram_text": {
+    "ai": {
+      "request": {
+        "bot_id": 1234567890123,
+        "update_id": 12,
+        "telegram_user_id": 2345678901234,
+        "chat_id": 2345678901234,
+        "text": "  Пример записи\n",
+        "processing_mode": "ai"
+      },
+      "response": {
+        "capture_id": "00000000-0000-4000-8000-000000000101",
+        "job_id": "00000000-0000-4000-8000-000000000102",
+        "status": "saved",
+        "note_url": "https://beresta.example/?capture=00000000-0000-4000-8000-000000000101"
+      }
+    },
+    "manual": {
+      "request": {
+        "bot_id": 1234567890123,
+        "update_id": 12,
+        "telegram_user_id": 2345678901234,
+        "chat_id": 2345678901234,
+        "text": "  Пример записи\n",
+        "processing_mode": "manual"
+      },
+      "response": {
+        "capture_id": "00000000-0000-4000-8000-000000000101",
+        "job_id": null,
+        "status": "saved",
+        "note_url": "https://beresta.example/?capture=00000000-0000-4000-8000-000000000101"
+      }
+    }
+  },
+  "telegram_link": {
+    "request": {
+      "bot_id": 1234567890123,
+      "update_id": 12,
+      "telegram_user_id": 2345678901234,
+      "chat_id": 2345678901234,
+      "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "response": {
+      "link_request_id": "00000000-0000-4000-8000-000000000103",
+      "status": "pending"
+    }
+  },
+  "telegram_action": {
+    "request": {
+      "bot_id": 1234567890123,
+      "update_id": 13,
+      "telegram_user_id": 2345678901234,
+      "callback_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "responses": [
+      {
+        "status": "completed"
+      },
+      {
+        "status": "already_completed"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "http_status": 403,
+      "response": {
+        "error": {
+          "code": "telegram_not_linked",
+          "message": "Сначала подтвердите связь в веб-приложении"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000104"
+      }
+    },
+    {
+      "http_status": 409,
+      "response": {
+        "error": {
+          "code": "link_expired",
+          "message": "Ссылка истекла"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000105"
+      }
+    },
+    {
+      "http_status": 409,
+      "response": {
+        "error": {
+          "code": "link_conflict",
+          "message": "Telegram или аккаунт уже связан"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000106"
+      }
+    },
+    {
+      "http_status": 409,
+      "response": {
+        "error": {
+          "code": "invalid_link",
+          "message": "Ссылка недействительна"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000107"
+      }
+    },
+    {
+      "http_status": 413,
+      "response": {
+        "error": {
+          "code": "input_too_large",
+          "message": "Запись слишком большая"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000108"
+      }
+    },
+    {
+      "http_status": 400,
+      "response": {
+        "error": {
+          "code": "empty_input",
+          "message": "В записи нет текста"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000109"
+      }
+    },
+    {
+      "http_status": 403,
+      "response": {
+        "error": {
+          "code": "action_forbidden",
+          "message": "Кнопка принадлежит другому аккаунту"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000110"
+      }
+    },
+    {
+      "http_status": 409,
+      "response": {
+        "error": {
+          "code": "action_expired",
+          "message": "Кнопка недействительна или устарела"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000111"
+      }
+    },
+    {
+      "http_status": 401,
+      "response": {
+        "error": {
+          "code": "unauthorized",
+          "message": "Недопустимый сервисный секрет"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000112"
+      }
+    },
+    {
+      "http_status": 422,
+      "response": {
+        "error": {
+          "code": "invalid_input",
+          "message": "Проверьте формат и длину ввода"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000113"
+      }
+    },
+    {
+      "http_status": 409,
+      "response": {
+        "error": {
+          "code": "conflict",
+          "message": "Update уже использован с другим содержимым"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000114"
+      }
+    },
+    {
+      "http_status": 429,
+      "response": {
+        "error": {
+          "code": "rate_limited",
+          "message": "Слишком много записей ожидают обработки"
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000115"
+      }
+    },
+    {
+      "http_status": 503,
+      "response": {
+        "error": {
+          "code": "unavailable",
+          "message": "Временная ошибка. Повторите ту же операцию."
+        },
+        "operation_id": "00000000-0000-4000-8000-000000000116"
+      }
+    }
+  ]
+}

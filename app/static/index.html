@@ -6,6 +6,7 @@
   <title>Умные заметки</title>
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/auth.css">
+  <link rel="stylesheet" href="/static/structure.css">
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -26,20 +27,29 @@
       </form>
     </section>
     <div id="workspace" class="workspace" hidden>
-      <aside class="card"><h2>Мои заметки</h2><button id="new-note" class="secondary">+ Новая запись</button><nav id="notes" aria-label="Заметки"></nav><button id="more-notes" class="quiet" hidden>Показать ещё</button></aside>
+      <aside class="card"><h2>Мои заметки</h2><button id="new-note" class="secondary">+ Новая запись</button>
+        <form id="search-form"><label for="search-query">Поиск</label><input id="search-query" type="search" maxlength="200" placeholder="Слово из записи"><label for="category-filter">Категория</label><select id="category-filter"><option value="">Все категории</option><option value="none">Без категории</option></select><div class="actions"><button type="submit">Найти</button><button id="clear-search" type="button" class="quiet">Сбросить</button></div></form>
+        <nav id="notes" aria-label="Заметки"></nav><button id="more-notes" class="quiet" hidden>Показать ещё</button>
+        <details><summary>Категории</summary><form id="category-form"><label for="category-name">Новая категория</label><input id="category-name" maxlength="100" required><button type="submit" class="secondary">Добавить</button></form><div id="categories"></div></details>
+        <details><summary>Связать Telegram</summary><p>Создайте код и отправьте вашему боту команду /start с этим кодом. Затем вернитесь сюда и подтвердите свой Telegram ID.</p><button id="link-code" type="button" class="secondary">Создать код на 10 минут</button><p id="telegram-code"></p><button id="refresh-links" type="button" class="quiet">Проверить запрос</button><div id="telegram-links"></div></details>
+      </aside>
       <div>
         <section id="capture-card" class="card">
           <p class="eyebrow">Новая запись</p><h1>О чём думаете?</h1>
           <p>Пишите как есть. Порядок наведём потом.</p>
-          <form id="capture-form"><label for="thought">Ваши мысли</label><textarea id="thought" rows="8" maxlength="12000" required placeholder="Сегодня обсуждали запуск…"></textarea><div class="actions"><button id="capture-submit" type="submit">Сделать заметку</button><button id="example" type="button" class="secondary">Попробовать пример</button></div></form>
+          <form id="capture-form"><label for="thought">Ваши мысли</label><textarea id="thought" rows="8" maxlength="12000" required placeholder="Сегодня обсуждали запуск…"></textarea><label for="processing-mode">Обработка</label><select id="processing-mode"><option value="ai">Структурировать с ИИ</option><option value="manual">Сохранить без ИИ</option></select><div class="actions"><button id="capture-submit" type="submit">Сделать заметку</button><button id="example" type="button" class="secondary">Попробовать пример</button></div></form>
           <p id="job-status" aria-live="polite"></p>
           <details><summary>Последние записи</summary><div id="jobs"></div></details>
         </section>
         <section id="note-card" class="card" hidden>
           <p class="eyebrow">Заметка</p><p id="note-mode" class="muted"></p>
-          <details><summary>Исходная запись</summary><pre id="original"></pre></details>
+          <details id="original-details"><summary>Исходная запись</summary><pre id="original"></pre></details>
           <form id="edit-form"><label for="title">Заголовок</label><input id="title" maxlength="200" required><label for="markdown">Текст заметки</label><textarea id="markdown" rows="10" maxlength="24000" required></textarea><button type="submit">Сохранить</button></form>
+          <label for="note-category">Категория записи</label><select id="note-category"><option value="">Без категории</option></select>
           <details open><summary>Как выглядит заметка</summary><div id="preview"></div></details>
+          <button id="confirm-structure" type="button" class="secondary">Структура верна</button><p id="structure-status" class="muted"></p>
+          <h2>Задачи и идеи</h2><div id="items"></div>
+          <form id="item-form"><label for="item-kind">Тип нового элемента</label><select id="item-kind"><option value="task">Задача</option><option value="idea">Идея</option><option value="note">Заметка</option><option value="goal">Цель</option><option value="plan">План</option></select><label for="item-text">Текст</label><textarea id="item-text" rows="2" maxlength="1500" required></textarea><button type="submit" class="secondary">Добавить элемент</button></form>
           <h2>Выводы</h2><p class="muted">Проверьте их перед тем, как принять.</p><div id="conclusions"></div>
           <details><summary>История</summary><button id="load-history" class="quiet">Показать версии</button><div id="history"></div></details>
         </section>

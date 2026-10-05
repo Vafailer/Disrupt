@@ -9,16 +9,23 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.analytics import record_event
 from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
-from app.models import Job, LoginSession, Note, ProviderBudget, Revision, User
+from app.integration import IntegrationRejection
+from app.models import Capture, Job, LoginSession, Note, ProviderBudget, Revision, User
 from app.providers import DEMO_TEXT
-from app.schemas import ConclusionEdit, Credentials, NoteEdit, TextCapture
+from app.routes.account import build_router as account_router
+from app.routes.admin import ProtectedStaticFiles
+from app.routes.admin import build_router as admin_router
+from app.routes.internal import build_router as internal_router
+from app.routes.structure import build_router as structure_router
+from app.schemas import ConclusionEdit, Credentials, NoteEdit, NoteResponse, NoteSummary, TextCapture
 from app.security import (
     COOKIE_NAME,
     DUMMY_PASSWORD_HASH,
@@ -29,14 +36,28 @@ from app.security import (
     throttle,
     verify_password,
 )
-from app.services import capture_text, edit_note, job_view, note_view, owned_note
+from app.services import capture_text, edit_note, job_view, note_view, owned_note, search_notes
 from app.worker import Worker
 
 STATIC = Path(__file__).parent / "static"
 
 
+def integration_error(status, message, *, code=None, operation_id=None, headers=None):
+    code = code or {
+        401: "unauthorized", 403: "forbidden", 404: "not_found", 409: "conflict",
+        413: "input_too_large", 422: "invalid_input", 429: "rate_limited", 503: "unavailable",
+    }.get(status, "internal_error")
+    return JSONResponse(
+        {"error": {"code": code, "message": message}, "operation_id": operation_id or secrets.token_hex(16)},
+        status_code=status, headers=headers,
+    )
+
+
 class BodyLimit:
     """Bound the actual body, including chunked requests, before JSON parsing."""
+
+    AUDIO_MAXIMUM = 10 * 1024 * 1024
+    MULTIPART_OVERHEAD = 64 * 1024
 
     def __init__(self, app, maximum=131072):
         self.app, self.maximum = app, maximum
@@ -44,14 +65,26 @@ class BodyLimit:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope["method"] not in {"POST", "PUT", "PATCH"}:
             return await self.app(scope, receive, send)
+        content_type = next((v.lower() for k, v in scope.get("headers", []) if k == b"content-type"), b"")
+        maximum = self.maximum
+        if (
+            scope["method"] == "POST"
+            and scope["path"] == "/internal/v1/telegram/voice"
+            and content_type.split(b";", 1)[0].strip() == b"multipart/form-data"
+        ):
+            maximum = self.AUDIO_MAXIMUM + self.MULTIPART_OVERHEAD
         body = bytearray()
         while True:
             message = await receive()
             if message["type"] == "http.disconnect":
                 return
             body.extend(message.get("body", b""))
-            if len(body) > self.maximum:
-                response = JSONResponse({"detail": "Слишком большой запрос"}, status_code=413)
+            if len(body) > maximum:
+                response = (
+                    integration_error(413, "Слишком большой запрос")
+                    if scope["path"].startswith("/internal/")
+                    else JSONResponse({"detail": "Слишком большой запрос"}, status_code=413)
+                )
                 return await response(scope, receive, send)
             if not message.get("more_body", False):
                 break
@@ -130,6 +163,8 @@ def create_app(settings: Settings | None = None, provider=None):
                 status_code=500,
                 content={"detail": "Внутренняя ошибка. Попробуйте позже.", "error_id": request_id},
             )
+            if request.url.path.startswith("/internal/"):
+                response = integration_error(503, "Временная ошибка. Повторите ту же операцию.", operation_id=request_id)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -144,6 +179,22 @@ def create_app(settings: Settings | None = None, provider=None):
     @app.exception_handler(RequestValidationError)
     async def invalid_input(request, exc):
         # Do not echo password, token, or original text in validation errors.
+        if request.url.path.startswith("/internal/"):
+            errors = exc.errors()
+            fields = {tuple(e["loc"]) for e in errors}
+            if request.url.path == "/internal/v1/telegram/link-request" and fields == {("body", "code")}:
+                if all(e["type"] in {"string_too_short", "string_too_long", "string_pattern_mismatch"} for e in errors):
+                    return integration_error(400, "Ссылка недействительна", code="invalid_link")
+            if request.url.path == "/internal/v1/telegram/actions" and fields == {("body", "callback_token")}:
+                if all(e["type"] in {"string_too_short", "string_too_long", "value_error"} for e in errors):
+                    return integration_error(400, "Кнопка недействительна", code="action_expired")
+            if request.url.path == "/internal/v1/telegram/updates" and fields == {("body", "text")}:
+                if all(e["type"] == "string_too_long" for e in errors):
+                    return integration_error(413, "Запись слишком большая", code="input_too_large")
+                body = exc.body
+                if isinstance(body, dict) and isinstance(body.get("text"), str) and not body["text"].strip():
+                    return integration_error(400, "В записи нет текста", code="empty_input")
+            return integration_error(422, "Проверьте формат и длину ввода")
         return JSONResponse(
             status_code=422,
             content={
@@ -152,9 +203,24 @@ def create_app(settings: Settings | None = None, provider=None):
             },
         )
 
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request, exc):
+        if request.url.path.startswith("/internal/"):
+            return integration_error(
+                exc.status_code, str(exc.detail), headers=exc.headers,
+                code=exc.code if isinstance(exc, IntegrationRejection) else None,
+                operation_id=exc.operation_id if isinstance(exc, IntegrationRejection) else None,
+            )
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
+
     def database():
         with sessions() as db:
             yield db
+
+    app.include_router(account_router(database))
+    app.include_router(admin_router(database, STATIC))
+    app.include_router(internal_router(database, settings))
+    app.include_router(structure_router(database))
 
     @app.get("/health")
     def health(db=Depends(database)):
@@ -172,6 +238,9 @@ def create_app(settings: Settings | None = None, provider=None):
             db.execute(delete(LoginSession).where(LoginSession.token_hash == hash_token(old)))
         db.execute(delete(LoginSession).where(LoginSession.expires_at < time.time()))
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+        if user.first_login_at is None:
+            user.first_login_at = time.time()
+        record_event(db, user.id, "login", hash_token(token))
         db.add(
             LoginSession(
                 token_hash=hash_token(token),
@@ -206,6 +275,7 @@ def create_app(settings: Settings | None = None, provider=None):
         except IntegrityError:
             db.rollback()
             raise HTTPException(409, "Это имя уже занято") from None
+        record_event(db, user.id, "registered", user.id)
         return issue_session(db, response, user, request)
 
     @app.post("/api/v1/auth/login")
@@ -264,7 +334,26 @@ def create_app(settings: Settings | None = None, provider=None):
         session = get_login_session(request, db, write=True)
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", idempotency_key):
             raise HTTPException(422, "Idempotency-Key должен содержать латинские буквы, цифры или _ . : -")
-        return job_view(db, capture_text(db, session.user_id, body.text, idempotency_key, settings))
+        result = capture_text(
+            db, session.user_id, body.text, idempotency_key, settings, processing_mode=body.processing_mode,
+        )
+        if isinstance(result, Note):
+            return {"capture_id": result.capture_id, "job_id": None, "status": "saved", "note_id": result.id}
+        return job_view(db, result)
+
+    @app.get("/api/v1/captures/{capture_id}")
+    def read_capture(capture_id: str, request: Request, db=Depends(database)):
+        session = get_login_session(request, db)
+        capture = db.scalar(select(Capture).where(Capture.id == capture_id, Capture.user_id == session.user_id))
+        if capture is None:
+            raise HTTPException(404, "Запись не найдена")
+        job = db.scalar(select(Job).where(Job.capture_id == capture_id))
+        return {
+            "capture_id": capture.id, "original_text": capture.original_text,
+            "processing_mode": capture.processing_mode,
+            "note_id": db.scalar(select(Note.id).where(Note.capture_id == capture_id)),
+            "job": job_view(db, job) if job else None,
+        }
 
     @app.get("/api/v1/jobs")
     def list_jobs(request: Request, limit: int = Query(20, ge=1, le=100), db=Depends(database)):
@@ -285,26 +374,28 @@ def create_app(settings: Settings | None = None, provider=None):
             raise HTTPException(404, "Задание не найдено")
         return job_view(db, job)
 
-    @app.get("/api/v1/notes")
+    @app.get("/api/v1/notes", response_model=list[NoteSummary], responses={200: {
+        "headers": {"X-Next-Notes-Offset": {"schema": {"type": "integer"}, "description": "Next offset, omitted on last page"}},
+    }})
     def list_notes(
         request: Request,
+        response: Response,
         limit: int = Query(20, ge=1, le=100),
         offset: int = Query(0, ge=0),
+        q: str | None = Query(None, max_length=200),
+        category_id: str | None = Query(None, max_length=36),
         db=Depends(database),
     ):
         session = get_login_session(request, db)
-        notes = db.scalars(
-            select(Note)
-            .where(Note.user_id == session.user_id)
-            .order_by(Note.updated_at.desc(), Note.id)
-            .offset(offset)
-            .limit(limit)
-        ).all()
+        notes = search_notes(db, session.user_id, q=q, category_id=category_id, limit=limit, offset=offset)
+        if len(notes) > limit:
+            response.headers["X-Next-Notes-Offset"] = str(offset + limit)
         return [
-            {"id": n.id, "title": n.title, "version": n.version, "updated_at": n.updated_at} for n in notes
+            {"id": n.id, "title": n.title, "version": n.version, "updated_at": n.updated_at,
+             "category_id": n.category_id} for n in notes[:limit]
         ]
 
-    @app.get("/api/v1/notes/{note_id}")
+    @app.get("/api/v1/notes/{note_id}", response_model=NoteResponse)
     def read_note(note_id: str, request: Request, db=Depends(database)):
         session = get_login_session(request, db)
         return note_view(db, owned_note(db, note_id, session.user_id))
@@ -318,14 +409,14 @@ def create_app(settings: Settings | None = None, provider=None):
         ).all()
         return [{"version": r.version, "created_at": r.created_at, **r.snapshot} for r in rows]
 
-    @app.patch("/api/v1/notes/{note_id}")
+    @app.patch("/api/v1/notes/{note_id}", response_model=NoteResponse)
     def update_note(note_id: str, body: NoteEdit, request: Request, db=Depends(database)):
         session = get_login_session(request, db, write=True)
         note = owned_note(db, note_id, session.user_id)
         edit_note(db, note, body.version, title=body.title, markdown=body.markdown)
         return note_view(db, note)
 
-    @app.patch("/api/v1/notes/{note_id}/conclusions/{conclusion_id}")
+    @app.patch("/api/v1/notes/{note_id}/conclusions/{conclusion_id}", response_model=NoteResponse)
     def update_conclusion(
         note_id: str, conclusion_id: str, body: ConclusionEdit, request: Request, db=Depends(database)
     ):
@@ -339,7 +430,7 @@ def create_app(settings: Settings | None = None, provider=None):
         edit_note(db, note, body.version, conclusions=conclusions)
         return note_view(db, note)
 
-    app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    app.mount("/static", ProtectedStaticFiles(directory=STATIC, sessions=sessions), name="static")
 
     @app.get("/", include_in_schema=False)
     def index():

@@ -21,6 +21,10 @@ def make_database(url: str):
 
         @event.listens_for(engine, "connect")
         def sqlite_options(connection, _):
+            connection.create_function(
+                "unicode_casefold", 1, lambda value: value.casefold() if value is not None else None,
+                deterministic=True,
+            )
             connection.execute("PRAGMA foreign_keys=ON")
             connection.execute("PRAGMA journal_mode=WAL")
 

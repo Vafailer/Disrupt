@@ -25,3 +25,21 @@ def test_database_url_and_password_file_are_mutually_exclusive(tmp_path, monkeyp
     monkeypatch.setenv("NOTES_DATABASE_PASSWORD_FILE", str(secret))
     with pytest.raises(ValueError, match="either"):
         Settings.from_env()
+
+
+def test_service_secret_is_separate_and_not_in_repr(tmp_path, monkeypatch):
+    secret = tmp_path / 'internal-secret'
+    secret.write_text('test-internal-service-' + 'a' * 32 + '\n', encoding='utf-8')
+    monkeypatch.setenv('NOTES_INTERNAL_API_TOKEN_FILE', str(secret))
+    monkeypatch.delenv('NOTES_INTERNAL_API_TOKEN', raising=False)
+    settings = Settings.from_env()
+    assert settings.internal_api_token.startswith('test-internal-service-')
+    assert settings.internal_api_token not in repr(settings)
+    monkeypatch.setenv('NOTES_INTERNAL_API_TOKEN', 'test-env-service-' + 'b' * 32)
+    with pytest.raises(ValueError, match='either'):
+        Settings.from_env()
+
+
+def test_short_service_secret_rejected():
+    with pytest.raises(ValueError, match='32'):
+        Settings(internal_api_token='too-short')

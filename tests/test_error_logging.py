@@ -31,7 +31,7 @@ def test_error_log_omits_exception_message(tmp_path):
 
 def test_worker_failure_writes_safe_record(app_factory, tmp_path):
     class BrokenProvider:
-        def structure(self, text):
+        def structure(self, text, *, categories=()):
             raise RuntimeError("private note and secret-key")
 
     path = tmp_path / "errors.log"
