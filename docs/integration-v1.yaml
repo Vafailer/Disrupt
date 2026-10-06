@@ -89,6 +89,417 @@
         "x-implementation-status": "implemented"
       }
     },
+    "/api/admin/summary": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Summary",
+        "operationId": "summary_api_admin_summary_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "To"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "web",
+                "telegram"
+              ],
+              "type": "string",
+              "default": "all",
+              "title": "Channel"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "default": "all",
+              "title": "Source"
+            }
+          },
+          {
+            "name": "usage_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Usage Limit"
+            }
+          },
+          {
+            "name": "usage_offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Usage Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSummary"
+                },
+                "example": {
+                  "cards": {
+                    "registrations": 2,
+                    "dau": 2,
+                    "unique_users": 2,
+                    "new_users": 2,
+                    "returning_users": 0,
+                    "ai_activation": {
+                      "numerator": 1,
+                      "denominator": 2,
+                      "value": 50.0
+                    },
+                    "manual_activation": {
+                      "numerator": 1,
+                      "denominator": 2,
+                      "value": 50.0
+                    },
+                    "activation_pending": 0,
+                    "completed_scenario": 2,
+                    "returns": 1,
+                    "d1": {
+                      "numerator": 1,
+                      "denominator": 1,
+                      "value": 100.0
+                    },
+                    "d7": {
+                      "numerator": 0,
+                      "denominator": 0,
+                      "value": null
+                    }
+                  },
+                  "daily": [
+                    {
+                      "date": "2026-10-05",
+                      "registrations": 1,
+                      "dau": 1,
+                      "new_users": 1,
+                      "returning_users": 0,
+                      "llm_cost": "0.25000000",
+                      "stt_cost": "0.00000000",
+                      "unknown_usage_calls": 0,
+                      "session_count": 1,
+                      "llm_cost_per_dau": "0.25000000"
+                    },
+                    {
+                      "date": "2026-10-06",
+                      "registrations": 1,
+                      "dau": 2,
+                      "new_users": 1,
+                      "returning_users": 1,
+                      "llm_cost": null,
+                      "stt_cost": "0.00000000",
+                      "unknown_usage_calls": 1,
+                      "session_count": 2,
+                      "llm_cost_per_dau": null
+                    }
+                  ],
+                  "funnel": [
+                    {
+                      "step": "registered",
+                      "users": 2,
+                      "conversion": {
+                        "numerator": 2,
+                        "denominator": 2,
+                        "value": 100.0
+                      }
+                    },
+                    {
+                      "step": "capture_saved",
+                      "users": 2,
+                      "conversion": {
+                        "numerator": 2,
+                        "denominator": 2,
+                        "value": 100.0
+                      }
+                    },
+                    {
+                      "step": "note_opened",
+                      "users": 2,
+                      "conversion": {
+                        "numerator": 2,
+                        "denominator": 2,
+                        "value": 100.0
+                      }
+                    },
+                    {
+                      "step": "structure_checked",
+                      "users": 1,
+                      "conversion": {
+                        "numerator": 1,
+                        "denominator": 2,
+                        "value": 50.0
+                      }
+                    },
+                    {
+                      "step": "returned",
+                      "users": 1,
+                      "conversion": {
+                        "numerator": 1,
+                        "denominator": 2,
+                        "value": 50.0
+                      }
+                    }
+                  ],
+                  "retention": {
+                    "d1": {
+                      "numerator": 1,
+                      "denominator": 1,
+                      "value": 100.0
+                    },
+                    "d7": {
+                      "numerator": 0,
+                      "denominator": 0,
+                      "value": null
+                    },
+                    "pending_d1": 1,
+                    "pending_d7": 2
+                  },
+                  "usage": [
+                    {
+                      "id": "receipt_8c42a6e7312243941d383d8ddfc0e008",
+                      "user_pseudonym": "user_ba6c7b2bbb9d2570177b869932ea59a5",
+                      "session_pseudonym": "session_0b15acd087f19f64d3055b665eba4319",
+                      "operation_pseudonym": "operation_d4c0c229169073864dbc803509df9607",
+                      "occurred_at": "2026-10-06T06:02:00+00:00",
+                      "channel": "web",
+                      "kind": "llm",
+                      "model": "mock",
+                      "tariff_version": null,
+                      "status": "failed",
+                      "input_tokens": null,
+                      "output_tokens": null,
+                      "cache_tokens": null,
+                      "stt_seconds": null,
+                      "cost": null,
+                      "estimated_cost": null,
+                      "latency_ms": 200
+                    },
+                    {
+                      "id": "receipt_462e7e61102b66ef8714574790980143",
+                      "user_pseudonym": "user_ba6c7b2bbb9d2570177b869932ea59a5",
+                      "session_pseudonym": "session_b29e7bb8eedc0bdb5fae703df5c5d525",
+                      "operation_pseudonym": "operation_0b2a519d3b634c01fe4b9144a8211ee9",
+                      "occurred_at": "2026-10-05T06:02:00+00:00",
+                      "channel": "telegram",
+                      "kind": "llm",
+                      "model": "mock",
+                      "tariff_version": "fixture-only-v1",
+                      "status": "succeeded",
+                      "input_tokens": 100,
+                      "output_tokens": 50,
+                      "cache_tokens": 0,
+                      "stt_seconds": null,
+                      "cost": "0.25000000",
+                      "estimated_cost": null,
+                      "latency_ms": 100
+                    }
+                  ],
+                  "quality": {
+                    "ai_succeeded": 1,
+                    "ai_failed": 1,
+                    "ai_success_rate": {
+                      "numerator": 1,
+                      "denominator": 2,
+                      "value": 50.0
+                    },
+                    "edited_notes": 0,
+                    "processing_p95_ms": 1000,
+                    "reminder_sent": 0,
+                    "reminder_blocked": 0,
+                    "reminder_failed": 0,
+                    "reminder_unknown": 0,
+                    "reminder_opened": 0,
+                    "costs": {
+                      "currency": "RUB",
+                      "llm_cost": null,
+                      "stt_cost": "0.00000000",
+                      "known_llm_cost": "0.25000000",
+                      "known_stt_cost": "0.00000000",
+                      "unknown_usage_calls": 1,
+                      "llm_calls": 2,
+                      "stt_calls": 0,
+                      "input_tokens": null,
+                      "output_tokens": null,
+                      "cache_tokens": null,
+                      "stt_minutes": "0.00000000",
+                      "user_count": 2,
+                      "session_count": 3,
+                      "dau_sum": 3,
+                      "cost_per_user": null,
+                      "cost_per_session": null,
+                      "llm_cost_per_dau": null
+                    }
+                  },
+                  "generated_at": "2026-10-07T09:00:00+00:00"
+                }
+              }
+            },
+            "headers": {
+              "X-Next-Usage-Offset": {
+                "description": "Next offset, omitted on the last page",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No browser session"
+          },
+          "403": {
+            "description": "Admin role required"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ]
+      }
+    },
+    "/api/admin/export": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Export",
+        "operationId": "export_api_admin_export_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "To"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "web",
+                "telegram"
+              ],
+              "type": "string",
+              "default": "all",
+              "title": "Channel"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "default": "all",
+              "title": "Source"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "UTF-8 CSV of aggregates",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No browser session"
+          },
+          "403": {
+            "description": "Admin role required"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ]
+      }
+    },
     "/internal/v1/telegram/link-request": {
       "post": {
         "tags": [
@@ -3428,396 +3839,6 @@
         },
         "x-implementation-status": "implemented"
       }
-    },
-    "/api/admin/summary": {
-      "get": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Summary",
-        "operationId": "summary_api_admin_summary_get",
-        "parameters": [
-          {
-            "name": "from",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-              "title": "From"
-            }
-          },
-          {
-            "name": "to",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-              "title": "To"
-            }
-          },
-          {
-            "name": "channel",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "pattern": "^(all|web|telegram)$",
-              "default": "all",
-              "title": "Channel"
-            }
-          },
-          {
-            "name": "source",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 100,
-              "default": "all",
-              "title": "Source"
-            }
-          },
-          {
-            "name": "usage_limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 50,
-              "title": "Usage Limit"
-            }
-          },
-          {
-            "name": "usage_offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Usage Offset"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminSummary"
-                },
-                "example": {
-                  "cards": {
-                    "registrations": 2,
-                    "dau": 2,
-                    "unique_users": 2,
-                    "new_users": 2,
-                    "returning_users": 0,
-                    "ai_activation": {
-                      "numerator": 1,
-                      "denominator": 2,
-                      "value": 50.0
-                    },
-                    "manual_activation": {
-                      "numerator": 1,
-                      "denominator": 2,
-                      "value": 50.0
-                    },
-                    "activation_pending": 0,
-                    "completed_scenario": 1,
-                    "returns": 1,
-                    "d1": {
-                      "numerator": 1,
-                      "denominator": 1,
-                      "value": 100.0
-                    },
-                    "d7": {
-                      "numerator": 0,
-                      "denominator": 0,
-                      "value": null
-                    }
-                  },
-                  "daily": [
-                    {
-                      "date": "2026-10-05",
-                      "registrations": 1,
-                      "dau": 1,
-                      "new_users": 1,
-                      "returning_users": 0,
-                      "llm_cost": "0.25000000",
-                      "stt_cost": "0.00000000",
-                      "unknown_usage_calls": 0,
-                      "session_count": 1,
-                      "llm_cost_per_dau": "0.25000000"
-                    },
-                    {
-                      "date": "2026-10-06",
-                      "registrations": 1,
-                      "dau": 2,
-                      "new_users": 1,
-                      "returning_users": 1,
-                      "llm_cost": null,
-                      "stt_cost": "0.00000000",
-                      "unknown_usage_calls": 1,
-                      "session_count": 2,
-                      "llm_cost_per_dau": null
-                    }
-                  ],
-                  "funnel": [
-                    {
-                      "step": "registered",
-                      "users": 2,
-                      "conversion": {
-                        "numerator": 2,
-                        "denominator": 2,
-                        "value": 100.0
-                      }
-                    },
-                    {
-                      "step": "capture_saved",
-                      "users": 2,
-                      "conversion": {
-                        "numerator": 2,
-                        "denominator": 2,
-                        "value": 100.0
-                      }
-                    },
-                    {
-                      "step": "note_opened",
-                      "users": 2,
-                      "conversion": {
-                        "numerator": 2,
-                        "denominator": 2,
-                        "value": 100.0
-                      }
-                    },
-                    {
-                      "step": "structure_checked",
-                      "users": 1,
-                      "conversion": {
-                        "numerator": 1,
-                        "denominator": 2,
-                        "value": 50.0
-                      }
-                    },
-                    {
-                      "step": "returned",
-                      "users": 1,
-                      "conversion": {
-                        "numerator": 1,
-                        "denominator": 2,
-                        "value": 50.0
-                      }
-                    }
-                  ],
-                  "retention": {
-                    "d1": {
-                      "numerator": 1,
-                      "denominator": 1,
-                      "value": 100.0
-                    },
-                    "d7": {
-                      "numerator": 0,
-                      "denominator": 0,
-                      "value": null
-                    },
-                    "pending_d1": 1,
-                    "pending_d7": 2
-                  },
-                  "usage": [
-                    {
-                      "id": "00000000-0000-4000-8000-000000000001",
-                      "user_pseudonym": "u_demo_alpha",
-                      "session_pseudonym": "s_demo_alpha_1",
-                      "operation_pseudonym": "op_demo_1",
-                      "occurred_at": "2026-10-05T06:03:00Z",
-                      "channel": "telegram",
-                      "kind": "llm",
-                      "model": "mock",
-                      "tariff_version": "fixture-only-v1",
-                      "status": "succeeded",
-                      "input_tokens": 100,
-                      "output_tokens": 50,
-                      "cache_tokens": 0,
-                      "stt_seconds": null,
-                      "cost": "0.25000000",
-                      "estimated_cost": null,
-                      "latency_ms": 100
-                    },
-                    {
-                      "id": "00000000-0000-4000-8000-000000000002",
-                      "user_pseudonym": "u_demo_alpha",
-                      "session_pseudonym": "s_demo_alpha_2",
-                      "operation_pseudonym": "op_demo_2",
-                      "occurred_at": "2026-10-06T06:03:00Z",
-                      "channel": "web",
-                      "kind": "llm",
-                      "model": "mock",
-                      "tariff_version": null,
-                      "status": "failed",
-                      "input_tokens": null,
-                      "output_tokens": null,
-                      "cache_tokens": null,
-                      "stt_seconds": null,
-                      "cost": null,
-                      "estimated_cost": null,
-                      "latency_ms": 200
-                    }
-                  ],
-                  "quality": {
-                    "ai_succeeded": 1,
-                    "ai_failed": 1,
-                    "ai_success_rate": {
-                      "numerator": 1,
-                      "denominator": 2,
-                      "value": 50.0
-                    },
-                    "edited_notes": 0,
-                    "processing_p95_ms": 200,
-                    "reminder_sent": 0,
-                    "reminder_blocked": 0,
-                    "reminder_failed": 0,
-                    "reminder_unknown": 0,
-                    "reminder_opened": 0,
-                    "costs": {
-                      "currency": "RUB",
-                      "llm_cost": null,
-                      "stt_cost": "0.00000000",
-                      "known_llm_cost": "0.25000000",
-                      "known_stt_cost": "0.00000000",
-                      "unknown_usage_calls": 1,
-                      "llm_calls": 2,
-                      "stt_calls": 0,
-                      "input_tokens": null,
-                      "output_tokens": null,
-                      "cache_tokens": null,
-                      "stt_minutes": "0.00000000",
-                      "user_count": 2,
-                      "session_count": 3,
-                      "dau_sum": 3,
-                      "cost_per_user": null,
-                      "cost_per_session": null,
-                      "llm_cost_per_dau": null
-                    }
-                  },
-                  "generated_at": "2026-10-07T09:00:00Z"
-                }
-              }
-            },
-            "headers": {
-              "X-Next-Usage-Offset": {
-                "description": "Next offset, or omitted on last page",
-                "schema": {
-                  "type": "integer"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No browser session"
-          },
-          "403": {
-            "description": "Admin role required"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "x-implementation-status": "contract-only",
-        "security": [
-          {
-            "BrowserSession": []
-          }
-        ]
-      }
-    },
-    "/api/admin/export": {
-      "get": {
-        "operationId": "admin_export",
-        "tags": [
-          "admin"
-        ],
-        "x-implementation-status": "contract-only",
-        "security": [
-          {
-            "BrowserSession": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "from",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-              "title": "From"
-            }
-          },
-          {
-            "name": "to",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-              "title": "To"
-            }
-          },
-          {
-            "name": "channel",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "pattern": "^(all|web|telegram)$",
-              "default": "all",
-              "title": "Channel"
-            }
-          },
-          {
-            "name": "source",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 100,
-              "default": "all",
-              "title": "Source"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "UTF-8 CSV of aggregates, same slice as summary",
-            "content": {
-              "text/csv": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No browser session"
-          },
-          "403": {
-            "description": "Admin role required"
-          }
-        }
-      }
     }
   },
   "components": {
@@ -5082,6 +5103,18 @@
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             "title": "Operation Id"
+          },
+          "reminder_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reminder Id"
           },
           "search_operation_id": {
             "anyOf": [

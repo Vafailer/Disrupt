@@ -234,15 +234,15 @@ def advance_note(db, note, expected_version, **changes):
 
 def confirm_structure(db, note):
     note.structure_confirmed_at = time.time()
-    record_event(db, note.user_id, "note_opened", f"{note.id}:{note.version}:checked")
-    record_event(db, note.user_id, "structure_confirmed", f"{note.id}:{note.version}")
+    record_event(db, note.user_id, "note_opened", f"{note.id}:{note.version}:checked", subject_id=note.id)
+    record_event(db, note.user_id, "structure_confirmed", f"{note.id}:{note.version}", subject_id=note.id)
 
 
 def edit_note(db, note, expected_version, **changes):
     advance_note(db, note, expected_version, **changes)
     if "title" in changes or "markdown" in changes:
         confirm_structure(db, note)
-        record_event(db, note.user_id, "note_edited", f"{note.id}:{note.version}")
+        record_event(db, note.user_id, "note_edited", f"{note.id}:{note.version}", subject_id=note.id)
     db.flush()
     save_revision(db, note)
     db.commit()
@@ -411,7 +411,7 @@ def create_item(db, note, body):
         )
     )
     confirm_structure(db, note)
-    record_event(db, note.user_id, "note_edited", f"{note.id}:{note.version}")
+    record_event(db, note.user_id, "note_edited", f"{note.id}:{note.version}", subject_id=note.id)
     db.flush()
     save_revision(db, note)
     db.commit()
@@ -478,7 +478,7 @@ def edit_item(db, note, item_id, body):
     item.version += 1
     if content_changed:
         confirm_structure(db, note)
-        record_event(db, note.user_id, "note_edited", f"{note.id}:{note.version}")
+        record_event(db, note.user_id, "note_edited", f"{note.id}:{note.version}", subject_id=note.id)
     if completed:
         record_event(db, note.user_id, "task_completed", f"{item.id}:{item.version}")
     db.flush()

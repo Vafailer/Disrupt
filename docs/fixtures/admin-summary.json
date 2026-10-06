@@ -16,7 +16,7 @@
       "value": 50.0
     },
     "activation_pending": 0,
-    "completed_scenario": 1,
+    "completed_scenario": 2,
     "returns": 1,
     "d1": {
       "numerator": 1,
@@ -118,30 +118,11 @@
   },
   "usage": [
     {
-      "id": "00000000-0000-4000-8000-000000000001",
-      "user_pseudonym": "u_demo_alpha",
-      "session_pseudonym": "s_demo_alpha_1",
-      "operation_pseudonym": "op_demo_1",
-      "occurred_at": "2026-10-05T06:03:00Z",
-      "channel": "telegram",
-      "kind": "llm",
-      "model": "mock",
-      "tariff_version": "fixture-only-v1",
-      "status": "succeeded",
-      "input_tokens": 100,
-      "output_tokens": 50,
-      "cache_tokens": 0,
-      "stt_seconds": null,
-      "cost": "0.25000000",
-      "estimated_cost": null,
-      "latency_ms": 100
-    },
-    {
-      "id": "00000000-0000-4000-8000-000000000002",
-      "user_pseudonym": "u_demo_alpha",
-      "session_pseudonym": "s_demo_alpha_2",
-      "operation_pseudonym": "op_demo_2",
-      "occurred_at": "2026-10-06T06:03:00Z",
+      "id": "receipt_8c42a6e7312243941d383d8ddfc0e008",
+      "user_pseudonym": "user_ba6c7b2bbb9d2570177b869932ea59a5",
+      "session_pseudonym": "session_0b15acd087f19f64d3055b665eba4319",
+      "operation_pseudonym": "operation_d4c0c229169073864dbc803509df9607",
+      "occurred_at": "2026-10-06T06:02:00+00:00",
       "channel": "web",
       "kind": "llm",
       "model": "mock",
@@ -154,6 +135,25 @@
       "cost": null,
       "estimated_cost": null,
       "latency_ms": 200
+    },
+    {
+      "id": "receipt_462e7e61102b66ef8714574790980143",
+      "user_pseudonym": "user_ba6c7b2bbb9d2570177b869932ea59a5",
+      "session_pseudonym": "session_b29e7bb8eedc0bdb5fae703df5c5d525",
+      "operation_pseudonym": "operation_0b2a519d3b634c01fe4b9144a8211ee9",
+      "occurred_at": "2026-10-05T06:02:00+00:00",
+      "channel": "telegram",
+      "kind": "llm",
+      "model": "mock",
+      "tariff_version": "fixture-only-v1",
+      "status": "succeeded",
+      "input_tokens": 100,
+      "output_tokens": 50,
+      "cache_tokens": 0,
+      "stt_seconds": null,
+      "cost": "0.25000000",
+      "estimated_cost": null,
+      "latency_ms": 100
     }
   ],
   "quality": {
@@ -165,7 +165,7 @@
       "value": 50.0
     },
     "edited_notes": 0,
-    "processing_p95_ms": 200,
+    "processing_p95_ms": 1000,
     "reminder_sent": 0,
     "reminder_blocked": 0,
     "reminder_failed": 0,
@@ -192,5 +192,5 @@
       "llm_cost_per_dau": null
     }
   },
-  "generated_at": "2026-10-07T09:00:00Z"
+  "generated_at": "2026-10-07T09:00:00+00:00"
 }

@@ -123,3 +123,30 @@ def test_structure_migration_keeps_populated_foreign_keys(tmp_path, monkeypatch)
             assert db.execute(text("SELECT original_text FROM captures WHERE id='c'")).scalar() == "original"
     command.check(config)
     engine.dispose()
+
+
+def test_analytics_metadata_upgrade_keeps_old_events_unknown_and_usage(tmp_path, monkeypatch):
+    url = "sqlite:///" + (tmp_path / "analytics-legacy.db").as_posix()
+    monkeypatch.setenv("NOTES_DATABASE_URL", url)
+    monkeypatch.setenv("NOTES_PROVIDER", "mock")
+    config = Config("alembic.ini")
+    command.upgrade(config, "c7e921ab064f")
+    engine, _ = make_database(url)
+    try:
+        with engine.begin() as db:
+            db.execute(text("INSERT INTO users (id,username,password_hash,live_calls) VALUES ('u','legacy','hash',0)"))
+            db.execute(text("INSERT INTO product_events (id,user_id,name,operation_id,channel,source,is_test,app_version,session_id,occurred_at) VALUES ('e','u','note_opened','opaque','web','unknown',false,'legacy','s',1)"))
+            db.execute(text("INSERT INTO provider_usage (id,user_id,operation_id,request_id,channel,kind,model,status,occurred_at) VALUES ('r','u','op','request','web','llm','legacy','unknown',1)"))
+        command.upgrade(config, "head")
+        command.check(config)
+        with engine.connect() as db:
+            assert tuple(db.execute(text("SELECT subject_id,outcome FROM product_events")).one()) == (None, None)
+            assert tuple(db.execute(text("SELECT is_test,cost,input_tokens FROM provider_usage")).one()) == (False, None, None)
+        command.downgrade(config, "c7e921ab064f")
+        with engine.connect() as db:
+            assert db.execute(text("SELECT operation_id FROM product_events")).scalar() == "opaque"
+            assert db.execute(text("SELECT request_id FROM provider_usage")).scalar() == "request"
+        command.upgrade(config, "head")
+        command.check(config)
+    finally:
+        engine.dispose()
