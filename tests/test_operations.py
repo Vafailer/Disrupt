@@ -202,8 +202,10 @@ def test_remote_archive_failure_restarts_both_sides_without_partial_backup(tmp_p
     monkeypatch.setattr(ops, "RemoteBot", Remote)
     monkeypatch.setattr(ops, "states", lambda _: next(snapshots))
     def run(command, **kwargs):
-        if "stop" in command: events.append("core_stop")
-        if "start" in command: events.append("core_start")
+        if "stop" in command:
+            events.append("core_stop")
+        if "start" in command:
+            events.append("core_start")
         return subprocess.CompletedProcess(command, 0)
     monkeypatch.setattr(ops, "run", run)
     args = SimpleNamespace(maintenance=True, destination=tmp_path, telegram=False,
