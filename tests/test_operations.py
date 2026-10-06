@@ -186,3 +186,38 @@ def test_remote_restart_failure_is_actionable(tmp_path, monkeypatch):
     monkeypatch.setattr(ops, "_backup", lambda *a: None)
     with pytest.raises(ops.Failure, match="operator_action_required"):
         ops.backup(SimpleNamespace(maintenance=True, destination=tmp_path, telegram=False, bot_context="bot", bot_project="bot"))
+
+
+def test_remote_archive_failure_restarts_both_sides_without_partial_backup(tmp_path, monkeypatch):
+    tmp_path.chmod(0o700)
+    events = []
+    class Remote:
+        def __init__(self, *args): pass
+        def stop(self): events.append("remote_stop")
+        def archive(self, target):
+            target.write(b"partial state archive")
+            raise ops.Failure("remote_disconnected")
+        def restart(self): events.append("remote_start")
+    snapshots = iter([{"db": {"State": "running"}, "api": {"State": "running"}}, {}])
+    monkeypatch.setattr(ops, "RemoteBot", Remote)
+    monkeypatch.setattr(ops, "states", lambda _: next(snapshots))
+    def run(command, **kwargs):
+        if "stop" in command: events.append("core_stop")
+        if "start" in command: events.append("core_start")
+        return subprocess.CompletedProcess(command, 0)
+    monkeypatch.setattr(ops, "run", run)
+    args = SimpleNamespace(maintenance=True, destination=tmp_path, telegram=False,
+                           bot_context="bot", bot_project="bot", project="core", compose=["compose.yaml"],
+                           env_file=None, recipient="public")
+    with pytest.raises(ops.Failure, match="remote_disconnected"):
+        ops.backup(args)
+    assert events == ["remote_stop", "core_stop", "core_start", "remote_start"]
+    assert not list(tmp_path.glob("*.age")) and not (tmp_path / "latest.json").exists()
+    assert not list(tmp_path.glob(".working-*"))
+
+
+def test_remote_archive_rejects_running_bot_before_reading(monkeypatch):
+    remote = object.__new__(ops.RemoteBot)
+    monkeypatch.setattr(remote, "inspect", lambda: {"State": {"Running": True}})
+    with pytest.raises(ops.Failure, match="not_stopped"):
+        remote.archive(io.BytesIO())
