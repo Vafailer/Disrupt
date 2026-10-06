@@ -39,11 +39,15 @@ jobs:
         with:
           node-version: '22'
       - run: node --check app/static/app.js
+      - run: node --check app/static/reminders.js
       - run: npm install --prefix "$RUNNER_TEMP/beresta-web-tests" --no-audit --no-fund --ignore-scripts jsdom@26.0.0
       - run: node tests/web_structure.cjs
         env:
           NODE_PATH: ${{ runner.temp }}/beresta-web-tests/node_modules
       - run: node tests/web_audio.cjs
+        env:
+          NODE_PATH: ${{ runner.temp }}/beresta-web-tests/node_modules
+      - run: node tests/web_reminders.cjs
         env:
           NODE_PATH: ${{ runner.temp }}/beresta-web-tests/node_modules
       - run: python -m alembic upgrade head

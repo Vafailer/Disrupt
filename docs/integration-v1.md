@@ -146,6 +146,14 @@ Scheduler и сетевая отправка добавлены в `feature/remi
 подробнее в [инструкции доставки](telegram-delivery-v1.md). Voice подключён
 в `feature/audio-connect-v1` и сохранён в этой ветке.
 
+В `feature/reminder-web-v1` добавлена форма напоминаний и браузерный
+`POST /api/v1/reminders/resolve-time`. Он проверяет точное местное время
+в выбранной зоне IANA и возвращает варианты UTC перед подтверждением.
+Метод ничего не создаёт и требует сессию с CSRF. Существующие методы
+напоминаний и доставки не менялись. В собственных Telegram identities
+браузерный `/api/v1/telegram/links` также возвращает notifications_enabled
+и delivery_status. [Инструкция формы](reminder-web-v1.md) описывает повторы.
+
 | Метод | Запрос | Ответ |
 |---|---|---|
 | POST /telegram/voice | multipart с bot_id, update_id, telegram_user_id, chat_id, audio, processing_mode=ai | TelegramCaptureResponse. Сервер проверяет пределы 10 МБ и 180 секунд |

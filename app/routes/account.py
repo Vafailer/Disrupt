@@ -57,7 +57,10 @@ def build_router(database):
             )
         ).all()
         return {
-            "identities": [{"bot_id": i.bot_id, "telegram_user_id": i.telegram_user_id} for i in identities],
+            "identities": [{
+                "bot_id": i.bot_id, "telegram_user_id": i.telegram_user_id,
+                "notifications_enabled": i.notifications_enabled, "delivery_status": i.delivery_status,
+            } for i in identities],
             "pending": [
                 {
                     "link_request_id": p.id,

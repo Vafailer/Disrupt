@@ -1,0 +1,9 @@
+#reminders-panel { margin-top: 28px; }
+#reminder-controls, #reminder-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+#reminder-form, .reminder-row { margin-top: 16px; padding: 16px; border: 1px solid #e3e7dd; border-radius: 10px; }
+#reminder-form h3 { margin-top: 0; }
+#reminder-preview:not(:empty), .reminder-warning { padding: 12px; background: #f5f2e8; border-radius: 8px; }
+#reminder-preview { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reminder-row p { white-space: pre-wrap; overflow-wrap: anywhere; }
+#reminder-remote { white-space: pre-wrap; overflow-wrap: anywhere; }
+#reminder-conflict { margin-top: 16px; }

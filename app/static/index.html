@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="/static/auth.css">
   <link rel="stylesheet" href="/static/structure.css">
   <link rel="stylesheet" href="/static/audio.css">
+  <link rel="stylesheet" href="/static/reminders.css">
+  <script src="/static/reminders.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -32,7 +34,7 @@
         <form id="search-form"><label for="search-query">Поиск</label><input id="search-query" type="search" maxlength="200" placeholder="Слово из записи"><label for="category-filter">Категория</label><select id="category-filter"><option value="">Все категории</option><option value="none">Без категории</option></select><div class="actions"><button type="submit">Найти</button><button id="clear-search" type="button" class="quiet">Сбросить</button></div></form>
         <nav id="notes" aria-label="Заметки"></nav><button id="more-notes" class="quiet" hidden>Показать ещё</button>
         <details><summary>Категории</summary><form id="category-form"><label for="category-name">Новая категория</label><input id="category-name" maxlength="100" required><button type="submit" class="secondary">Добавить</button></form><div id="categories"></div></details>
-        <details><summary>Связать Telegram</summary><p>Создайте код и отправьте вашему боту команду /start с этим кодом. Затем вернитесь сюда и подтвердите свой Telegram ID.</p><button id="link-code" type="button" class="secondary">Создать код на 10 минут</button><p id="telegram-code"></p><button id="refresh-links" type="button" class="quiet">Проверить запрос</button><div id="telegram-links"></div></details>
+        <details id="telegram-settings"><summary>Связать Telegram</summary><p>Создайте код и отправьте вашему боту команду /start с этим кодом. Затем вернитесь сюда и подтвердите свой Telegram ID.</p><button id="link-code" type="button" class="secondary">Создать код на 10 минут</button><p id="telegram-code"></p><button id="refresh-links" type="button" class="quiet">Проверить запрос</button><div id="telegram-links"></div></details>
       </aside>
       <div>
         <section id="capture-card" class="card">
@@ -62,6 +64,30 @@
           <button id="confirm-structure" type="button" class="secondary">Структура верна</button><p id="structure-status" class="muted"></p>
           <h2>Задачи и идеи</h2><div id="items"></div>
           <form id="item-form"><label for="item-kind">Тип нового элемента</label><select id="item-kind"><option value="task">Задача</option><option value="idea">Идея</option><option value="note">Заметка</option><option value="goal">Цель</option><option value="plan">План</option></select><label for="item-text">Текст</label><textarea id="item-text" rows="2" maxlength="1500" required></textarea><button type="submit" class="secondary">Добавить элемент</button></form>
+          <section id="reminders-panel" aria-labelledby="reminders-heading">
+            <h2 id="reminders-heading">Напоминания</h2>
+            <p class="muted">Напоминание придёт в Telegram. Время и текст подтверждаете вы.</p>
+            <p id="reminder-telegram" class="muted" aria-live="polite"></p>
+            <fieldset id="reminder-controls">
+              <div class="actions"><button id="reminder-new" type="button" class="secondary">Добавить напоминание</button><button id="reminders-refresh" type="button" class="quiet">Обновить статусы</button><button id="reminder-link" type="button" class="quiet">Подключить Telegram</button></div>
+              <p id="reminders-message" role="status" aria-live="polite"></p><div id="reminders-list"></div><button id="reminders-more" type="button" class="quiet" hidden>Показать ещё напоминания</button>
+              <form id="reminder-form" hidden>
+                <h3 id="reminder-form-title">Новое напоминание</h3>
+                <fieldset id="reminder-fields">
+                  <label for="reminder-target">К чему вернуться</label><select id="reminder-target"><option value="">К заметке</option></select>
+                  <label for="reminder-text">Текст напоминания</label><textarea id="reminder-text" rows="2" maxlength="1000" required></textarea>
+                  <label for="reminder-local">Дата и время</label><input id="reminder-local" type="datetime-local" step="1" required>
+                  <label for="reminder-zone">Часовой пояс</label><input id="reminder-zone" list="reminder-zones" maxlength="64" required placeholder="Europe/Moscow"><datalist id="reminder-zones"><option value="Europe/Moscow"><option value="Europe/Berlin"><option value="Asia/Yekaterinburg"><option value="Asia/Novosibirsk"><option value="Asia/Vladivostok"><option value="UTC"></datalist>
+                  <p class="muted">Время относится к выбранному часовому поясу, даже если вы находитесь в другом.</p>
+                  <button id="reminder-check-time" type="button" class="secondary">Проверить время</button>
+                  <div id="reminder-time-choices" hidden><label for="reminder-time-choice">Выберите время при переводе часов</label><select id="reminder-time-choice"></select></div>
+                </fieldset>
+                <p id="reminder-preview" aria-live="polite"></p>
+                <div class="actions"><button id="reminder-confirm" type="submit" disabled>Подтвердить напоминание</button><button id="reminder-discard" type="button" class="quiet">Закрыть форму</button></div>
+                <div id="reminder-conflict" hidden><p>Напоминание уже изменилось. Ваши поля сохранены. Сравните их с текущим вариантом.</p><button id="reminder-compare" type="button" class="quiet">Показать текущий вариант</button><pre id="reminder-remote" hidden></pre><button id="reminder-use-version" type="button" class="secondary" hidden>Продолжить с этой версии</button></div>
+              </form>
+            </fieldset>
+          </section>
           <h2>Выводы</h2><p class="muted">Проверьте их перед тем, как принять.</p><div id="conclusions"></div>
           <details><summary>История</summary><button id="load-history" class="quiet">Показать версии</button><div id="history"></div></details>
         </section>

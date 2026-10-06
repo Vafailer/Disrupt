@@ -45,7 +45,11 @@ async function api(path, options = {}, withHeaders = false) {
   });
   if (response.status === 204) return null;
   const data = await response.json();
-  if (!response.ok) { const error = new Error(data.detail || 'Не удалось выполнить запрос'); error.status = response.status; throw error; }
+  if (!response.ok) {
+    const error = new Error(typeof data.detail === 'string' ? data.detail : response.status === 422
+      ? 'Проверьте заполненные поля.' : 'Не удалось выполнить запрос');
+    error.status = response.status; throw error;
+  }
   return withHeaders ? {data,headers:response.headers} : data;
 }
 function showUser(user) {
@@ -91,6 +95,7 @@ function renderMarkdown(text) {
   }
 }
 function hasDrafts(except = null) {
+  if (except !== 'reminder' && window.BerestaReminders?.dirty()) return true;
   if (except !== 'transcript' && currentCapture?.input_kind === 'audio' &&
       $('transcript-text').value !== (currentCapture.transcript || '')) return true;
   if (!currentNote) return false;
@@ -116,6 +121,7 @@ function setNoteBusy(value) {
     $('confirm-structure').disabled = Boolean(currentNote?.structure_confirmed_at);
     setTranscriptControls();
   }
+  window.BerestaReminders?.setLocked(value);
 }
 async function mutateNote(suffix, method, body, text, except = null) {
   if (noteBusy) return;
@@ -142,6 +148,8 @@ function renderNote(note) {
   $('structure-status').textContent = note.structure_confirmed_at ? 'Вы проверили структуру этой записи.' : 'Проверьте текст, задачи и категорию.';
   $('confirm-structure').disabled = Boolean(note.structure_confirmed_at);
   renderItems(note);
+  window.BerestaReminders?.show(note,{request:api,onBusy:setNoteBusy,
+    otherDrafts:() => hasDrafts('reminder'),notify:message});
   $('note-mode').textContent = `Версия ${note.version} · ${note.provider === 'manual' ? 'Без ИИ' : note.provider === 'mock' ? 'Демо' : 'Cloud.ru'}`;
   $('history').replaceChildren(); $('conclusions').replaceChildren();
   if (!note.conclusions.length) $('conclusions').append(element('p', note.provider === 'mock'
@@ -287,6 +295,7 @@ $('new-note').onclick = () => {
   if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
   if (hasDrafts() && !confirm('Есть несохранённые правки. Перейти к новой записи?')) return;
   viewGeneration++; currentNote=null; currentCapture=null; hideSource();
+  window.BerestaReminders?.hide();
   $('note-card').hidden=true; $('capture-card').hidden=false; message();
   loadJobs().catch(e=>message(e.message));
 };
@@ -385,6 +394,10 @@ function renderItems(note) {
       quote.append(element('summary','Фрагмент исходника'),element('pre',item.source_quote)); form.append(quote);
     }
     const button = element('button','Сохранить элемент','secondary'); button.type = 'submit'; form.append(button);
+    if (item.kind === 'task' && item.status === 'open') {
+      const remind = element('button','Напомнить','quiet'); remind.type = 'button';
+      remind.onclick = () => window.BerestaReminders?.startForTask(item); form.append(remind);
+    }
     form.onsubmit = async event => {
       event.preventDefault();
       await mutateNote(`/items/${item.id}`,'PATCH',{kind:kind.value,text:text.value,status:status.value},'Элемент сохранён.',item.id);
@@ -594,7 +607,7 @@ async function openCapture(id, {userAction = false} = {}) {
   try {
     const capture = await api(`/api/v1/captures/${encodeURIComponent(id)}`);
     if (generation !== viewGeneration || currentEpoch !== epoch) return;
-    if (currentNote?.capture_id !== id) { currentNote = null; $('note-card').hidden = true; }
+    if (currentNote?.capture_id !== id) { currentNote = null; $('note-card').hidden = true; window.BerestaReminders?.hide(); }
     $('capture-card').hidden = true; renderSource(capture);
     if (userAction) await api(`/api/v1/captures/${encodeURIComponent(id)}/original-opened`,{
       method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID()}),

@@ -98,6 +98,11 @@ spec["components"]["securitySchemes"]["BrowserSession"] = {
     "in": "cookie",
     "name": "notes_session",
 }
+time_resolution = spec["paths"]["/api/v1/reminders/resolve-time"]["post"]
+time_resolution["security"] = [{"BrowserSession": []}]
+time_resolution["parameters"] = [{
+    "name": "X-CSRF-Token", "in": "header", "required": True, "schema": {"type": "string"},
+}]
 spec["paths"]["/api/admin/export"] = {
     "get": {
         "operationId": "admin_export",
@@ -256,6 +261,14 @@ spec["paths"]["/api/v1/captures/{capture_id}/audio"] = {
 }
 base = {"bot_id": 1234567890123, "update_id": 12, "telegram_user_id": 2345678901234, "chat_id": 2345678901234}
 examples = {
+    "reminder_time": {
+        "request": {"local_time": "2090-10-08T12:00", "timezone": "Europe/Moscow"},
+        "response": {
+            "local_time": "2090-10-08T12:00", "timezone": "Europe/Moscow", "ambiguous": False,
+            "choices": [{"scheduled_at": "2090-10-08T09:00:00+00:00", "local_at": "2090-10-08T12:00:00+03:00",
+                         "utc_offset": "+03:00", "is_future": True}],
+        },
+    },
     "telegram_text": {
         mode: {
             "request": {**base, "text": "  Пример записи\n", "processing_mode": mode},
