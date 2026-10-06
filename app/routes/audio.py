@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
@@ -53,6 +53,14 @@ def build_router(database, settings, storage, create_audio_capture):
     router = APIRouter(tags=["audio"])
 
     def create(db, user_id, key, staged, channel):
+        # Check capacity under the same account lock before allocating an original.
+        # Otherwise every 429 retry could leave another unreferenced 10 MiB file.
+        lock_account(db, user_id)
+        pending = db.scalar(select(func.count()).select_from(Job).where(
+            Job.user_id == user_id, Job.status.in_(["queued", "running"]),
+        ))
+        if pending >= settings.max_pending_per_user:
+            raise HTTPException(429, "Слишком много записей ожидают обработки")
         with audio_errors():
             info = storage.inspect(staged)
             capture_id = new_id()

@@ -132,8 +132,9 @@ def test_queue_refusal_is_retryable_and_keeps_no_inbox(audio_app, monkeypatch):
         assert response.status_code == 429, response.text
         with app.state.sessions() as db:
             assert db.scalar(select(Inbox).where(Inbox.update_id == 2)) is None
-        # An unreferenced original is deliberately retained after rollback.
-        assert len(list(storage.root.glob("*.audio"))) == 1
+        # A normal queue retry must not consume disk with orphan originals.
+        assert telegram(client).status_code == 429
+        assert not list(storage.root.iterdir())
 
 
 def test_publish_survives_database_failure(audio_app, monkeypatch):
