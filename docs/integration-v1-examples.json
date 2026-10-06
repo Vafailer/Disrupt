@@ -1,4 +1,23 @@
 {
+  "reminder_time": {
+    "request": {
+      "local_time": "2090-10-08T12:00",
+      "timezone": "Europe/Moscow"
+    },
+    "response": {
+      "local_time": "2090-10-08T12:00",
+      "timezone": "Europe/Moscow",
+      "ambiguous": false,
+      "choices": [
+        {
+          "scheduled_at": "2090-10-08T09:00:00+00:00",
+          "local_at": "2090-10-08T12:00:00+03:00",
+          "utc_offset": "+03:00",
+          "is_future": true
+        }
+      ]
+    }
+  },
   "telegram_text": {
     "ai": {
       "request": {

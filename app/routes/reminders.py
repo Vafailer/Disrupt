@@ -2,14 +2,32 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import select
 
 from app.models import Reminder
+from app.reminder_time import resolve_reminder_time
 from app.reminders import cancel_reminder, create_reminder, edit_reminder, owned_reminder, reminder_view
-from app.schemas import ReminderCancel, ReminderCreate, ReminderEdit, ReminderResponse
+from app.schemas import (
+    ReminderCancel,
+    ReminderCreate,
+    ReminderEdit,
+    ReminderResponse,
+    ReminderTimeRequest,
+    ReminderTimeResponse,
+)
 from app.security import get_login_session
 from app.services import owned_note
 
 
 def build_router(database):
     router = APIRouter(prefix="/api/v1", tags=["reminders"])
+
+    @router.post(
+        "/reminders/resolve-time", response_model=ReminderTimeResponse,
+        description="Resolve local time in an IANA zone before confirmation. Does not create a reminder. "
+        "Return both UTC instants for a DST fold; reject gaps and wholly past times. Requires session and CSRF.",
+        responses={401: {"description": "Browser session required"}, 403: {"description": "CSRF or Origin rejected"}},
+    )
+    def resolve_time(body: ReminderTimeRequest, request: Request, db=Depends(database)):
+        get_login_session(request, db, write=True)
+        return resolve_reminder_time(body)
 
     @router.get("/notes/{note_id}/reminders", response_model=list[ReminderResponse])
     def list_reminders(

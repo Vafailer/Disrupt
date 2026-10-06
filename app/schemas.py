@@ -197,6 +197,30 @@ class ReminderResponse(StrictModel):
     previous_attempt_unknown: bool
 
 
+class ReminderTimeRequest(StrictModel):
+    local_time: str = Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?$")
+    timezone: str = Field(min_length=1, max_length=64)
+
+    @field_validator("timezone")
+    @classmethod
+    def known_timezone(cls, value):
+        return ReminderContent.known_timezone(value)
+
+
+class ReminderTimeChoice(StrictModel):
+    scheduled_at: str
+    local_at: str
+    utc_offset: str
+    is_future: bool
+
+
+class ReminderTimeResponse(StrictModel):
+    local_time: str
+    timezone: str
+    ambiguous: bool
+    choices: list[ReminderTimeChoice]
+
+
 class ItemCreate(VersionRequest):
     kind: ItemKind
     text: str = Field(min_length=1, max_length=1500)

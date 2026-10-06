@@ -1697,6 +1697,70 @@
         "x-implementation-status": "implemented"
       }
     },
+    "/api/v1/reminders/resolve-time": {
+      "post": {
+        "tags": [
+          "reminders"
+        ],
+        "summary": "Resolve Time",
+        "description": "Resolve local time in an IANA zone before confirmation. Does not create a reminder. Return both UTC instants for a DST fold; reject gaps and wholly past times. Requires session and CSRF.",
+        "operationId": "resolve_time_api_v1_reminders_resolve_time_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderTimeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderTimeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Browser session required"
+          },
+          "403": {
+            "description": "CSRF or Origin rejected"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/notes/{note_id}/reminders": {
       "get": {
         "tags": [
@@ -5524,6 +5588,89 @@
           "previous_attempt_unknown"
         ],
         "title": "ReminderResponse"
+      },
+      "ReminderTimeChoice": {
+        "properties": {
+          "scheduled_at": {
+            "type": "string",
+            "title": "Scheduled At"
+          },
+          "local_at": {
+            "type": "string",
+            "title": "Local At"
+          },
+          "utc_offset": {
+            "type": "string",
+            "title": "Utc Offset"
+          },
+          "is_future": {
+            "type": "boolean",
+            "title": "Is Future"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "scheduled_at",
+          "local_at",
+          "utc_offset",
+          "is_future"
+        ],
+        "title": "ReminderTimeChoice"
+      },
+      "ReminderTimeRequest": {
+        "properties": {
+          "local_time": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?$",
+            "title": "Local Time"
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Timezone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "local_time",
+          "timezone"
+        ],
+        "title": "ReminderTimeRequest"
+      },
+      "ReminderTimeResponse": {
+        "properties": {
+          "local_time": {
+            "type": "string",
+            "title": "Local Time"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "ambiguous": {
+            "type": "boolean",
+            "title": "Ambiguous"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/ReminderTimeChoice"
+            },
+            "type": "array",
+            "title": "Choices"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "local_time",
+          "timezone",
+          "ambiguous",
+          "choices"
+        ],
+        "title": "ReminderTimeResponse"
       },
       "ResultRequest": {
         "properties": {
