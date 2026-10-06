@@ -51,6 +51,8 @@ for path, endpoint in [
     ("/deliveries/{delivery_id}/authorize", authorize),
     ("/deliveries/{delivery_id}/result", result),
 ]:
+    if "/internal/v1" + path in implemented:
+        continue
     app.add_api_route(
         "/internal/v1" + path,
         endpoint,

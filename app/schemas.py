@@ -1,4 +1,6 @@
+from datetime import datetime
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
@@ -100,6 +102,63 @@ class ConclusionEdit(StrictModel):
 
 class VersionRequest(StrictModel):
     version: int = Field(ge=1)
+
+
+class ReminderContent(StrictModel):
+    scheduled_at: str = Field(min_length=20, max_length=40)
+    timezone: str = Field(min_length=1, max_length=64)
+    text: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("scheduled_at")
+    @classmethod
+    def absolute_time(cls, value):
+        date = datetime.fromisoformat(value)
+        if "T" not in value or date.tzinfo is None or date.utcoffset() is None:
+            raise ValueError("An absolute ISO timestamp with an offset is required")
+        date.timestamp()
+        return value
+
+    @field_validator("timezone")
+    @classmethod
+    def known_timezone(cls, value):
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError("Unknown IANA timezone") from None
+        return value
+
+    @field_validator("text")
+    @classmethod
+    def reminder_text(cls, value):
+        if not value.strip() or "\x00" in value:
+            raise ValueError("Empty text or null bytes")
+        return value
+
+
+class ReminderCreate(ReminderContent):
+    item_id: str | None = Field(default=None, min_length=1, max_length=36)
+
+
+class ReminderEdit(ReminderContent):
+    generation: int = Field(ge=1)
+
+
+class ReminderCancel(StrictModel):
+    generation: int = Field(ge=1)
+
+
+class ReminderResponse(StrictModel):
+    id: str
+    note_id: str
+    item_id: str | None
+    scheduled_at: str
+    timezone: str
+    text: str
+    status: str
+    generation: int
+    confirmed_at: str
+    delivery_status: str | None
+    previous_attempt_unknown: bool
 
 
 class ItemCreate(VersionRequest):

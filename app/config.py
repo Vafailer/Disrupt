@@ -37,6 +37,7 @@ class Settings:
     max_pending_per_user: int = 10
     session_seconds: int = 86400
     lease_seconds: int = 120
+    delivery_lease_seconds: int = 60
     error_log_file: str = "data/errors.log"
     audio_storage_path: str = "data/audio"
     audio_ffmpeg_path: str = "ffmpeg"
@@ -44,6 +45,8 @@ class Settings:
     internal_api_token: str = field(default="", repr=False)
 
     def __post_init__(self):
+        if not 30 <= self.delivery_lease_seconds <= 300:
+            raise ValueError("Delivery lease must be between 30 and 300 seconds")
         if self.internal_api_token and len(self.internal_api_token) < 32:
             raise ValueError("Internal API secret must contain at least 32 characters")
         if self.provider not in {"mock", "cloudru"}:
@@ -101,6 +104,7 @@ class Settings:
             live_call_limit=int(os.environ.get("NOTES_LIVE_CALL_LIMIT", "0")),
             live_user_call_limit=int(os.environ.get("NOTES_LIVE_USER_CALL_LIMIT", "0")),
             error_log_file=os.environ.get("NOTES_ERROR_LOG_FILE", "data/errors.log"),
+            delivery_lease_seconds=int(os.environ.get("NOTES_DELIVERY_LEASE_SECONDS", "60")),
             audio_storage_path=os.environ.get("NOTES_AUDIO_STORAGE_PATH", cls.audio_storage_path),
             audio_ffmpeg_path=os.environ.get("NOTES_AUDIO_FFMPEG_PATH", cls.audio_ffmpeg_path),
             audio_ffprobe_path=os.environ.get("NOTES_AUDIO_FFPROBE_PATH", cls.audio_ffprobe_path),
