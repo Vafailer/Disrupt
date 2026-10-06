@@ -6,6 +6,9 @@ work=$(mktemp -d)
 export APP_DOMAIN=http://localhost
 cat > "$work/telegram-fixture.yaml" <<'YAML'
 services:
+  api:
+    environment:
+      NOTES_INTERNAL_API_TOKEN: synthetic-ci-internal-token-not-for-deployment
   telegram:
     image: postgres:17
     network_mode: none
