@@ -1,0 +1,127 @@
+# Mock-only staging. No model credentials are mounted.
+name: beresta-staging
+
+x-backend-environment: &backend-environment
+  NOTES_DATABASE_HOST: db
+  NOTES_DATABASE_PORT: "5432"
+  NOTES_DATABASE_USER: notes
+  NOTES_DATABASE_NAME: notes
+  NOTES_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+  NOTES_PROVIDER: mock
+  NOTES_ALLOW_LIVE_REQUESTS: "false"
+  NOTES_LIVE_CALL_LIMIT: ${NOTES_LIVE_CALL_LIMIT:-100}
+  NOTES_LIVE_USER_CALL_LIMIT: ${NOTES_LIVE_USER_CALL_LIMIT:-10}
+  NOTES_AUTO_WORKER: "false"
+  NOTES_PUBLIC_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
+  NOTES_SECURE_COOKIES: "true"
+  NOTES_ALLOW_REGISTRATION: ${NOTES_ALLOW_REGISTRATION:-true}
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: notes
+      POSTGRES_DB: notes
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes -d notes"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: .
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment: *backend-environment
+    secrets:
+      - postgres_password
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    volumes:
+      - audio-originals:/app/data/audio
+    restart: unless-stopped
+    command:
+      - python
+      - -m
+      - uvicorn
+      - app.main:create_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips=*
+    environment:
+      <<: *backend-environment
+      NOTES_ANALYTICS_PSEUDONYM_KEY_FILE: /run/secrets/analytics_pseudonym_key
+    secrets:
+      - postgres_password
+      - analytics_pseudonym_key
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build: .
+    volumes:
+      - audio-originals:/app/data/audio:ro
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    environment: *backend-environment
+    secrets:
+      - postgres_password
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  scheduler:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "app.scheduler"]
+    environment:
+      <<: *backend-environment
+      NOTES_PROVIDER: mock
+      NOTES_ALLOW_LIVE_REQUESTS: "false"
+    secrets:
+      - postgres_password
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2.10
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+
+secrets:
+  analytics_pseudonym_key:
+    file: ./secrets/analytics_pseudonym_key.txt
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+
+volumes:
+  audio-originals:
+  postgres-data:
+  caddy-data:
+  caddy-config:
