@@ -26,6 +26,8 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: ffmpeg -version && ffprobe -version
       - run: python -m pip install -r requirements.txt
       - run: python -m ruff check app tests migrations scripts telegram_adapter
       - name: Check generated contract
@@ -43,3 +45,48 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/beresta-web-tests/node_modules
       - run: python -m alembic upgrade head
       - run: python -m alembic check
+
+  audio-core:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: notes
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: audio_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U notes -d audio_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      NOTES_PROVIDER: mock
+      NOTES_ALLOW_LIVE_REQUESTS: "false"
+      TEST_POSTGRES_URL: postgresql+psycopg://notes:ci-only-password@127.0.0.1:5432/audio_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Test published core with current audio modules without merging
+        run: |
+          git fetch --no-tags origin 80002342180fb07ea3c95eca594f3b7c7ff2a82f
+          mkdir -p "$RUNNER_TEMP/audio-core"
+          git archive 80002342180fb07ea3c95eca594f3b7c7ff2a82f | tar -x -C "$RUNNER_TEMP/audio-core"
+          cp app/audio_storage.py app/audio_process.py "$RUNNER_TEMP/audio-core/app/"
+          cp app/routes/audio.py "$RUNNER_TEMP/audio-core/app/routes/"
+          cp tests/test_audio_storage.py tests/test_audio_routes.py "$RUNNER_TEMP/audio-core/tests/"
+          cd "$RUNNER_TEMP/audio-core"
+          python -m pip install -r requirements.txt
+          ffmpeg -version
+          ffprobe -version
+          python -m ruff check app tests migrations scripts telegram_adapter
+          python -m pytest -q
+      - name: Build image with decoder and check compose
+        run: |
+          docker compose config --quiet
+          docker build -t beresta-audio-check .
+          docker run --rm beresta-audio-check ffmpeg -version
+          docker run --rm beresta-audio-check ffprobe -version
+          docker run --rm beresta-audio-check sh -c 'test -w /app/data/audio && test "$(id -u)" != 0'
