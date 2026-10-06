@@ -40,6 +40,42 @@ class AudioJobResponse(StrictModel):
     finished_at: float | None
 
 
+class AudioMetadata(StrictModel):
+    input_kind: Literal["text", "audio"] = "text"
+    transcript: str | None = None
+    transcript_version: int = 1
+    transcript_origin: Literal["stt", "user", "legacy"] | None = None
+    audio_seconds: float | None = None
+    audio_media_type: str | None = None
+
+
+class CaptureResponse(AudioMetadata):
+    capture_id: str
+    original_text: str
+    processing_mode: Literal["ai", "manual"]
+    note_id: str | None
+    job: AudioJobResponse | None
+
+
+class TranscriptEdit(StrictModel):
+    version: int = Field(ge=1)
+    text: str = Field(min_length=1, max_length=12000)
+
+    @field_validator("text")
+    @classmethod
+    def valid_text(cls, value):
+        if not value.strip() or "\x00" in value:
+            raise ValueError("Empty transcript or null bytes")
+        return value
+
+
+class TranscriptRevisionResponse(StrictModel):
+    version: int
+    text: str
+    origin: Literal["stt", "user", "legacy"]
+    created_at: float | None
+
+
 class ProposedConclusion(StrictModel):
     text: str = Field(min_length=1, max_length=1500)
     source_quote: str = Field(min_length=1, max_length=3000)
@@ -230,7 +266,7 @@ class ConclusionResponse(ProposedConclusion):
     status: Literal["proposed", "accepted", "rejected"]
 
 
-class NoteResponse(StrictModel):
+class NoteResponse(AudioMetadata):
     id: str
     capture_id: str
     original_text: str

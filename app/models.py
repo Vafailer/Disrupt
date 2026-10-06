@@ -75,6 +75,20 @@ class Capture(Base):
     transcript_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
+class TranscriptRevision(Base):
+    __tablename__ = "transcript_revisions"
+    __table_args__ = (
+        UniqueConstraint("capture_id", "version"),
+        CheckConstraint("origin IN ('stt', 'user', 'legacy')", name="ck_transcript_origin"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    capture_id: Mapped[str] = mapped_column(ForeignKey("captures.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    origin: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
 class Job(Base):
     __tablename__ = "jobs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

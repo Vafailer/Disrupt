@@ -11,7 +11,7 @@ from app.audio_storage import AudioStorage
 from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
-from app.models import Capture, Category, Item, Job, Note, ProviderBudget, User, new_id
+from app.models import Capture, Category, Item, Job, Note, ProviderBudget, TranscriptRevision, User, new_id
 from app.providers import ProviderError, make_provider, validate_result
 from app.services import ensure_category, lock_account, save_revision
 
@@ -65,6 +65,8 @@ class Worker:
             if capture.transcript is None:
                 capture.transcript = transcript
                 capture.original_text = transcript
+                db.add(TranscriptRevision(capture_id=capture.id, version=capture.transcript_version,
+                                          text=transcript, origin="stt", created_at=time.time()))
             else:
                 transcript = self.validate_transcript(capture.transcript)
             # Keep the transcript even if the next stage fails or the process stops.

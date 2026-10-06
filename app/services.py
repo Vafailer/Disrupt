@@ -10,7 +10,19 @@ from sqlalchemy.exc import IntegrityError
 from app.analytics import record_event
 from app.audio_contracts import AUDIO_MEDIA_TYPES, MAX_AUDIO_BYTES, MAX_AUDIO_SECONDS, StoredAudioLike
 from app.integration import IntegrationRejection
-from app.models import Capture, Category, Item, Job, Note, Outbox, Reminder, Revision, User, new_id
+from app.models import (
+    Capture,
+    Category,
+    Item,
+    Job,
+    Note,
+    Outbox,
+    Reminder,
+    Revision,
+    TranscriptRevision,
+    User,
+    new_id,
+)
 
 MAX_CATEGORIES = 100
 MAX_ITEMS = 30
@@ -243,12 +255,73 @@ def note_view(db, note):
         "id": note.id,
         "capture_id": note.capture_id,
         "original_text": capture.original_text,
+        **audio_metadata(db, capture),
         **snapshot(db, note),
         "version": note.version,
         "provider": note.provider,
         "created_at": note.created_at,
         "updated_at": note.updated_at,
     }
+
+
+def audio_metadata(db, capture):
+    origin = db.scalar(select(TranscriptRevision.origin).where(
+        TranscriptRevision.capture_id == capture.id, TranscriptRevision.version == capture.transcript_version,
+    )) if capture.transcript is not None else None
+    return {
+        "input_kind": capture.input_kind, "transcript": capture.transcript,
+        "transcript_version": capture.transcript_version,
+        "transcript_origin": origin or ("legacy" if capture.transcript is not None else None),
+        "audio_seconds": capture.audio_seconds, "audio_media_type": capture.audio_media_type,
+    }
+
+
+def owned_capture(db, capture_id, user_id, *, audio_only=False):
+    capture = db.scalar(select(Capture).where(Capture.id == capture_id, Capture.user_id == user_id))
+    if capture is None or (audio_only and capture.input_kind != "audio"):
+        raise HTTPException(404, "Запись не найдена")
+    return capture
+
+
+def capture_view(db, capture):
+    job = db.scalar(select(Job).where(Job.capture_id == capture.id))
+    return {
+        "capture_id": capture.id, "original_text": capture.original_text,
+        "processing_mode": capture.processing_mode, **audio_metadata(db, capture),
+        "note_id": db.scalar(select(Note.id).where(Note.capture_id == capture.id)),
+        "job": job_view(db, job) if job else None,
+    }
+
+
+def edit_transcript(db, capture, body):
+    lock_account(db, capture.user_id)
+    db.refresh(capture)
+    job = db.scalar(select(Job).where(Job.capture_id == capture.id))
+    if job and job.status in {"queued", "running"}:
+        raise HTTPException(409, "Дождитесь завершения обработки перед правкой расшифровки")
+    if capture.transcript_version != body.version:
+        raise HTTPException(409, "Расшифровка уже изменена. Обновите её перед сохранением")
+    if capture.transcript == body.text:
+        return capture
+    # Preserve an old transcript imported without a revision, without guessing its date.
+    if capture.transcript is not None and db.scalar(select(TranscriptRevision.id).where(
+        TranscriptRevision.capture_id == capture.id, TranscriptRevision.version == capture.transcript_version,
+    )) is None:
+        db.add(TranscriptRevision(capture_id=capture.id, version=capture.transcript_version,
+                                  text=capture.transcript, origin="legacy", created_at=None))
+    changed = db.execute(update(Capture).where(
+        Capture.id == capture.id, Capture.user_id == capture.user_id, Capture.transcript_version == body.version,
+    ).values(transcript=body.text, transcript_version=Capture.transcript_version + 1),
+        execution_options={"synchronize_session": False}).rowcount
+    if not changed:
+        db.rollback()
+        raise HTTPException(409, "Расшифровка уже изменена. Обновите её перед сохранением")
+    db.refresh(capture)
+    db.add(TranscriptRevision(capture_id=capture.id, version=capture.transcript_version,
+                              text=body.text, origin="user", created_at=time.time()))
+    record_event(db, capture.user_id, "transcript_edited", f"{capture.id}:{capture.transcript_version}")
+    db.flush()
+    return capture
 
 
 def owned_category(db, category_id, user_id):

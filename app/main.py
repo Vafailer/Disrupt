@@ -19,7 +19,7 @@ from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
 from app.integration import IntegrationRejection
-from app.models import Capture, Job, LoginSession, Note, ProviderBudget, Revision, User
+from app.models import Job, LoginSession, Note, ProviderBudget, Revision, User
 from app.providers import DEMO_TEXT
 from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
@@ -28,7 +28,16 @@ from app.routes.audio import build_router as audio_router
 from app.routes.internal import build_router as internal_router
 from app.routes.reminders import build_router as reminders_router
 from app.routes.structure import build_router as structure_router
-from app.schemas import ConclusionEdit, Credentials, NoteEdit, NoteResponse, NoteSummary, TextCapture
+from app.routes.transcripts import build_router as transcripts_router
+from app.schemas import (
+    CaptureResponse,
+    ConclusionEdit,
+    Credentials,
+    NoteEdit,
+    NoteResponse,
+    NoteSummary,
+    TextCapture,
+)
 from app.security import (
     COOKIE_NAME,
     DUMMY_PASSWORD_HASH,
@@ -41,10 +50,12 @@ from app.security import (
 )
 from app.services import (
     capture_text,
+    capture_view,
     create_audio_capture,
     edit_note,
     job_view,
     note_view,
+    owned_capture,
     owned_note,
     search_notes,
 )
@@ -247,6 +258,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     app.include_router(structure_router(database))
     app.include_router(reminders_router(database))
     app.include_router(audio_router(database, settings, audio_storage, create_audio_capture))
+    app.include_router(transcripts_router(database))
 
     @app.get("/health")
     def health(db=Depends(database)):
@@ -367,19 +379,10 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
             return {"capture_id": result.capture_id, "job_id": None, "status": "saved", "note_id": result.id}
         return job_view(db, result)
 
-    @app.get("/api/v1/captures/{capture_id}")
+    @app.get("/api/v1/captures/{capture_id}", response_model=CaptureResponse)
     def read_capture(capture_id: str, request: Request, db=Depends(database)):
         session = get_login_session(request, db)
-        capture = db.scalar(select(Capture).where(Capture.id == capture_id, Capture.user_id == session.user_id))
-        if capture is None:
-            raise HTTPException(404, "Запись не найдена")
-        job = db.scalar(select(Job).where(Job.capture_id == capture_id))
-        return {
-            "capture_id": capture.id, "original_text": capture.original_text,
-            "processing_mode": capture.processing_mode,
-            "note_id": db.scalar(select(Note.id).where(Note.capture_id == capture_id)),
-            "job": job_view(db, job) if job else None,
-        }
+        return capture_view(db, owned_capture(db, capture_id, session.user_id))
 
     @app.get("/api/v1/jobs")
     def list_jobs(request: Request, limit: int = Query(20, ge=1, le=100), db=Depends(database)):

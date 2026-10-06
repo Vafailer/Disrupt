@@ -2611,6 +2611,152 @@
         }
       }
     },
+    "/api/v1/captures/{capture_id}/transcript": {
+      "patch": {
+        "tags": [
+          "transcripts"
+        ],
+        "summary": "Update",
+        "operationId": "update_api_v1_captures__capture_id__transcript_patch",
+        "parameters": [
+          {
+            "name": "capture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Capture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscriptEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptureResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/captures/{capture_id}/transcript-revisions": {
+      "get": {
+        "tags": [
+          "transcripts"
+        ],
+        "summary": "Revisions",
+        "operationId": "revisions_api_v1_captures__capture_id__transcript_revisions_get",
+        "parameters": [
+          {
+            "name": "capture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Capture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TranscriptRevisionResponse"
+                  },
+                  "title": "Response Revisions Api V1 Captures  Capture Id  Transcript Revisions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/captures/{capture_id}/original-opened": {
+      "post": {
+        "tags": [
+          "transcripts"
+        ],
+        "summary": "Original Opened",
+        "operationId": "original_opened_api_v1_captures__capture_id__original_opened_post",
+        "parameters": [
+          {
+            "name": "capture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Capture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -2835,7 +2981,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CaptureResponse"
+                }
               }
             }
           },
@@ -3715,6 +3863,91 @@
         ],
         "title": "AdminSummary"
       },
+      "AudioJobResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "capture_id": {
+            "title": "Capture Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "mock",
+              "cloudru"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "note_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Id"
+          },
+          "original_text": {
+            "title": "Original Text",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "number"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          }
+        },
+        "required": [
+          "id",
+          "capture_id",
+          "status",
+          "provider",
+          "error_code",
+          "note_id",
+          "original_text",
+          "created_at",
+          "finished_at"
+        ],
+        "title": "AudioJobResponse",
+        "type": "object"
+      },
       "AuthorizeRequest": {
         "properties": {
           "lease_token": {
@@ -3750,6 +3983,120 @@
           "send"
         ],
         "title": "AuthorizeResponse"
+      },
+      "CaptureResponse": {
+        "properties": {
+          "input_kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "audio"
+            ],
+            "title": "Input Kind",
+            "default": "text"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "transcript_version": {
+            "type": "integer",
+            "title": "Transcript Version",
+            "default": 1
+          },
+          "transcript_origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "stt",
+                  "user",
+                  "legacy"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Origin"
+          },
+          "audio_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Seconds"
+          },
+          "audio_media_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Media Type"
+          },
+          "capture_id": {
+            "type": "string",
+            "title": "Capture Id"
+          },
+          "original_text": {
+            "type": "string",
+            "title": "Original Text"
+          },
+          "processing_mode": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "manual"
+            ],
+            "title": "Processing Mode"
+          },
+          "note_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Id"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AudioJobResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "capture_id",
+          "original_text",
+          "processing_mode",
+          "note_id",
+          "job"
+        ],
+        "title": "CaptureResponse"
       },
       "Cards": {
         "properties": {
@@ -4694,6 +5041,69 @@
       },
       "NoteResponse": {
         "properties": {
+          "input_kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "audio"
+            ],
+            "title": "Input Kind",
+            "default": "text"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "transcript_version": {
+            "type": "integer",
+            "title": "Transcript Version",
+            "default": 1
+          },
+          "transcript_origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "stt",
+                  "user",
+                  "legacy"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Origin"
+          },
+          "audio_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Seconds"
+          },
+          "audio_media_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Media Type"
+          },
           "id": {
             "type": "string",
             "title": "Id"
@@ -5392,6 +5802,69 @@
         ],
         "title": "TextCapture"
       },
+      "TranscriptEdit": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "text"
+        ],
+        "title": "TranscriptEdit"
+      },
+      "TranscriptRevisionResponse": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "stt",
+              "user",
+              "legacy"
+            ],
+            "title": "Origin"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "text",
+          "origin",
+          "created_at"
+        ],
+        "title": "TranscriptRevisionResponse"
+      },
       "UsageRow": {
         "properties": {
           "id": {
@@ -5626,91 +6099,6 @@
           "version"
         ],
         "title": "VersionRequest"
-      },
-      "AudioJobResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "capture_id": {
-            "title": "Capture Id",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "queued",
-              "running",
-              "succeeded",
-              "failed"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "provider": {
-            "enum": [
-              "mock",
-              "cloudru"
-            ],
-            "title": "Provider",
-            "type": "string"
-          },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "note_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note Id"
-          },
-          "original_text": {
-            "title": "Original Text",
-            "type": "string"
-          },
-          "created_at": {
-            "title": "Created At",
-            "type": "number"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          }
-        },
-        "required": [
-          "id",
-          "capture_id",
-          "status",
-          "provider",
-          "error_code",
-          "note_id",
-          "original_text",
-          "created_at",
-          "finished_at"
-        ],
-        "title": "AudioJobResponse",
-        "type": "object"
       }
     },
     "securitySchemes": {

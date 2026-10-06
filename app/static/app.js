@@ -3,6 +3,11 @@ const $ = id => document.getElementById(id);
 let csrf = '', currentNote = null, epoch = 0, notesOffset = 0, pendingCapture = null;
 let categories = [], searchOperation = null, notesGeneration = 0, noteBusy = false;
 let activeFilter = {q:'',category:''};
+let currentCapture = null, selectedAudio = null, pendingAudio = null, captureBusy = false, viewGeneration = 0;
+let recorder = null, recordStream = null, recordTimer = null, recordBytes = 0, recordChunks = [], recordInvalid = false, microphonePending = false;
+const audioMaximum = 10 * 1024 * 1024;
+let localAudioUrl = null;
+let comparisonCapture = null;
 const itemEditors = new Map(), busyControls = new Map();
 const itemLabels = {note:'Заметка', idea:'Идея', task:'Задача', goal:'Цель', plan:'План'};
 const statusLabels = {queued:'В очереди', running:'Разбираем запись', succeeded:'Готово', failed:'Не получилось'};
@@ -17,6 +22,10 @@ const errors = {
   budget_exhausted:'Лимит приложения исчерпан. Запись сохранена. Для нового запроса увеличьте лимит при запуске.',
   execution_unknown:'Обработка прервалась. Запись сохранена, повтора не было.',
   provider_timeout_unknown:'Модель не ответила вовремя. Запрос мог быть учтён. Повтора не было.',
+  stt_not_configured:'Распознавание пока не подключено. Аудио сохранено, можно вписать расшифровку вручную.',
+  stt_invalid_response:'Не удалось получить расшифровку. Аудио сохранено, можно вписать текст вручную.',
+  stt_failed:'Не удалось распознать запись. Оригинал сохранён.',
+  audio_storage_unavailable:'Не удалось прочитать аудио. Попробуйте открыть оригинал позже.',
 };
 function message(text = '') { $('message').textContent = text; }
 function authMessage(text = '') {
@@ -29,14 +38,14 @@ function element(tag, text, className) {
   return el;
 }
 async function api(path, options = {}, withHeaders = false) {
+  const headers = {'X-CSRF-Token':csrf,...options.headers};
+  if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   const response = await fetch(path, {
-    ...options, credentials:'same-origin', headers:{
-      'Content-Type':'application/json', 'X-CSRF-Token':csrf, ...options.headers,
-    },
+    ...options, credentials:'same-origin', headers,
   });
   if (response.status === 204) return null;
   const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || 'Не удалось выполнить запрос');
+  if (!response.ok) { const error = new Error(data.detail || 'Не удалось выполнить запрос'); error.status = response.status; throw error; }
   return withHeaders ? {data,headers:response.headers} : data;
 }
 function showUser(user) {
@@ -82,6 +91,8 @@ function renderMarkdown(text) {
   }
 }
 function hasDrafts(except = null) {
+  if (except !== 'transcript' && currentCapture?.input_kind === 'audio' &&
+      $('transcript-text').value !== (currentCapture.transcript || '')) return true;
   if (!currentNote) return false;
   if (except !== 'note' && ($('title').value !== currentNote.title || $('markdown').value !== currentNote.markdown)) return true;
   if (except !== 'new' && $('item-text').value.trim()) return true;
@@ -91,11 +102,11 @@ function hasDrafts(except = null) {
   }
   return false;
 }
-function dirty() { return hasDrafts(); }
+function dirty() { return hasDrafts() || Boolean(recorder || microphonePending || selectedAudio || captureBusy || $('thought').value.trim()); }
 function setNoteBusy(value) {
   noteBusy = value;
   if (value) {
-    for (const control of $('note-card').querySelectorAll('input,textarea,select,button')) {
+    for (const control of document.querySelectorAll('#note-card input,#note-card textarea,#note-card select,#note-card button,#source-card textarea,#source-card button')) {
       if (!busyControls.has(control)) busyControls.set(control,control.disabled);
       control.disabled = true;
     }
@@ -103,6 +114,7 @@ function setNoteBusy(value) {
     for (const [control,disabled] of busyControls) control.disabled = disabled;
     busyControls.clear();
     $('confirm-structure').disabled = Boolean(currentNote?.structure_confirmed_at);
+    setTranscriptControls();
   }
 }
 async function mutateNote(suffix, method, body, text, except = null) {
@@ -119,8 +131,11 @@ async function mutateNote(suffix, method, body, text, except = null) {
   finally { setNoteBusy(false); }
 }
 function renderNote(note) {
+  if (note.input_kind === 'audio') renderSource({...note,note_id:note.id,job:null});
+  else { currentCapture = null; hideSource(); }
   currentNote = note; $('capture-card').hidden = true; $('note-card').hidden = false;
   $('original').textContent = note.original_text; $('title').value = note.title;
+  $('original-details').hidden = note.input_kind === 'audio';
   $('markdown').value = note.markdown; renderMarkdown(note.markdown);
   $('original-details').open = false;
   fillCategoryOptions($('note-category'),false,note.category_id || '');
@@ -148,13 +163,15 @@ function renderNote(note) {
 }
 async function openNote(id, {userAction = false, search = null} = {}) {
   if (noteBusy) return message('Дождитесь сохранения.');
-  if (dirty() && !confirm('Есть несохранённые правки. Открыть другую заметку?')) return;
+  if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
+  if (hasDrafts() && !confirm('Есть несохранённые правки. Открыть другую заметку?')) return;
+  const generation = ++viewGeneration;
   const currentEpoch = epoch;
   setNoteBusy(true);
   try {
     await loadCategories();
     const note = await api(`/api/v1/notes/${id}`);
-    if (currentEpoch !== epoch) return;
+    if (currentEpoch !== epoch || generation !== viewGeneration) return;
     renderNote(note); setNoteBusy(true); message();
     if (userAction) await api(`/api/v1/notes/${id}/opened`,{
       method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID(),search_operation_id:search}),
@@ -171,21 +188,32 @@ async function loadJobs() {
       const button = element('button','Открыть заметку','quiet');
       button.onclick = () => openNote(job.note_id,{userAction:true}).catch(e => message(e.message)); row.append(button);
     } else row.append(element('pre',job.original_text));
+    const original = element('button','Открыть исходник','quiet');
+    original.onclick = () => openCapture(job.capture_id,{userAction:true}).catch(e => message(e.message));
+    row.append(original);
     $('jobs').append(row);
   }
   return jobs;
 }
-async function pollJob(id, currentEpoch) {
+async function pollJob(id, currentEpoch, {kind = 'text', generation = viewGeneration} = {}) {
   for (let i=0; i<120 && currentEpoch===epoch; i++) {
     const job = await api(`/api/v1/jobs/${id}`);
     if (currentEpoch!==epoch) return;
     $('job-status').textContent = statusLabels[job.status];
     if (job.status === 'succeeded') {
-      $('thought').value = ''; pendingCapture = null;
-      await loadNotes(); await loadJobs(); await openNote(job.note_id); return;
+      if (kind === 'text') { $('thought').value = ''; pendingCapture = null; }
+      else clearAudio();
+      await loadNotes(); await loadJobs();
+      if (generation === viewGeneration) await openNote(job.note_id);
+      else message('Запись обработана. Она доступна в списке заметок.');
+      return;
     }
     if (job.status === 'failed') {
-      pendingCapture = null;
+      if (kind === 'text') pendingCapture = null;
+      else {
+        clearAudio();
+        if (generation === viewGeneration) await openCapture(job.capture_id);
+      }
       await loadJobs(); await loadProviderUsage();
       throw new Error(errors[job.error_code] || `Не удалось обработать запись. Она сохранена. Код: ${job.error_code}.`);
     }
@@ -217,6 +245,7 @@ $('auth-form').onsubmit = async event => {
   } finally { buttons.forEach(b => b.disabled=false); }
 };
 $('logout').onclick = async () => {
+  if (noteBusy || captureBusy || recorder || microphonePending) return message('Дождитесь завершения записи или сохранения.');
   if (dirty() && !confirm('Выйти без сохранения правок?')) return;
   try { await api('/api/v1/auth/logout',{method:'POST'}); epoch++; location.reload(); }
   catch(e) { message(e.message); }
@@ -229,14 +258,14 @@ $('example').onclick = async () => {
 };
 $('capture-form').onsubmit = async event => {
   event.preventDefault(); const text = $('thought').value;
+  if (captureBusy || recorder || microphonePending) return;
   const processing_mode = $('processing-mode').value;
   if (!text.trim()) return message('Напишите что-нибудь.');
   // Keep the same key after a network error: retrying must not create another paid job.
   if (!pendingCapture || pendingCapture.text !== text || pendingCapture.processing_mode !== processing_mode) {
     pendingCapture = {text,processing_mode,key:crypto.randomUUID()};
   }
-  $('capture-submit').disabled = true; $('thought').disabled=true; $('example').disabled=true;
-  $('processing-mode').disabled = true;
+  setCaptureBusy(true);
   try {
     const job = await api('/api/v1/captures/text',{method:'POST',headers:{'Idempotency-Key':pendingCapture.key},body:JSON.stringify({text,processing_mode})});
     message('Запись сохранена.');
@@ -245,8 +274,7 @@ $('capture-form').onsubmit = async event => {
       await loadNotes(); await openNote(job.note_id);
     } else { await loadJobs(); await pollJob(job.id,epoch); }
   } catch(e) { message(e.message); } finally {
-    $('capture-submit').disabled=false; $('thought').disabled=false; $('example').disabled=false;
-    $('processing-mode').disabled = false;
+    setCaptureBusy(false);
   }
 };
 $('edit-form').onsubmit = async event => {
@@ -256,8 +284,10 @@ $('edit-form').onsubmit = async event => {
 $('markdown').oninput = () => renderMarkdown($('markdown').value);
 $('new-note').onclick = () => {
   if (noteBusy) return message('Дождитесь сохранения.');
-  if (dirty() && !confirm('Есть несохранённые правки. Перейти к новой записи?')) return;
-  currentNote=null; $('note-card').hidden=true; $('capture-card').hidden=false; message();
+  if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
+  if (hasDrafts() && !confirm('Есть несохранённые правки. Перейти к новой записи?')) return;
+  viewGeneration++; currentNote=null; currentCapture=null; hideSource();
+  $('note-card').hidden=true; $('capture-card').hidden=false; message();
   loadJobs().catch(e=>message(e.message));
 };
 $('more-notes').onclick = () => loadNotes(false).catch(e=>message(e.message));
@@ -401,8 +431,243 @@ async function openLinkedCapture() {
   if (!id) return;
   const capture = await api(`/api/v1/captures/${encodeURIComponent(id)}`);
   if (capture.note_id) await openNote(capture.note_id);
-  else if (capture.job) await pollJob(capture.job.id, epoch);
+  else if (capture.input_kind === 'audio') {
+    await openCapture(id);
+    if (capture.job && ['queued','running'].includes(capture.job.status)) {
+      await pollJob(capture.job.id,epoch,{kind:'audio'});
+    }
+  } else if (capture.job) await pollJob(capture.job.id, epoch);
 }
+function setAudioControls() {
+  const recording = Boolean(recorder || microphonePending);
+  $('capture-submit').disabled = captureBusy || recording;
+  $('audio-file').disabled = captureBusy || recording;
+  $('audio-submit').disabled = captureBusy || recording || !selectedAudio;
+  $('audio-clear').disabled = captureBusy || recording || !selectedAudio;
+  $('record-start').disabled = captureBusy || recording || !recordingMime();
+  $('record-stop').disabled = !recorder || recorder.state !== 'recording';
+}
+function setCaptureBusy(value) {
+  captureBusy = value;
+  for (const id of ['capture-submit','thought','example','processing-mode']) $(id).disabled = value;
+  setAudioControls();
+}
+function clearAudio() {
+  selectedAudio = null; pendingAudio = null; $('audio-file').value = '';
+  $('audio-selected').textContent = 'Файл не выбран.';
+  if (localAudioUrl) URL.revokeObjectURL(localAudioUrl);
+  localAudioUrl = null; $('audio-preview').removeAttribute('src'); $('audio-preview').hidden = true;
+  setAudioControls();
+}
+function selectAudio(file) {
+  if (!file || file.size === 0 || file.size > audioMaximum) {
+    message(file?.size > audioMaximum ? 'Файл должен быть не больше 10 МиБ.' : 'В файле нет аудио.');
+    return false;
+  }
+  clearAudio(); selectedAudio = file;
+  $('audio-selected').textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} МиБ`;
+  if (typeof URL.createObjectURL === 'function') {
+    localAudioUrl = URL.createObjectURL(file);
+    $('audio-preview').src = localAudioUrl; $('audio-preview').hidden = false;
+  }
+  setAudioControls(); return true;
+}
+$('audio-file').onchange = () => {
+  const file = $('audio-file').files[0];
+  if (!file) return;
+  selectAudio(file);
+};
+$('audio-clear').onclick = () => { if (!captureBusy && !recorder) clearAudio(); };
+$('audio-form').onsubmit = async event => {
+  event.preventDefault();
+  if (!selectedAudio || captureBusy || recorder || microphonePending) return;
+  if (!pendingAudio || pendingAudio.file !== selectedAudio) pendingAudio = {file:selectedAudio,key:crypto.randomUUID()};
+  const form = new FormData();
+  form.append('audio',pendingAudio.file); form.append('processing_mode','ai');
+  const generation = viewGeneration;
+  setCaptureBusy(true); $('job-status').textContent = 'Загружаем аудио…';
+  try {
+    const job = await api('/api/v1/captures/audio',{method:'POST',headers:{'Idempotency-Key':pendingAudio.key},body:form});
+    message('Аудио сохранено.');
+    // A successful response confirms durable storage even if polling later loses the network.
+    clearAudio();
+    await loadJobs(); await pollJob(job.id,epoch,{kind:'audio',generation});
+  } catch(e) {
+    message(selectedAudio ? `${e.message}. Файл остался выбранным. Можно повторить загрузку.` : e.message);
+  } finally { setCaptureBusy(false); }
+};
+function recordingMime() {
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') return null;
+  return ['audio/webm;codecs=opus','audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type)) || null;
+}
+function releaseMicrophone() {
+  clearTimeout(recordTimer); recordTimer = null;
+  if (recordStream) for (const track of recordStream.getTracks()) track.stop();
+  recordStream = null;
+}
+function stopRecording() {
+  if (recorder?.state === 'recording') { recorder.stop(); $('record-stop').disabled = true; }
+}
+$('record-start').onclick = async () => {
+  const mime = recordingMime(), recordingEpoch = epoch;
+  if (!mime || recorder || microphonePending || captureBusy) return;
+  if (selectedAudio && !confirm('Заменить выбранный файл новой записью?')) return;
+  microphonePending = true; setAudioControls();
+  try {
+    recordStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    if (recordingEpoch !== epoch) { releaseMicrophone(); return; }
+    const active = new MediaRecorder(recordStream,{mimeType:mime});
+    clearAudio(); recorder = active; recordChunks = []; recordBytes = 0; recordInvalid = false;
+    active.ondataavailable = event => {
+      if (!event.data.size) return;
+      recordBytes += event.data.size;
+      if (recordBytes > audioMaximum) {
+        recordInvalid = true; $('record-status').textContent = 'Запись превысила 10 МиБ. Запишите более короткий фрагмент.';
+        stopRecording(); return;
+      }
+      if (!recordInvalid) recordChunks.push(event.data);
+    };
+    active.onerror = () => {
+      recordInvalid = true; $('record-status').textContent = 'Не удалось записать голос. Можно загрузить файл.';
+      stopRecording(); releaseMicrophone();
+    };
+    active.onstop = () => {
+      if (recorder !== active) return;
+      releaseMicrophone(); recorder = null;
+      if (!recordInvalid && recordingEpoch === epoch) {
+        const file = new File(recordChunks,`recording.${mime.startsWith('audio/ogg') ? 'ogg' : 'webm'}`,{type:mime});
+        if (selectAudio(file)) $('record-status').textContent = 'Голос записан. Прослушайте и загрузите файл.';
+      }
+      recordChunks = []; setAudioControls();
+    };
+    active.start(1000);
+    recordTimer = setTimeout(() => {
+      $('record-status').textContent = 'Достигнут предел 3 минуты. Завершаем запись.'; stopRecording();
+    },180000);
+    $('record-status').textContent = 'Идёт запись. Нажмите «Остановить», когда закончите.';
+  } catch(e) {
+    recorder = null; releaseMicrophone();
+    $('record-status').textContent = 'Не удалось открыть микрофон. Проверьте разрешение браузера или загрузите файл.';
+  } finally { microphonePending = false; setAudioControls(); }
+};
+$('record-stop').onclick = stopRecording;
+window.addEventListener('pagehide',() => { epoch++; stopRecording(); releaseMicrophone(); });
+
+function hideSource() {
+  $('source-card').hidden = true;
+  $('audio-player').removeAttribute('src'); $('audio-download').removeAttribute('href');
+}
+function setTranscriptControls() {
+  const editable = currentCapture?.input_kind === 'audio' &&
+    (currentCapture.note_id || ['failed','succeeded'].includes(currentCapture.job?.status));
+  $('transcript-text').disabled = noteBusy || !editable;
+  $('transcript-save').disabled = noteBusy || !editable;
+}
+function renderSource(capture) {
+  comparisonCapture = null; $('transcript-conflict').hidden = true;
+  $('transcript-remote').hidden = true; $('transcript-use-version').hidden = true;
+  currentCapture = capture; $('source-card').hidden = false;
+  const audio = capture.input_kind === 'audio';
+  $('source-audio').hidden = !audio; $('transcript-editor').hidden = !audio;
+  $('source-original').hidden = audio;
+  $('source-original').textContent = audio ? '' : capture.original_text;
+  if (audio) {
+    const url = `/api/v1/captures/${encodeURIComponent(capture.capture_id)}/audio`;
+    if ($('audio-player').getAttribute('src') !== url) $('audio-player').src = url;
+    $('audio-download').href = url;
+    $('audio-info').textContent = capture.audio_seconds == null ? 'Исходный аудиофайл.' : `Длительность ${Math.ceil(capture.audio_seconds)} сек.`;
+    $('transcript-text').value = capture.transcript || '';
+    const origin = {stt:'Результат распознавания',user:'Текст, исправленный вручную',legacy:'Сохранённая расшифровка'};
+    $('transcript-label').textContent = capture.transcript == null
+      ? (['queued','running'].includes(capture.job?.status) ? 'Дождитесь завершения обработки.' : 'Расшифровка пока не получена. Можно вписать текст вручную.')
+      : `${origin[capture.transcript_origin] || 'Расшифровка'} · версия ${capture.transcript_version}`;
+    $('transcript-history').replaceChildren();
+  } else { $('audio-player').removeAttribute('src'); $('audio-download').removeAttribute('href'); }
+  setTranscriptControls();
+}
+async function openCapture(id, {userAction = false} = {}) {
+  if (noteBusy) return message('Дождитесь сохранения.');
+  if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
+  if (hasDrafts() && !confirm('Есть несохранённые правки. Открыть исходник?')) return;
+  const generation = ++viewGeneration, currentEpoch = epoch;
+  setNoteBusy(true);
+  try {
+    const capture = await api(`/api/v1/captures/${encodeURIComponent(id)}`);
+    if (generation !== viewGeneration || currentEpoch !== epoch) return;
+    if (currentNote?.capture_id !== id) { currentNote = null; $('note-card').hidden = true; }
+    $('capture-card').hidden = true; renderSource(capture);
+    if (userAction) await api(`/api/v1/captures/${encodeURIComponent(id)}/original-opened`,{
+      method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID()}),
+    });
+  } finally { setNoteBusy(false); }
+}
+$('source-refresh').onclick = () => {
+  if (hasDrafts()) return message('Сначала сохраните правки.');
+  if (currentCapture) openCapture(currentCapture.capture_id).catch(e => message(e.message));
+};
+$('transcript-form').onsubmit = async event => {
+  event.preventDefault();
+  if (noteBusy || currentCapture?.input_kind !== 'audio' || $('transcript-save').disabled) return;
+  if (hasDrafts('transcript')) return message('Сначала сохраните остальные правки.');
+  const text = $('transcript-text').value;
+  if (!text.trim() || text.includes('\0')) return message('Расшифровка не должна быть пустой.');
+  const id = currentCapture.capture_id, generation = viewGeneration;
+  setNoteBusy(true);
+  try {
+    const capture = await api(`/api/v1/captures/${encodeURIComponent(id)}/transcript`,{
+      method:'PATCH',body:JSON.stringify({version:currentCapture.transcript_version,text}),
+    });
+    if (generation !== viewGeneration || currentCapture?.capture_id !== id) return;
+    renderSource(capture);
+    if (currentNote?.capture_id === id) Object.assign(currentNote,{
+      transcript:capture.transcript,transcript_version:capture.transcript_version,transcript_origin:capture.transcript_origin,
+    });
+    message('Расшифровка сохранена.');
+  } catch(e) {
+    if (e.status === 409 && generation === viewGeneration && currentCapture?.capture_id === id) $('transcript-conflict').hidden = false;
+    message(e.message);
+  }
+  finally { setNoteBusy(false); }
+};
+$('transcript-compare').onclick = async () => {
+  if (!currentCapture || noteBusy) return;
+  const id = currentCapture.capture_id, generation = viewGeneration;
+  setNoteBusy(true);
+  try {
+    const capture = await api(`/api/v1/captures/${encodeURIComponent(id)}`);
+    if (generation !== viewGeneration || currentCapture?.capture_id !== id) return;
+    comparisonCapture = capture;
+    $('transcript-remote').textContent = `Версия ${capture.transcript_version}\n\n${capture.transcript || 'Расшифровка пока не получена.'}`;
+    $('transcript-remote').hidden = false; $('transcript-use-version').hidden = false;
+  } catch(e) { message(e.message); }
+  finally { setNoteBusy(false); }
+};
+$('transcript-use-version').onclick = () => {
+  if (!comparisonCapture || noteBusy || comparisonCapture.capture_id !== currentCapture?.capture_id) return;
+  currentCapture = comparisonCapture; comparisonCapture = null;
+  $('transcript-use-version').hidden = true;
+  $('transcript-label').textContent = `Правка версии ${currentCapture.transcript_version}. Ваш текст остался в поле. Сравните и сохраните.`;
+  setTranscriptControls();
+};
+$('transcript-history-load').onclick = async () => {
+  if (!currentCapture) return;
+  const id = currentCapture.capture_id, generation = viewGeneration;
+  try {
+    const rows = await api(`/api/v1/captures/${encodeURIComponent(id)}/transcript-revisions`);
+    if (generation !== viewGeneration || currentCapture?.capture_id !== id) return;
+    $('transcript-history').replaceChildren();
+    for (const row of rows) {
+      const detail = document.createElement('details');
+      const date = row.created_at == null ? 'Дата неизвестна' : new Date(row.created_at * 1000).toLocaleString('ru-RU');
+      detail.append(element('summary',`Версия ${row.version} · ${date}`),element('pre',row.text));
+      $('transcript-history').append(detail);
+    }
+    if (!rows.length) $('transcript-history').append(element('p','Сохранённых версий пока нет.'));
+  } catch(e) { message(e.message); }
+};
+setAudioControls();
+if (!recordingMime()) $('record-status').textContent = 'В этом браузере запись недоступна. Можно загрузить Ogg, WebM или WAV.';
+
 (async () => {
   try {
     const health = await api('/health');
