@@ -62,9 +62,12 @@ services:
       - "8000"
       - --proxy-headers
       - --forwarded-allow-ips=*
-    environment: *backend-environment
+    environment:
+      <<: *backend-environment
+      NOTES_ANALYTICS_PSEUDONYM_KEY_FILE: /run/secrets/analytics_pseudonym_key
     secrets:
       - postgres_password
+      - analytics_pseudonym_key
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -116,6 +119,8 @@ services:
       - api
 
 secrets:
+  analytics_pseudonym_key:
+    file: ./secrets/analytics_pseudonym_key.txt
   postgres_password:
     file: ./secrets/postgres_password.txt
   cloudru_api_key:

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Статистика · Beresta</title>
+  <link rel="stylesheet" href="/static/admin.css">
+  <script src="/static/admin.js" defer></script>
+</head>
+<body>
+  <header><a href="/" class="brand">beresta<span>Бизнес-статистика</span></a><a href="/">К заметкам</a></header>
+  <main>
+    <h1>Как используют Beresta</h1>
+    <p class="intro">Пользователи, целевые действия и расходы. Дни считаются по Москве. Тестовые аккаунты и фоновая активность исключаются сервером.</p>
+    <form id="filters" class="panel filters">
+      <label>С даты<input id="from" name="from" type="date" required></label>
+      <label>По дату включительно<input id="to" name="to" type="date" required></label>
+      <label>Канал<select id="channel" name="channel"><option value="all">Все каналы</option><option value="web">Веб</option><option value="telegram">Telegram</option></select></label>
+      <label>Источник<input id="source" name="source" maxlength="100" value="all" aria-describedby="source-help"></label>
+      <button id="apply" type="submit">Показать</button>
+      <button id="export" type="button" class="secondary" disabled>Скачать CSV</button>
+      <small id="source-help">Источник — код привлечения; all означает все источники. CSV содержит агрегаты, без личных записей и списка операций.</small>
+    </form>
+    <p id="status" role="status" aria-live="polite">Загружаем статистику…</p>
+    <a id="login" href="/" hidden>Перейти к входу</a>
+    <div id="dashboard" hidden aria-busy="false">
+      <p id="snapshot" class="muted"></p>
+      <section aria-labelledby="users-title"><h2 id="users-title">Пользователи и активация</h2><div id="cards" class="cards"></div><p id="activation-pending" class="muted"></p></section>
+      <section class="panel" aria-labelledby="daily-title"><h2 id="daily-title">По дням</h2><div id="daily" class="table-wrap" tabindex="0" role="region" aria-label="Показатели по дням"></div></section>
+      <div class="columns">
+        <section class="panel" aria-labelledby="funnel-title"><h2 id="funnel-title">Воронка новых пользователей</h2><p class="muted">Доли и порядок событий рассчитаны сервером.</p><div id="funnel" class="table-wrap" tabindex="0" role="region" aria-label="Воронка"></div></section>
+        <section class="panel" aria-labelledby="retention-title"><h2 id="retention-title">Удержание</h2><div id="retention" class="cards compact"></div><p id="retention-pending" class="muted"></p><p class="muted">D1 и D7 учитывают только созревшие когорты. Если окно наблюдения ещё не завершилось, результат не считается нулём.</p></section>
+      </div>
+      <section class="panel" aria-labelledby="costs-title"><h2 id="costs-title">Расходы и токены</h2><p class="muted">Неизвестные расходы показаны отдельно от известной части. Оценка не заменяет измеренную стоимость. LLM cost/DAU использует сумму дневных DAU за период.</p><div id="costs" class="cards compact"></div></section>
+      <section class="panel" aria-labelledby="quality-title"><h2 id="quality-title">Обработка и напоминания</h2><div id="quality" class="cards compact"></div><p class="muted">Неизвестный результат отправки не означает доставку. Такая попытка не повторяется автоматически.</p></section>
+      <section class="panel" aria-labelledby="usage-title"><h2 id="usage-title">Модельные операции</h2><p class="muted">Только технические идентификаторы, без текстов, аудио, имён и контактов. На странице до 50 операций; расходы выше относятся ко всему выбранному периоду.</p><div id="usage" class="table-wrap" tabindex="0" role="region" aria-label="Расходы по операциям"></div><nav class="pagination" aria-label="Страницы операций"><button id="previous" type="button" class="secondary" disabled>Назад</button><span id="page"></span><button id="next" type="button" class="secondary" disabled>Далее</button></nav></section>
+    </div>
+    <noscript>Для просмотра статистики включите JavaScript.</noscript>
+  </main>
+</body>
+</html>
