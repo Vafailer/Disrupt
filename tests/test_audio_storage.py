@@ -146,3 +146,17 @@ def test_container_and_codec_restrictions(storage, tmp_path, case):
     with storage.stage(io.BytesIO(data)) as staged:
         with pytest.raises(UnsupportedAudio):
             storage.inspect(staged)
+
+
+def test_busy_decoder_is_temporary_and_does_not_publish(storage):
+    from app.audio_storage import _DECODE_SLOTS
+    assert _DECODE_SLOTS.acquire(blocking=False)
+    assert _DECODE_SLOTS.acquire(blocking=False)
+    try:
+        with storage.stage(io.BytesIO(wav())) as staged:
+            with pytest.raises(AudioStorageUnavailable, match="decoder_busy"):
+                storage.inspect(staged)
+    finally:
+        _DECODE_SLOTS.release()
+        _DECODE_SLOTS.release()
+    assert not list(storage.root.iterdir())

@@ -8,6 +8,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from uuid import UUID
 
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
 MAX_AUDIO_SECONDS = 180
+_DECODE_SLOTS = threading.BoundedSemaphore(2)
 
 
 class AudioTooLarge(ValueError):
@@ -68,6 +70,7 @@ def _run(command, limit, *, collect=False, timeout=25):
         process = subprocess.Popen(
             [sys.executable, wrapper, *command], stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True,
+            env={**os.environ, "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"},
         )
     except OSError:
         raise AudioStorageUnavailable("decoder_unavailable") from None
@@ -192,6 +195,14 @@ class AudioStorage:
 
     def inspect(self, staged):
         self._writable()
+        if not _DECODE_SLOTS.acquire(blocking=False):
+            raise AudioStorageUnavailable("decoder_busy")
+        try:
+            return self._inspect(staged)
+        finally:
+            _DECODE_SLOTS.release()
+
+    def _inspect(self, staged):
         if staged.byte_count == 0:
             raise UnsupportedAudio("empty_audio")
         try:

@@ -214,8 +214,9 @@ def test_postgres_concurrent_audio(tmp_path, monkeypatch):
             user = register(client, username="audio_" + uuid4().hex)
             base = {**BASE, "bot_id": uuid4().int % 10**12 + 1}
             code = client.post("/api/v1/telegram/link-code").json()
-            client.post("/internal/v1/telegram/link-request", headers={"Authorization": "Bearer " + SERVICE_TOKEN},
-                        json={**base, "code": code["code"]})
+            pending = client.post("/internal/v1/telegram/link-request", headers={"Authorization": "Bearer " + SERVICE_TOKEN},
+                                  json={**base, "update_id": 1, "code": code["code"]})
+            assert pending.status_code == 200, pending.text
             assert client.post("/api/v1/telegram/links/" + code["link_request_id"] + "/confirm").status_code == 200
             def send_web(_):
                 return web(client)
