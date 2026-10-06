@@ -1976,6 +1976,641 @@
         "x-implementation-status": "implemented"
       }
     },
+    "/internal/v1/telegram/voice": {
+      "post": {
+        "operationId": "telegram_voice",
+        "tags": [
+          "internal-v1"
+        ],
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "InternalServiceToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "bot_id",
+                  "update_id",
+                  "telegram_user_id",
+                  "chat_id",
+                  "audio",
+                  "processing_mode"
+                ],
+                "properties": {
+                  "bot_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Decimal int64, maximum 9223372036854775807; positive"
+                  },
+                  "update_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Decimal int64, maximum 9223372036854775807; zero allowed"
+                  },
+                  "telegram_user_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Decimal int64, maximum 9223372036854775807; positive"
+                  },
+                  "chat_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Decimal int64, maximum 9223372036854775807; positive"
+                  },
+                  "audio": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Original Ogg/Opus, WAV/PCM or WebM/Opus, verified by full decoding; at most 10485760 bytes and 180 seconds inclusive. Filename and declared MIME are not trusted."
+                  },
+                  "processing_mode": {
+                    "type": "string",
+                    "enum": [
+                      "ai"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Committed original and queued processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramCaptureResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "empty_input": {
+                    "value": {
+                      "error": {
+                        "code": "empty_input",
+                        "message": "В записи нет текста"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000109"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "unauthorized",
+                        "message": "Недопустимый сервисный секрет"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000112"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "telegram_not_linked": {
+                    "value": {
+                      "error": {
+                        "code": "telegram_not_linked",
+                        "message": "Сначала подтвердите связь в веб-приложении"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000104"
+                    }
+                  },
+                  "action_forbidden": {
+                    "value": {
+                      "error": {
+                        "code": "action_forbidden",
+                        "message": "Кнопка принадлежит другому аккаунту"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000110"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "link_expired": {
+                    "value": {
+                      "error": {
+                        "code": "link_expired",
+                        "message": "Ссылка истекла"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000105"
+                    }
+                  },
+                  "link_conflict": {
+                    "value": {
+                      "error": {
+                        "code": "link_conflict",
+                        "message": "Telegram или аккаунт уже связан"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000106"
+                    }
+                  },
+                  "invalid_link": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_link",
+                        "message": "Ссылка недействительна"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000107"
+                    }
+                  },
+                  "action_expired": {
+                    "value": {
+                      "error": {
+                        "code": "action_expired",
+                        "message": "Кнопка недействительна или устарела"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000111"
+                    }
+                  },
+                  "conflict": {
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "Update уже использован с другим содержимым"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000114"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "input_too_large": {
+                    "value": {
+                      "error": {
+                        "code": "input_too_large",
+                        "message": "Запись слишком большая"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000108"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "invalid_input": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_input",
+                        "message": "Проверьте формат и длину ввода"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000113"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "rate_limited": {
+                    "value": {
+                      "error": {
+                        "code": "rate_limited",
+                        "message": "Слишком много записей ожидают обработки"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000115"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "unavailable",
+                        "message": "Временная ошибка. Повторите ту же операцию."
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000116"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/captures/audio": {
+      "post": {
+        "operationId": "web_audio_capture",
+        "tags": [
+          "audio"
+        ],
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "description": "Authenticate before multipart parsing. Reject repeated or extra fields. Commit the original and job before responding. Replay identical bytes without decoding again.",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_.:-]{1,100}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "audio",
+                  "processing_mode"
+                ],
+                "properties": {
+                  "audio": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Original Ogg/Opus, WAV/PCM or WebM/Opus, verified by full decoding; at most 10485760 bytes and 180 seconds inclusive. Filename and declared MIME are not trusted."
+                  },
+                  "processing_mode": {
+                    "type": "string",
+                    "enum": [
+                      "ai"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Committed capture, current state of its job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/captures/{capture_id}/audio": {
+      "get": {
+        "operationId": "download_audio_original",
+        "tags": [
+          "audio"
+        ],
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "description": "Check capture ownership before opening the file. STT failures do not remove access. Return 404 for missing, foreign or text captures. Never expose storage paths or keys.",
+        "parameters": [
+          {
+            "name": "capture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact original bytes",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; server filename"
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "audio/ogg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/webm": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe browser error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -2968,641 +3603,6 @@
           },
           "403": {
             "description": "Admin role required"
-          }
-        }
-      }
-    },
-    "/internal/v1/telegram/voice": {
-      "post": {
-        "operationId": "telegram_voice",
-        "tags": [
-          "internal-v1"
-        ],
-        "x-implementation-status": "contract-only",
-        "security": [
-          {
-            "InternalServiceToken": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "bot_id",
-                  "update_id",
-                  "telegram_user_id",
-                  "chat_id",
-                  "audio",
-                  "processing_mode"
-                ],
-                "properties": {
-                  "bot_id": {
-                    "type": "string",
-                    "pattern": "^[0-9]+$",
-                    "description": "Decimal int64, maximum 9223372036854775807; positive"
-                  },
-                  "update_id": {
-                    "type": "string",
-                    "pattern": "^[0-9]+$",
-                    "description": "Decimal int64, maximum 9223372036854775807; zero allowed"
-                  },
-                  "telegram_user_id": {
-                    "type": "string",
-                    "pattern": "^[0-9]+$",
-                    "description": "Decimal int64, maximum 9223372036854775807; positive"
-                  },
-                  "chat_id": {
-                    "type": "string",
-                    "pattern": "^[0-9]+$",
-                    "description": "Decimal int64, maximum 9223372036854775807; positive"
-                  },
-                  "audio": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "Original Ogg/Opus, WAV/PCM or WebM/Opus, verified by full decoding; at most 10485760 bytes and 180 seconds inclusive. Filename and declared MIME are not trusted."
-                  },
-                  "processing_mode": {
-                    "type": "string",
-                    "enum": [
-                      "ai"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Committed original and queued processing",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TelegramCaptureResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Safe integration error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntegrationError"
-                },
-                "examples": {
-                  "empty_input": {
-                    "value": {
-                      "error": {
-                        "code": "empty_input",
-                        "message": "В записи нет текста"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000109"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Safe integration error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntegrationError"
-                },
-                "examples": {
-                  "unauthorized": {
-                    "value": {
-                      "error": {
-                        "code": "unauthorized",
-                        "message": "Недопустимый сервисный секрет"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000112"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Safe integration error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntegrationError"
-                },
-                "examples": {
-                  "telegram_not_linked": {
-                    "value": {
-                      "error": {
-                        "code": "telegram_not_linked",
-                        "message": "Сначала подтвердите связь в веб-приложении"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000104"
-                    }
-                  },
-                  "action_forbidden": {
-                    "value": {
-                      "error": {
-                        "code": "action_forbidden",
-                        "message": "Кнопка принадлежит другому аккаунту"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000110"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Safe integration error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntegrationError"
-                },
-                "examples": {
-                  "link_expired": {
-                    "value": {
-                      "error": {
-                        "code": "link_expired",
-                        "message": "Ссылка истекла"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000105"
-                    }
-                  },
-                  "link_conflict": {
-                    "value": {
-                      "error": {
-                        "code": "link_conflict",
-                        "message": "Telegram или аккаунт уже связан"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000106"
-                    }
-                  },
-                  "invalid_link": {
-                    "value": {
-                      "error": {
-                        "code": "invalid_link",
-                        "message": "Ссылка недействительна"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000107"
-                    }
-                  },
-                  "action_expired": {
-                    "value": {
-                      "error": {
-                        "code": "action_expired",
-                        "message": "Кнопка недействительна или устарела"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000111"
-                    }
-                  },
-                  "conflict": {
-                    "value": {
-                      "error": {
-                        "code": "conflict",
-                        "message": "Update уже использован с другим содержимым"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000114"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Safe integration error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntegrationError"
-                },
-                "examples": {
-                  "input_too_large": {
-                    "value": {
-                      "error": {
-                        "code": "input_too_large",
-                        "message": "Запись слишком большая"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000108"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Safe integration error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntegrationError"
-                },
-                "examples": {
-                  "invalid_input": {
-                    "value": {
-                      "error": {
-                        "code": "invalid_input",
-                        "message": "Проверьте формат и длину ввода"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000113"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Safe integration error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntegrationError"
-                },
-                "examples": {
-                  "rate_limited": {
-                    "value": {
-                      "error": {
-                        "code": "rate_limited",
-                        "message": "Слишком много записей ожидают обработки"
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000115"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Safe integration error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntegrationError"
-                },
-                "examples": {
-                  "unavailable": {
-                    "value": {
-                      "error": {
-                        "code": "unavailable",
-                        "message": "Временная ошибка. Повторите ту же операцию."
-                      },
-                      "operation_id": "00000000-0000-4000-8000-000000000116"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/captures/audio": {
-      "post": {
-        "operationId": "web_audio_capture",
-        "tags": [
-          "audio"
-        ],
-        "x-implementation-status": "contract-only",
-        "security": [
-          {
-            "BrowserSession": []
-          }
-        ],
-        "description": "Authenticate before multipart parsing. Reject repeated or extra fields. Commit the original and job before responding. Replay identical bytes without decoding again.",
-        "parameters": [
-          {
-            "name": "X-CSRF-Token",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 100,
-              "pattern": "^[A-Za-z0-9_.:-]{1,100}$"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "audio",
-                  "processing_mode"
-                ],
-                "properties": {
-                  "audio": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "Original Ogg/Opus, WAV/PCM or WebM/Opus, verified by full decoding; at most 10485760 bytes and 180 seconds inclusive. Filename and declared MIME are not trusted."
-                  },
-                  "processing_mode": {
-                    "type": "string",
-                    "enum": [
-                      "ai"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "Committed capture, current state of its job",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AudioJobResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/captures/{capture_id}/audio": {
-      "get": {
-        "operationId": "download_audio_original",
-        "tags": [
-          "audio"
-        ],
-        "x-implementation-status": "contract-only",
-        "security": [
-          {
-            "BrowserSession": []
-          }
-        ],
-        "description": "Check capture ownership before opening the file. STT failures do not remove access. Return 404 for missing, foreign or text captures. Never expose storage paths or keys.",
-        "parameters": [
-          {
-            "name": "capture_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Exact original bytes",
-            "headers": {
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "attachment; server filename"
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "X-Content-Type-Options": {
-                "schema": {
-                  "type": "string",
-                  "const": "nosniff"
-                }
-              }
-            },
-            "content": {
-              "audio/ogg": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "audio/wav": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "audio/webm": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Safe browser error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "detail"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
           }
         }
       }

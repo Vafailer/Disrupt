@@ -7,6 +7,7 @@ from sqlalchemy import select, update
 
 from app.analytics import record_event
 from app.audio_contracts import AUDIO_MEDIA_TYPES, AudioReader, SpeechProvider
+from app.audio_storage import AudioStorage
 from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
@@ -249,8 +250,8 @@ class Worker:
 def main():
     settings = Settings.from_env()
     engine, sessions = make_database(settings.database_url)
-    worker = Worker(sessions, settings)
     try:
+        worker = Worker(sessions, settings, audio_storage=AudioStorage(settings.audio_storage_path, read_only=True))
         while True:
             if not worker.run_once():
                 time.sleep(0.5)

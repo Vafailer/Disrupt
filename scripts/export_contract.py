@@ -102,7 +102,7 @@ spec["paths"]["/api/admin/export"] = {
     "get": {
         "operationId": "admin_export",
         "tags": ["admin"],
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented" if "/api/admin/export" in implemented else "contract-only",
         "security": [{"BrowserSession": []}],
         "parameters": [
             p
@@ -123,7 +123,7 @@ spec["paths"]["/internal/v1/telegram/voice"] = {
     "post": {
         "operationId": "telegram_voice",
         "tags": ["internal-v1"],
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented" if "/internal/v1/telegram/voice" in implemented else "contract-only",
         "security": [{"InternalServiceToken": []}],
         "requestBody": {
             "required": True,
@@ -208,7 +208,7 @@ spec["paths"]["/api/v1/captures/audio"] = {
     "post": {
         "operationId": "web_audio_capture",
         "tags": ["audio"],
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented" if "/api/v1/captures/audio" in implemented else "contract-only",
         "security": [{"BrowserSession": []}],
         "description": "Authenticate before multipart parsing. Reject repeated or extra fields. "
         "Commit the original and job before responding. Replay identical bytes without decoding again.",
@@ -234,7 +234,7 @@ spec["paths"]["/api/v1/captures/{capture_id}/audio"] = {
     "get": {
         "operationId": "download_audio_original",
         "tags": ["audio"],
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented" if "/api/v1/captures/{capture_id}/audio" in implemented else "contract-only",
         "security": [{"BrowserSession": []}],
         "description": "Check capture ownership before opening the file. STT failures do not remove access. "
         "Return 404 for missing, foreign or text captures. Never expose storage paths or keys.",

@@ -27,6 +27,8 @@ services:
         condition: service_healthy
   api:
     build: .
+    volumes:
+      - audio-originals:/app/data/audio
     environment: *backend-env
     ports: ["127.0.0.1:8000:8000"]
     depends_on:
@@ -34,10 +36,13 @@ services:
         condition: service_completed_successfully
   worker:
     build: .
+    volumes:
+      - audio-originals:/app/data/audio:ro
     command: ["python", "-m", "app.worker"]
     environment: *backend-env
     depends_on:
       migrate:
         condition: service_completed_successfully
 volumes:
+  audio-originals:
   postgres-data:
