@@ -1,0 +1,4847 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Умные заметки",
+    "description": "Структурирование мыслей. По умолчанию работает имитация ИИ без сетевых запросов.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/telegram/link-code": {
+      "post": {
+        "tags": [
+          "telegram-link"
+        ],
+        "summary": "Issue Code",
+        "operationId": "issue_code_api_v1_telegram_link_code_post",
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCodeResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/telegram/links": {
+      "get": {
+        "tags": [
+          "telegram-link"
+        ],
+        "summary": "Links",
+        "operationId": "links_api_v1_telegram_links_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/telegram/links/{link_id}/confirm": {
+      "post": {
+        "tags": [
+          "telegram-link"
+        ],
+        "summary": "Confirm",
+        "operationId": "confirm_api_v1_telegram_links__link_id__confirm_post",
+        "parameters": [
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Link Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/internal/v1/telegram/link-request": {
+      "post": {
+        "tags": [
+          "internal-v1"
+        ],
+        "summary": "Link Request",
+        "operationId": "link_request_internal_v1_telegram_link_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramLink"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "empty_input": {
+                    "value": {
+                      "error": {
+                        "code": "empty_input",
+                        "message": "В записи нет текста"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000109"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "unauthorized",
+                        "message": "Недопустимый сервисный секрет"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000112"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "telegram_not_linked": {
+                    "value": {
+                      "error": {
+                        "code": "telegram_not_linked",
+                        "message": "Сначала подтвердите связь в веб-приложении"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000104"
+                    }
+                  },
+                  "action_forbidden": {
+                    "value": {
+                      "error": {
+                        "code": "action_forbidden",
+                        "message": "Кнопка принадлежит другому аккаунту"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000110"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "link_expired": {
+                    "value": {
+                      "error": {
+                        "code": "link_expired",
+                        "message": "Ссылка истекла"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000105"
+                    }
+                  },
+                  "link_conflict": {
+                    "value": {
+                      "error": {
+                        "code": "link_conflict",
+                        "message": "Telegram или аккаунт уже связан"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000106"
+                    }
+                  },
+                  "invalid_link": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_link",
+                        "message": "Ссылка недействительна"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000107"
+                    }
+                  },
+                  "action_expired": {
+                    "value": {
+                      "error": {
+                        "code": "action_expired",
+                        "message": "Кнопка недействительна или устарела"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000111"
+                    }
+                  },
+                  "conflict": {
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "Update уже использован с другим содержимым"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000114"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request Entity Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "input_too_large": {
+                    "value": {
+                      "error": {
+                        "code": "input_too_large",
+                        "message": "Запись слишком большая"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000108"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "invalid_input": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_input",
+                        "message": "Проверьте формат и длину ввода"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000113"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "rate_limited": {
+                    "value": {
+                      "error": {
+                        "code": "rate_limited",
+                        "message": "Слишком много записей ожидают обработки"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000115"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "unavailable",
+                        "message": "Временная ошибка. Повторите ту же операцию."
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000116"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "InternalServiceToken": []
+          }
+        ],
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/internal/v1/telegram/updates": {
+      "post": {
+        "tags": [
+          "internal-v1"
+        ],
+        "summary": "Telegram Text",
+        "operationId": "telegram_text_internal_v1_telegram_updates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramText"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramCaptureResponse"
+                },
+                "examples": {
+                  "ai": {
+                    "value": {
+                      "capture_id": "00000000-0000-4000-8000-000000000101",
+                      "job_id": "00000000-0000-4000-8000-000000000102",
+                      "status": "saved",
+                      "note_url": "https://beresta.example/?capture=00000000-0000-4000-8000-000000000101"
+                    }
+                  },
+                  "manual": {
+                    "value": {
+                      "capture_id": "00000000-0000-4000-8000-000000000101",
+                      "job_id": null,
+                      "status": "saved",
+                      "note_url": "https://beresta.example/?capture=00000000-0000-4000-8000-000000000101"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "empty_input": {
+                    "value": {
+                      "error": {
+                        "code": "empty_input",
+                        "message": "В записи нет текста"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000109"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "unauthorized",
+                        "message": "Недопустимый сервисный секрет"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000112"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "telegram_not_linked": {
+                    "value": {
+                      "error": {
+                        "code": "telegram_not_linked",
+                        "message": "Сначала подтвердите связь в веб-приложении"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000104"
+                    }
+                  },
+                  "action_forbidden": {
+                    "value": {
+                      "error": {
+                        "code": "action_forbidden",
+                        "message": "Кнопка принадлежит другому аккаунту"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000110"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "link_expired": {
+                    "value": {
+                      "error": {
+                        "code": "link_expired",
+                        "message": "Ссылка истекла"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000105"
+                    }
+                  },
+                  "link_conflict": {
+                    "value": {
+                      "error": {
+                        "code": "link_conflict",
+                        "message": "Telegram или аккаунт уже связан"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000106"
+                    }
+                  },
+                  "invalid_link": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_link",
+                        "message": "Ссылка недействительна"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000107"
+                    }
+                  },
+                  "action_expired": {
+                    "value": {
+                      "error": {
+                        "code": "action_expired",
+                        "message": "Кнопка недействительна или устарела"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000111"
+                    }
+                  },
+                  "conflict": {
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "Update уже использован с другим содержимым"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000114"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request Entity Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "input_too_large": {
+                    "value": {
+                      "error": {
+                        "code": "input_too_large",
+                        "message": "Запись слишком большая"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000108"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "invalid_input": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_input",
+                        "message": "Проверьте формат и длину ввода"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000113"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "rate_limited": {
+                    "value": {
+                      "error": {
+                        "code": "rate_limited",
+                        "message": "Слишком много записей ожидают обработки"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000115"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "unavailable",
+                        "message": "Временная ошибка. Повторите ту же операцию."
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000116"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "InternalServiceToken": []
+          }
+        ],
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/internal/v1/telegram/actions": {
+      "post": {
+        "tags": [
+          "internal-v1"
+        ],
+        "summary": "Telegram Action",
+        "operationId": "telegram_action_internal_v1_telegram_actions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "empty_input": {
+                    "value": {
+                      "error": {
+                        "code": "empty_input",
+                        "message": "В записи нет текста"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000109"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "unauthorized",
+                        "message": "Недопустимый сервисный секрет"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000112"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "telegram_not_linked": {
+                    "value": {
+                      "error": {
+                        "code": "telegram_not_linked",
+                        "message": "Сначала подтвердите связь в веб-приложении"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000104"
+                    }
+                  },
+                  "action_forbidden": {
+                    "value": {
+                      "error": {
+                        "code": "action_forbidden",
+                        "message": "Кнопка принадлежит другому аккаунту"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000110"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "link_expired": {
+                    "value": {
+                      "error": {
+                        "code": "link_expired",
+                        "message": "Ссылка истекла"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000105"
+                    }
+                  },
+                  "link_conflict": {
+                    "value": {
+                      "error": {
+                        "code": "link_conflict",
+                        "message": "Telegram или аккаунт уже связан"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000106"
+                    }
+                  },
+                  "invalid_link": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_link",
+                        "message": "Ссылка недействительна"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000107"
+                    }
+                  },
+                  "action_expired": {
+                    "value": {
+                      "error": {
+                        "code": "action_expired",
+                        "message": "Кнопка недействительна или устарела"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000111"
+                    }
+                  },
+                  "conflict": {
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "Update уже использован с другим содержимым"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000114"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request Entity Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "input_too_large": {
+                    "value": {
+                      "error": {
+                        "code": "input_too_large",
+                        "message": "Запись слишком большая"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000108"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "invalid_input": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_input",
+                        "message": "Проверьте формат и длину ввода"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000113"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "rate_limited": {
+                    "value": {
+                      "error": {
+                        "code": "rate_limited",
+                        "message": "Слишком много записей ожидают обработки"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000115"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "unavailable",
+                        "message": "Временная ошибка. Повторите ту же операцию."
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000116"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "InternalServiceToken": []
+          }
+        ],
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Categories",
+        "operationId": "categories_api_v1_categories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Categories Api V1 Categories Get"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      },
+      "post": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Add Category",
+        "operationId": "add_category_api_v1_categories_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/categories/{category_id}": {
+      "patch": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Update Category",
+        "operationId": "update_category_api_v1_categories__category_id__patch",
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Category Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes/{note_id}/category": {
+      "patch": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Update Note Category",
+        "operationId": "update_note_category_api_v1_notes__note_id__category_patch",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteCategoryEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes/{note_id}/items": {
+      "post": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Add Item",
+        "operationId": "add_item_api_v1_notes__note_id__items_post",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes/{note_id}/items/{item_id}": {
+      "patch": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Update Item",
+        "operationId": "update_item_api_v1_notes__note_id__items__item_id__patch",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes/{note_id}/confirm-structure": {
+      "post": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Confirm",
+        "operationId": "confirm_api_v1_notes__note_id__confirm_structure_post",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/search/events": {
+      "post": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Search Event",
+        "operationId": "search_event_api_v1_search_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes/{note_id}/opened": {
+      "post": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Opened",
+        "operationId": "opened_api_v1_notes__note_id__opened_post",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteOpened"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes/{note_id}/original-opened": {
+      "post": {
+        "tags": [
+          "structure"
+        ],
+        "summary": "Original Opened",
+        "operationId": "original_opened_api_v1_notes__note_id__original_opened_post",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/example": {
+      "get": {
+        "summary": "Example",
+        "operationId": "example_api_v1_example_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "summary": "Register",
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Login",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "summary": "Me",
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/provider/usage": {
+      "get": {
+        "summary": "Provider Usage",
+        "operationId": "provider_usage_api_v1_provider_usage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "summary": "Logout",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/captures/text": {
+      "post": {
+        "summary": "Create Capture",
+        "operationId": "create_capture_api_v1_captures_text_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextCapture"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/captures/{capture_id}": {
+      "get": {
+        "summary": "Read Capture",
+        "operationId": "read_capture_api_v1_captures__capture_id__get",
+        "parameters": [
+          {
+            "name": "capture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Capture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/jobs": {
+      "get": {
+        "summary": "List Jobs",
+        "operationId": "list_jobs_api_v1_jobs_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/jobs/{job_id}": {
+      "get": {
+        "summary": "Read Job",
+        "operationId": "read_job_api_v1_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes": {
+      "get": {
+        "summary": "List Notes",
+        "operationId": "list_notes_api_v1_notes_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "category_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 36
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoteSummary"
+                  },
+                  "title": "Response List Notes Api V1 Notes Get"
+                }
+              }
+            },
+            "headers": {
+              "X-Next-Notes-Offset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Next offset, omitted on last page"
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes/{note_id}": {
+      "get": {
+        "summary": "Read Note",
+        "operationId": "read_note_api_v1_notes__note_id__get",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      },
+      "patch": {
+        "summary": "Update Note",
+        "operationId": "update_note_api_v1_notes__note_id__patch",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes/{note_id}/revisions": {
+      "get": {
+        "summary": "Revisions",
+        "operationId": "revisions_api_v1_notes__note_id__revisions_get",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/notes/{note_id}/conclusions/{conclusion_id}": {
+      "patch": {
+        "summary": "Update Conclusion",
+        "operationId": "update_conclusion_api_v1_notes__note_id__conclusions__conclusion_id__patch",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          },
+          {
+            "name": "conclusion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conclusion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConclusionEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/internal/v1/deliveries/claim": {
+      "post": {
+        "tags": [
+          "internal-v1"
+        ],
+        "summary": "Claim",
+        "operationId": "claim_internal_v1_deliveries_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request Entity Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "InternalServiceToken": []
+          }
+        ],
+        "x-implementation-status": "contract-only"
+      }
+    },
+    "/internal/v1/deliveries/{delivery_id}/authorize": {
+      "post": {
+        "tags": [
+          "internal-v1"
+        ],
+        "summary": "Authorize",
+        "operationId": "authorize_internal_v1_deliveries__delivery_id__authorize_post",
+        "security": [
+          {
+            "InternalServiceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "delivery_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Delivery Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-implementation-status": "contract-only"
+      }
+    },
+    "/internal/v1/deliveries/{delivery_id}/result": {
+      "post": {
+        "tags": [
+          "internal-v1"
+        ],
+        "summary": "Result",
+        "operationId": "result_internal_v1_deliveries__delivery_id__result_post",
+        "security": [
+          {
+            "InternalServiceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "delivery_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Delivery Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResultRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-implementation-status": "contract-only"
+      }
+    },
+    "/api/admin/summary": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Summary",
+        "operationId": "summary_api_admin_summary_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "To"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|web|telegram)$",
+              "default": "all",
+              "title": "Channel"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": "all",
+              "title": "Source"
+            }
+          },
+          {
+            "name": "usage_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Usage Limit"
+            }
+          },
+          {
+            "name": "usage_offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Usage Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSummary"
+                },
+                "example": {
+                  "cards": {
+                    "registrations": 2,
+                    "dau": 2,
+                    "unique_users": 2,
+                    "new_users": 2,
+                    "returning_users": 0,
+                    "ai_activation": {
+                      "numerator": 1,
+                      "denominator": 2,
+                      "value": 50.0
+                    },
+                    "manual_activation": {
+                      "numerator": 1,
+                      "denominator": 2,
+                      "value": 50.0
+                    },
+                    "activation_pending": 0,
+                    "completed_scenario": 1,
+                    "returns": 1,
+                    "d1": {
+                      "numerator": 1,
+                      "denominator": 1,
+                      "value": 100.0
+                    },
+                    "d7": {
+                      "numerator": 0,
+                      "denominator": 0,
+                      "value": null
+                    }
+                  },
+                  "daily": [
+                    {
+                      "date": "2026-10-05",
+                      "registrations": 1,
+                      "dau": 1,
+                      "new_users": 1,
+                      "returning_users": 0,
+                      "llm_cost": "0.25000000",
+                      "stt_cost": "0.00000000",
+                      "unknown_usage_calls": 0,
+                      "session_count": 1,
+                      "llm_cost_per_dau": "0.25000000"
+                    },
+                    {
+                      "date": "2026-10-06",
+                      "registrations": 1,
+                      "dau": 2,
+                      "new_users": 1,
+                      "returning_users": 1,
+                      "llm_cost": null,
+                      "stt_cost": "0.00000000",
+                      "unknown_usage_calls": 1,
+                      "session_count": 2,
+                      "llm_cost_per_dau": null
+                    }
+                  ],
+                  "funnel": [
+                    {
+                      "step": "registered",
+                      "users": 2,
+                      "conversion": {
+                        "numerator": 2,
+                        "denominator": 2,
+                        "value": 100.0
+                      }
+                    },
+                    {
+                      "step": "capture_saved",
+                      "users": 2,
+                      "conversion": {
+                        "numerator": 2,
+                        "denominator": 2,
+                        "value": 100.0
+                      }
+                    },
+                    {
+                      "step": "note_opened",
+                      "users": 2,
+                      "conversion": {
+                        "numerator": 2,
+                        "denominator": 2,
+                        "value": 100.0
+                      }
+                    },
+                    {
+                      "step": "structure_checked",
+                      "users": 1,
+                      "conversion": {
+                        "numerator": 1,
+                        "denominator": 2,
+                        "value": 50.0
+                      }
+                    },
+                    {
+                      "step": "returned",
+                      "users": 1,
+                      "conversion": {
+                        "numerator": 1,
+                        "denominator": 2,
+                        "value": 50.0
+                      }
+                    }
+                  ],
+                  "retention": {
+                    "d1": {
+                      "numerator": 1,
+                      "denominator": 1,
+                      "value": 100.0
+                    },
+                    "d7": {
+                      "numerator": 0,
+                      "denominator": 0,
+                      "value": null
+                    },
+                    "pending_d1": 1,
+                    "pending_d7": 2
+                  },
+                  "usage": [
+                    {
+                      "id": "00000000-0000-4000-8000-000000000001",
+                      "user_pseudonym": "u_demo_alpha",
+                      "session_pseudonym": "s_demo_alpha_1",
+                      "operation_pseudonym": "op_demo_1",
+                      "occurred_at": "2026-10-05T06:03:00Z",
+                      "channel": "telegram",
+                      "kind": "llm",
+                      "model": "mock",
+                      "tariff_version": "fixture-only-v1",
+                      "status": "succeeded",
+                      "input_tokens": 100,
+                      "output_tokens": 50,
+                      "cache_tokens": 0,
+                      "stt_seconds": null,
+                      "cost": "0.25000000",
+                      "estimated_cost": null,
+                      "latency_ms": 100
+                    },
+                    {
+                      "id": "00000000-0000-4000-8000-000000000002",
+                      "user_pseudonym": "u_demo_alpha",
+                      "session_pseudonym": "s_demo_alpha_2",
+                      "operation_pseudonym": "op_demo_2",
+                      "occurred_at": "2026-10-06T06:03:00Z",
+                      "channel": "web",
+                      "kind": "llm",
+                      "model": "mock",
+                      "tariff_version": null,
+                      "status": "failed",
+                      "input_tokens": null,
+                      "output_tokens": null,
+                      "cache_tokens": null,
+                      "stt_seconds": null,
+                      "cost": null,
+                      "estimated_cost": null,
+                      "latency_ms": 200
+                    }
+                  ],
+                  "quality": {
+                    "ai_succeeded": 1,
+                    "ai_failed": 1,
+                    "ai_success_rate": {
+                      "numerator": 1,
+                      "denominator": 2,
+                      "value": 50.0
+                    },
+                    "edited_notes": 0,
+                    "processing_p95_ms": 200,
+                    "reminder_sent": 0,
+                    "reminder_blocked": 0,
+                    "reminder_failed": 0,
+                    "reminder_unknown": 0,
+                    "reminder_opened": 0,
+                    "costs": {
+                      "currency": "RUB",
+                      "llm_cost": null,
+                      "stt_cost": "0.00000000",
+                      "known_llm_cost": "0.25000000",
+                      "known_stt_cost": "0.00000000",
+                      "unknown_usage_calls": 1,
+                      "llm_calls": 2,
+                      "stt_calls": 0,
+                      "input_tokens": null,
+                      "output_tokens": null,
+                      "cache_tokens": null,
+                      "stt_minutes": "0.00000000",
+                      "user_count": 2,
+                      "session_count": 3,
+                      "dau_sum": 3,
+                      "cost_per_user": null,
+                      "cost_per_session": null,
+                      "llm_cost_per_dau": null
+                    }
+                  },
+                  "generated_at": "2026-10-07T09:00:00Z"
+                }
+              }
+            },
+            "headers": {
+              "X-Next-Usage-Offset": {
+                "description": "Next offset, or omitted on last page",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No browser session"
+          },
+          "403": {
+            "description": "Admin role required"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "contract-only",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ]
+      }
+    },
+    "/api/admin/export": {
+      "get": {
+        "operationId": "admin_export",
+        "tags": [
+          "admin"
+        ],
+        "x-implementation-status": "contract-only",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "To"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|web|telegram)$",
+              "default": "all",
+              "title": "Channel"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": "all",
+              "title": "Source"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "UTF-8 CSV of aggregates, same slice as summary",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No browser session"
+          },
+          "403": {
+            "description": "Admin role required"
+          }
+        }
+      }
+    },
+    "/internal/v1/telegram/voice": {
+      "post": {
+        "operationId": "telegram_voice",
+        "tags": [
+          "internal-v1"
+        ],
+        "x-implementation-status": "contract-only",
+        "security": [
+          {
+            "InternalServiceToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "bot_id",
+                  "update_id",
+                  "telegram_user_id",
+                  "chat_id",
+                  "audio",
+                  "processing_mode"
+                ],
+                "properties": {
+                  "bot_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Decimal int64, maximum 9223372036854775807; positive"
+                  },
+                  "update_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Decimal int64, maximum 9223372036854775807; zero allowed"
+                  },
+                  "telegram_user_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Decimal int64, maximum 9223372036854775807; positive"
+                  },
+                  "chat_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Decimal int64, maximum 9223372036854775807; positive"
+                  },
+                  "audio": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "At most 10485760 bytes and 180 seconds; validate actual media on server"
+                  },
+                  "processing_mode": {
+                    "type": "string",
+                    "enum": [
+                      "ai"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Committed original and queued processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramCaptureResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "empty_input": {
+                    "value": {
+                      "error": {
+                        "code": "empty_input",
+                        "message": "В записи нет текста"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000109"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "unauthorized",
+                        "message": "Недопустимый сервисный секрет"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000112"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "telegram_not_linked": {
+                    "value": {
+                      "error": {
+                        "code": "telegram_not_linked",
+                        "message": "Сначала подтвердите связь в веб-приложении"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000104"
+                    }
+                  },
+                  "action_forbidden": {
+                    "value": {
+                      "error": {
+                        "code": "action_forbidden",
+                        "message": "Кнопка принадлежит другому аккаунту"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000110"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "link_expired": {
+                    "value": {
+                      "error": {
+                        "code": "link_expired",
+                        "message": "Ссылка истекла"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000105"
+                    }
+                  },
+                  "link_conflict": {
+                    "value": {
+                      "error": {
+                        "code": "link_conflict",
+                        "message": "Telegram или аккаунт уже связан"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000106"
+                    }
+                  },
+                  "invalid_link": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_link",
+                        "message": "Ссылка недействительна"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000107"
+                    }
+                  },
+                  "action_expired": {
+                    "value": {
+                      "error": {
+                        "code": "action_expired",
+                        "message": "Кнопка недействительна или устарела"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000111"
+                    }
+                  },
+                  "conflict": {
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "Update уже использован с другим содержимым"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000114"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "input_too_large": {
+                    "value": {
+                      "error": {
+                        "code": "input_too_large",
+                        "message": "Запись слишком большая"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000108"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "invalid_input": {
+                    "value": {
+                      "error": {
+                        "code": "invalid_input",
+                        "message": "Проверьте формат и длину ввода"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000113"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "rate_limited": {
+                    "value": {
+                      "error": {
+                        "code": "rate_limited",
+                        "message": "Слишком много записей ожидают обработки"
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000115"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe integration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationError"
+                },
+                "examples": {
+                  "unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "unavailable",
+                        "message": "Временная ошибка. Повторите ту же операцию."
+                      },
+                      "operation_id": "00000000-0000-4000-8000-000000000116"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActionRequest": {
+        "properties": {
+          "bot_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Bot Id"
+          },
+          "update_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 0.0,
+            "title": "Update Id"
+          },
+          "telegram_user_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Telegram User Id"
+          },
+          "callback_token": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Callback Token"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "bot_id",
+          "update_id",
+          "telegram_user_id",
+          "callback_token"
+        ],
+        "title": "ActionRequest"
+      },
+      "ActionResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "already_completed"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ActionResponse"
+      },
+      "AdminSummary": {
+        "properties": {
+          "cards": {
+            "$ref": "#/components/schemas/Cards"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/DailyMetrics"
+            },
+            "type": "array",
+            "title": "Daily"
+          },
+          "funnel": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelStep"
+            },
+            "type": "array",
+            "title": "Funnel"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/Retention"
+          },
+          "usage": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRow"
+            },
+            "type": "array",
+            "title": "Usage"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cards",
+          "daily",
+          "funnel",
+          "retention",
+          "usage",
+          "quality",
+          "generated_at"
+        ],
+        "title": "AdminSummary"
+      },
+      "AuthorizeRequest": {
+        "properties": {
+          "lease_token": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 32,
+            "title": "Lease Token"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Generation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lease_token",
+          "generation"
+        ],
+        "title": "AuthorizeRequest"
+      },
+      "AuthorizeResponse": {
+        "properties": {
+          "send": {
+            "type": "boolean",
+            "title": "Send"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "send"
+        ],
+        "title": "AuthorizeResponse"
+      },
+      "Cards": {
+        "properties": {
+          "registrations": {
+            "type": "integer",
+            "title": "Registrations"
+          },
+          "dau": {
+            "type": "integer",
+            "title": "Dau"
+          },
+          "unique_users": {
+            "type": "integer",
+            "title": "Unique Users"
+          },
+          "new_users": {
+            "type": "integer",
+            "title": "New Users"
+          },
+          "returning_users": {
+            "type": "integer",
+            "title": "Returning Users"
+          },
+          "ai_activation": {
+            "$ref": "#/components/schemas/Percentage"
+          },
+          "manual_activation": {
+            "$ref": "#/components/schemas/Percentage"
+          },
+          "activation_pending": {
+            "type": "integer",
+            "title": "Activation Pending"
+          },
+          "completed_scenario": {
+            "type": "integer",
+            "title": "Completed Scenario"
+          },
+          "returns": {
+            "type": "integer",
+            "title": "Returns"
+          },
+          "d1": {
+            "$ref": "#/components/schemas/Percentage"
+          },
+          "d7": {
+            "$ref": "#/components/schemas/Percentage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "registrations",
+          "dau",
+          "unique_users",
+          "new_users",
+          "returning_users",
+          "ai_activation",
+          "manual_activation",
+          "activation_pending",
+          "completed_scenario",
+          "returns",
+          "d1",
+          "d7"
+        ],
+        "title": "Cards"
+      },
+      "CategoryCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CategoryCreate"
+      },
+      "CategoryEdit": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "name"
+        ],
+        "title": "CategoryEdit"
+      },
+      "CategoryResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version"
+        ],
+        "title": "CategoryResponse"
+      },
+      "ClaimRequest": {
+        "properties": {
+          "bot_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Bot Id"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "bot_id",
+          "limit"
+        ],
+        "title": "ClaimRequest"
+      },
+      "ClaimResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Delivery"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ClaimResponse"
+      },
+      "ConclusionEdit": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "status"
+        ],
+        "title": "ConclusionEdit"
+      },
+      "ConclusionResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 1500,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "source_quote": {
+            "type": "string",
+            "maxLength": 3000,
+            "minLength": 1,
+            "title": "Source Quote"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "accepted",
+              "rejected"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "source_quote",
+          "id",
+          "status"
+        ],
+        "title": "ConclusionResponse"
+      },
+      "Costs": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "const": "RUB",
+            "title": "Currency"
+          },
+          "llm_cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Cost"
+          },
+          "stt_cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stt Cost"
+          },
+          "known_llm_cost": {
+            "type": "string",
+            "title": "Known Llm Cost"
+          },
+          "known_stt_cost": {
+            "type": "string",
+            "title": "Known Stt Cost"
+          },
+          "unknown_usage_calls": {
+            "type": "integer",
+            "title": "Unknown Usage Calls"
+          },
+          "llm_calls": {
+            "type": "integer",
+            "title": "Llm Calls"
+          },
+          "stt_calls": {
+            "type": "integer",
+            "title": "Stt Calls"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "cache_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Tokens"
+          },
+          "stt_minutes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stt Minutes"
+          },
+          "user_count": {
+            "type": "integer",
+            "title": "User Count"
+          },
+          "session_count": {
+            "type": "integer",
+            "title": "Session Count"
+          },
+          "dau_sum": {
+            "type": "integer",
+            "title": "Dau Sum"
+          },
+          "cost_per_user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per User"
+          },
+          "cost_per_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Session"
+          },
+          "llm_cost_per_dau": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Cost Per Dau"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "currency",
+          "llm_cost",
+          "stt_cost",
+          "known_llm_cost",
+          "known_stt_cost",
+          "unknown_usage_calls",
+          "llm_calls",
+          "stt_calls",
+          "input_tokens",
+          "output_tokens",
+          "cache_tokens",
+          "stt_minutes",
+          "user_count",
+          "session_count",
+          "dau_sum",
+          "cost_per_user",
+          "cost_per_session",
+          "llm_cost_per_dau"
+        ],
+        "title": "Costs"
+      },
+      "Credentials": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 3,
+            "pattern": "^[A-Za-zА-Яа-яЁё0-9_.-]+$",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Credentials"
+      },
+      "DailyMetrics": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "registrations": {
+            "type": "integer",
+            "title": "Registrations"
+          },
+          "dau": {
+            "type": "integer",
+            "title": "Dau"
+          },
+          "new_users": {
+            "type": "integer",
+            "title": "New Users"
+          },
+          "returning_users": {
+            "type": "integer",
+            "title": "Returning Users"
+          },
+          "llm_cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Cost"
+          },
+          "stt_cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stt Cost"
+          },
+          "unknown_usage_calls": {
+            "type": "integer",
+            "title": "Unknown Usage Calls"
+          },
+          "session_count": {
+            "type": "integer",
+            "title": "Session Count"
+          },
+          "llm_cost_per_dau": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Cost Per Dau"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "date",
+          "registrations",
+          "dau",
+          "new_users",
+          "returning_users",
+          "llm_cost",
+          "stt_cost",
+          "unknown_usage_calls",
+          "session_count",
+          "llm_cost_per_dau"
+        ],
+        "title": "DailyMetrics"
+      },
+      "Delivery": {
+        "properties": {
+          "delivery_id": {
+            "type": "string",
+            "title": "Delivery Id"
+          },
+          "lease_token": {
+            "type": "string",
+            "title": "Lease Token"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Generation"
+          },
+          "chat_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Chat Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "note_url": {
+            "type": "string",
+            "title": "Note Url"
+          },
+          "callback_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Callback Token"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "delivery_id",
+          "lease_token",
+          "generation",
+          "chat_id",
+          "text",
+          "note_url",
+          "callback_token"
+        ],
+        "title": "Delivery"
+      },
+      "FunnelStep": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "enum": [
+              "registered",
+              "capture_saved",
+              "note_opened",
+              "structure_checked",
+              "returned"
+            ],
+            "title": "Step"
+          },
+          "users": {
+            "type": "integer",
+            "title": "Users"
+          },
+          "conversion": {
+            "$ref": "#/components/schemas/Percentage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "step",
+          "users",
+          "conversion"
+        ],
+        "title": "FunnelStep"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "IntegrationError": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/IntegrationErrorDetail"
+          },
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error",
+          "operation_id"
+        ],
+        "title": "IntegrationError"
+      },
+      "IntegrationErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "unauthorized",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "invalid_input",
+              "rate_limited",
+              "unavailable",
+              "internal_error",
+              "telegram_not_linked",
+              "link_expired",
+              "link_conflict",
+              "invalid_link",
+              "input_too_large",
+              "unsupported_audio",
+              "empty_input",
+              "action_forbidden",
+              "action_expired",
+              "quota_exceeded"
+            ],
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "IntegrationErrorDetail"
+      },
+      "ItemCreate": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "note",
+              "idea",
+              "task",
+              "goal",
+              "plan"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1500,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "kind",
+          "text"
+        ],
+        "title": "ItemCreate"
+      },
+      "ItemEdit": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "note",
+              "idea",
+              "task",
+              "goal",
+              "plan"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1500,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "completed"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "kind",
+          "text",
+          "status"
+        ],
+        "title": "ItemEdit"
+      },
+      "ItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "note_id": {
+            "type": "string",
+            "title": "Note Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "note",
+              "idea",
+              "task",
+              "goal",
+              "plan"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "completed"
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "source_quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Quote"
+          },
+          "due_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Text"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "note_id",
+          "kind",
+          "text",
+          "status",
+          "version",
+          "source_quote",
+          "due_text",
+          "due_at"
+        ],
+        "title": "ItemResponse"
+      },
+      "LinkCodeResponse": {
+        "properties": {
+          "link_request_id": {
+            "type": "string",
+            "title": "Link Request Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "link_request_id",
+          "code",
+          "expires_at"
+        ],
+        "title": "LinkCodeResponse"
+      },
+      "LinkResponse": {
+        "properties": {
+          "link_request_id": {
+            "type": "string",
+            "title": "Link Request Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "pending",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "link_request_id",
+          "status"
+        ],
+        "title": "LinkResponse"
+      },
+      "NoteCategoryEdit": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "category_id"
+        ],
+        "title": "NoteCategoryEdit"
+      },
+      "NoteEdit": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "markdown": {
+            "type": "string",
+            "maxLength": 24000,
+            "minLength": 1,
+            "title": "Markdown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "title",
+          "markdown"
+        ],
+        "title": "NoteEdit"
+      },
+      "NoteOpened": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "title": "Operation Id"
+          },
+          "search_operation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Operation Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "operation_id"
+        ],
+        "title": "NoteOpened"
+      },
+      "NoteResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "capture_id": {
+            "type": "string",
+            "title": "Capture Id"
+          },
+          "original_text": {
+            "type": "string",
+            "title": "Original Text"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "markdown": {
+            "type": "string",
+            "title": "Markdown"
+          },
+          "conclusions": {
+            "items": {
+              "$ref": "#/components/schemas/ConclusionResponse"
+            },
+            "type": "array",
+            "title": "Conclusions"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "category_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Name"
+          },
+          "structure_confirmed_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structure Confirmed At"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "created_at": {
+            "type": "number",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "number",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "capture_id",
+          "original_text",
+          "title",
+          "markdown",
+          "conclusions",
+          "items",
+          "category_id",
+          "category_name",
+          "structure_confirmed_at",
+          "version",
+          "provider",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "NoteResponse"
+      },
+      "NoteSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "updated_at": {
+            "type": "number",
+            "title": "Updated At"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "version",
+          "updated_at",
+          "category_id"
+        ],
+        "title": "NoteSummary"
+      },
+      "Percentage": {
+        "properties": {
+          "numerator": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Numerator"
+          },
+          "denominator": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Denominator"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "numerator",
+          "denominator",
+          "value"
+        ],
+        "title": "Percentage"
+      },
+      "Quality": {
+        "properties": {
+          "ai_succeeded": {
+            "type": "integer",
+            "title": "Ai Succeeded"
+          },
+          "ai_failed": {
+            "type": "integer",
+            "title": "Ai Failed"
+          },
+          "ai_success_rate": {
+            "$ref": "#/components/schemas/Percentage"
+          },
+          "edited_notes": {
+            "type": "integer",
+            "title": "Edited Notes"
+          },
+          "processing_p95_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processing P95 Ms"
+          },
+          "reminder_sent": {
+            "type": "integer",
+            "title": "Reminder Sent"
+          },
+          "reminder_blocked": {
+            "type": "integer",
+            "title": "Reminder Blocked"
+          },
+          "reminder_failed": {
+            "type": "integer",
+            "title": "Reminder Failed"
+          },
+          "reminder_unknown": {
+            "type": "integer",
+            "title": "Reminder Unknown"
+          },
+          "reminder_opened": {
+            "type": "integer",
+            "title": "Reminder Opened"
+          },
+          "costs": {
+            "$ref": "#/components/schemas/Costs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ai_succeeded",
+          "ai_failed",
+          "ai_success_rate",
+          "edited_notes",
+          "processing_p95_ms",
+          "reminder_sent",
+          "reminder_blocked",
+          "reminder_failed",
+          "reminder_unknown",
+          "reminder_opened",
+          "costs"
+        ],
+        "title": "Quality"
+      },
+      "ResultRequest": {
+        "properties": {
+          "lease_token": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 32,
+            "title": "Lease Token"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Generation"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "sent",
+              "blocked",
+              "retryable",
+              "unknown"
+            ],
+            "title": "Status"
+          },
+          "telegram_message_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9.223372036854776e+18,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Message Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "retry_after_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 86400.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry After Seconds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lease_token",
+          "generation",
+          "status",
+          "telegram_message_id",
+          "error_code",
+          "retry_after_seconds"
+        ],
+        "title": "ResultRequest"
+      },
+      "ResultResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "recorded",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ResultResponse"
+      },
+      "Retention": {
+        "properties": {
+          "d1": {
+            "$ref": "#/components/schemas/Percentage"
+          },
+          "d7": {
+            "$ref": "#/components/schemas/Percentage"
+          },
+          "pending_d1": {
+            "type": "integer",
+            "title": "Pending D1"
+          },
+          "pending_d7": {
+            "type": "integer",
+            "title": "Pending D7"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "d1",
+          "d7",
+          "pending_d1",
+          "pending_d7"
+        ],
+        "title": "Retention"
+      },
+      "TelegramCaptureResponse": {
+        "properties": {
+          "capture_id": {
+            "type": "string",
+            "title": "Capture Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "saved",
+            "title": "Status"
+          },
+          "note_url": {
+            "type": "string",
+            "title": "Note Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "capture_id",
+          "job_id",
+          "status",
+          "note_url"
+        ],
+        "title": "TelegramCaptureResponse"
+      },
+      "TelegramLink": {
+        "properties": {
+          "bot_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Bot Id"
+          },
+          "update_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 0.0,
+            "title": "Update Id"
+          },
+          "telegram_user_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Telegram User Id"
+          },
+          "chat_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Chat Id"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 22,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "bot_id",
+          "update_id",
+          "telegram_user_id",
+          "chat_id",
+          "code"
+        ],
+        "title": "TelegramLink"
+      },
+      "TelegramText": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "processing_mode": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "manual"
+            ],
+            "title": "Processing Mode",
+            "default": "ai"
+          },
+          "bot_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Bot Id"
+          },
+          "update_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 0.0,
+            "title": "Update Id"
+          },
+          "telegram_user_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Telegram User Id"
+          },
+          "chat_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Chat Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "bot_id",
+          "update_id",
+          "telegram_user_id",
+          "chat_id"
+        ],
+        "title": "TelegramText"
+      },
+      "TextCapture": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "processing_mode": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "manual"
+            ],
+            "title": "Processing Mode",
+            "default": "ai"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "TextCapture"
+      },
+      "UsageRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_pseudonym": {
+            "type": "string",
+            "title": "User Pseudonym"
+          },
+          "session_pseudonym": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Pseudonym"
+          },
+          "operation_pseudonym": {
+            "type": "string",
+            "title": "Operation Pseudonym"
+          },
+          "occurred_at": {
+            "type": "string",
+            "title": "Occurred At"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "web",
+              "telegram"
+            ],
+            "title": "Channel"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "llm",
+              "stt"
+            ],
+            "title": "Kind"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "tariff_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tariff Version"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "cache_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Tokens"
+          },
+          "stt_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stt Seconds"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "user_pseudonym",
+          "session_pseudonym",
+          "operation_pseudonym",
+          "occurred_at",
+          "channel",
+          "kind",
+          "model",
+          "tariff_version",
+          "status",
+          "input_tokens",
+          "output_tokens",
+          "cache_tokens",
+          "stt_seconds",
+          "cost",
+          "estimated_cost",
+          "latency_ms"
+        ],
+        "title": "UsageRow"
+      },
+      "UserAction": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "title": "Operation Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "operation_id"
+        ],
+        "title": "UserAction"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VersionRequest": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "VersionRequest"
+      }
+    },
+    "securitySchemes": {
+      "InternalServiceToken": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "BrowserSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "notes_session"
+      }
+    }
+  }
+}

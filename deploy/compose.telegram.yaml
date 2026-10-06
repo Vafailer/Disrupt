@@ -1,0 +1,43 @@
+# Optional overlay: core integration routes must exist before enabling this profile.
+services:
+  telegram:
+    profiles: [telegram]
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.telegram
+    environment:
+      BERESTA_BOT_NETWORK_ENABLED: ${BERESTA_BOT_NETWORK_ENABLED:-false}
+      BERESTA_BOT_TOKEN_FILE: /run/secrets/telegram_token
+      BERESTA_SERVICE_TOKEN_FILE: /run/secrets/telegram_service_token
+      BERESTA_CORE_URL: http://api:8000
+      BERESTA_WEB_URL: ${BERESTA_WEB_URL:-https://example.invalid}
+      BERESTA_BOT_STATE_FILE: /app/data/telegram-offset.json
+    secrets:
+      - telegram_token
+      - telegram_service_token
+    volumes:
+      - telegram_state:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 192m
+    cpus: 0.5
+    pids_limit: 64
+    restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
+    depends_on:
+      api:
+        condition: service_started
+secrets:
+  telegram_token:
+    file: ./secrets/telegram_token.txt
+  telegram_service_token:
+    file: ./secrets/telegram_service_token.txt
+volumes:
+  telegram_state:

@@ -27,7 +27,19 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
-      - run: python -m ruff check app tests migrations
+      - run: python -m ruff check app tests migrations scripts telegram_adapter
+      - name: Check generated contract
+        run: |
+          PYTHONPATH=. python scripts/export_contract.py
+          git diff --exit-code -- docs/integration-v1.openapi.json docs/integration-v1.yaml docs/integration-v1-examples.json
       - run: python -m pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check app/static/app.js
+      - run: npm install --prefix "$RUNNER_TEMP/beresta-web-tests" --no-audit --no-fund --ignore-scripts jsdom@26.0.0
+      - run: node tests/web_structure.cjs
+        env:
+          NODE_PATH: ${{ runner.temp }}/beresta-web-tests/node_modules
       - run: python -m alembic upgrade head
       - run: python -m alembic check
