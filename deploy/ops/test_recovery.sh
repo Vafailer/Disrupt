@@ -4,15 +4,27 @@ set -euo pipefail
 umask 077
 work=$(mktemp -d)
 export APP_DOMAIN=http://localhost
+cat > "$work/telegram-fixture.yaml" <<'YAML'
+services:
+  telegram:
+    image: postgres:17
+    network_mode: none
+    entrypoint: [sleep, infinity]
+    volumes:
+      - telegram-state:/app/data
+volumes:
+  telegram-state:
+YAML
 cleanup() {
-  docker compose -p beresta-ops-ci down -v --remove-orphans >/dev/null 2>&1 || true
+  docker compose -p beresta-ops-ci -f compose.yaml -f "$work/telegram-fixture.yaml" down -v --remove-orphans >/dev/null 2>&1 || true
   docker compose -p beresta-restore-ci -f deploy/ops/restore.compose.yaml down -v --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$work"
 }
 trap cleanup EXIT
 age-keygen -o "$work/identity" 2>/dev/null
 recipient=$(age-keygen -y "$work/identity")
-docker compose -p beresta-ops-ci up -d --build api worker scheduler
+docker compose -p beresta-ops-ci -f compose.yaml -f "$work/telegram-fixture.yaml" up -d --build api worker scheduler telegram
+docker compose -p beresta-ops-ci -f compose.yaml -f "$work/telegram-fixture.yaml" exec -T telegram sh -c 'printf "42" > /app/data/offset; printf "synthetic-journal" > /app/data/delivery.json'
 docker compose -p beresta-ops-ci exec -T api python - <<'PY'
 import hashlib
 import time
@@ -36,11 +48,20 @@ with Session(engine) as session:
     session.commit()
 PY
 python deploy/ops/beresta_ops.py backup --project beresta-ops-ci --compose compose.yaml \
+  --compose "$work/telegram-fixture.yaml" --telegram \
   --destination "$work/backups" --recipient "$recipient" --maintenance
 bundle=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["file"])' "$work/backups/latest.json")
-python deploy/ops/beresta_ops.py monitor --project beresta-ops-ci --compose compose.yaml --backup-dir "$work/backups"
+# Allow the API to become ready again after maintenance.
+for attempt in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:8000/health >/dev/null; then break; fi
+  sleep 1
+done
+python deploy/ops/beresta_ops.py monitor --project beresta-ops-ci --compose compose.yaml \
+  --compose "$work/telegram-fixture.yaml" --telegram --backup-dir "$work/backups"
 python deploy/ops/beresta_ops.py restore --project beresta-restore-ci \
   --bundle "$work/backups/$bundle" --identity "$work/identity" --work-dir "$work/recovery"
+test "$(docker compose -p beresta-restore-ci -f deploy/ops/restore.compose.yaml run --rm --no-deps -T --entrypoint cat files /state/offset)" = 42
+test "$(docker compose -p beresta-restore-ci -f deploy/ops/restore.compose.yaml run --rm --no-deps -T --entrypoint cat files /state/delivery.json)" = synthetic-journal
 # Recovery must refuse to overwrite even its own previous successful result.
 if python deploy/ops/beresta_ops.py restore --project beresta-restore-ci \
   --bundle "$work/backups/$bundle" --identity "$work/identity" --work-dir "$work/recovery"; then

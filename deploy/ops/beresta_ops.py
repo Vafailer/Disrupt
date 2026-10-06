@@ -129,7 +129,8 @@ def backup(args):
         try:
             if services:
                 run(command + ["stop", "--timeout", "30", *services])
-            if any(states(command).get(s, {}).get("State") == "running" for s in services):
+            stopped = states(command)
+            if any(stopped.get(s, {}).get("State") == "running" for s in services):
                 raise Failure("writers_not_stopped")
             with (work / "database.dump").open("wb") as target:
                 run(command + ["exec", "-T", "db", "pg_dump", "-U", "notes", "-d", "notes", "-Fc"], output=target)
