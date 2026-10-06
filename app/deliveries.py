@@ -68,7 +68,7 @@ def expire_authorization(db, row):
         and reminder.generation == row.generation and reminder.status == "confirmed"
     ):
         reminder.status = "unknown"
-    record_event(db, row.user_id, "reminder_failed", attempt_id(row), "telegram")
+    record_event(db, row.user_id, "reminder_failed", attempt_id(row), "telegram", outcome="unknown")
 
 
 def claim_deliveries(db, body, settings):
@@ -127,7 +127,7 @@ def claim_deliveries(db, body, settings):
         results.append({
             "delivery_id": row.id, "lease_token": lease, "generation": row.generation,
             "chat_id": row.chat_id, "text": reminder.text,
-            "note_url": settings.public_origin + "/?capture=" + note.capture_id, "callback_token": callback,
+            "note_url": settings.public_origin + "/?capture=" + note.capture_id + "&reminder=" + reminder.id, "callback_token": callback,
         })
     db.flush()
     return {"items": results}
@@ -177,6 +177,7 @@ def record_delivery_result(db, delivery_id, body):
         if identity:
             identity.delivery_status = "blocked"
     record_event(
-        db, row.user_id, "reminder_sent" if body.status == "sent" else "reminder_failed", attempt_id(row), "telegram",
+        db, row.user_id, "reminder_sent" if body.status == "sent" else "reminder_failed", attempt_id(row), "telegram", outcome=body.status,
     )
+    record_event(db, row.user_id, "reminder_result", attempt_id(row), "telegram", outcome=body.status)
     return {"status": "recorded"}

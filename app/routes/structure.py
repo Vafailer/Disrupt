@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from app.analytics import record_event
-from app.models import Category, ProductEvent
+from app.models import Category, Outbox, ProductEvent, Reminder
 from app.schemas import (
     CategoryCreate,
     CategoryEdit,
@@ -100,6 +100,16 @@ def build_router(database):
     def opened(note_id: str, body: NoteOpened, request: Request, db=Depends(database)):
         session = get_login_session(request, db, write=True)
         owned_note(db, note_id, session.user_id)
+        if body.reminder_id is not None:
+            reminder = db.scalar(select(Reminder).where(
+                Reminder.id == body.reminder_id, Reminder.user_id == session.user_id, Reminder.note_id == note_id,
+            ))
+            delivered = db.scalar(select(Outbox.id).where(
+                Outbox.reminder_id == body.reminder_id, Outbox.user_id == session.user_id,
+                Outbox.status.in_({"sent", "unknown"}), Outbox.authorized_at.is_not(None),
+            ))
+            if reminder is None or delivered is None:
+                raise HTTPException(404, "Напоминание не найдено")
         if body.search_operation_id is not None:
             search = db.scalar(
                 select(ProductEvent).where(
@@ -110,9 +120,11 @@ def build_router(database):
             )
             if search is None:
                 raise HTTPException(422, "Поиск не найден. Повторите поиск")
-        record_event(db, session.user_id, "note_opened", body.operation_id)
+        record_event(db, session.user_id, "note_opened", body.operation_id, subject_id=note_id)
         if body.search_operation_id is not None:
-            record_event(db, session.user_id, "search_result_opened", body.operation_id)
+            record_event(db, session.user_id, "search_result_opened", body.operation_id, subject_id=note_id)
+        if body.reminder_id is not None:
+            record_event(db, session.user_id, "reminder_opened", body.operation_id, subject_id=note_id)
         db.commit()
 
     @router.post("/notes/{note_id}/original-opened", status_code=204)

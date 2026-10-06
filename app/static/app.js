@@ -169,7 +169,7 @@ function renderNote(note) {
     block.append(actions); $('conclusions').append(block);
   }
 }
-async function openNote(id, {userAction = false, search = null} = {}) {
+async function openNote(id, {userAction = false, search = null, reminder = null} = {}) {
   if (noteBusy) return message('Дождитесь сохранения.');
   if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
   if (hasDrafts() && !confirm('Есть несохранённые правки. Открыть другую заметку?')) return;
@@ -182,7 +182,7 @@ async function openNote(id, {userAction = false, search = null} = {}) {
     if (currentEpoch !== epoch || generation !== viewGeneration) return;
     renderNote(note); setNoteBusy(true); message();
     if (userAction) await api(`/api/v1/notes/${id}/opened`,{
-      method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID(),search_operation_id:search}),
+      method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID(),search_operation_id:search,reminder_id:reminder}),
     });
   } finally { setNoteBusy(false); }
 }
@@ -443,7 +443,7 @@ async function openLinkedCapture() {
   const id = new URLSearchParams(location.search).get('capture');
   if (!id) return;
   const capture = await api(`/api/v1/captures/${encodeURIComponent(id)}`);
-  if (capture.note_id) await openNote(capture.note_id);
+  if (capture.note_id) await openNote(capture.note_id,{userAction:true,reminder:new URLSearchParams(location.search).get('reminder')});
   else if (capture.input_kind === 'audio') {
     await openCapture(id);
     if (capture.job && ['queued','running'].includes(capture.job.status)) {

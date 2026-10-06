@@ -3,11 +3,10 @@
 import json
 from pathlib import Path
 
-from fastapi import Depends, Query
+from fastapi import Depends
 
 from app.config import Settings
 from app.contracts import (
-    AdminSummary,
     AuthorizeRequest,
     AuthorizeResponse,
     ClaimRequest,
@@ -35,16 +34,6 @@ def result(delivery_id: str, body: ResultRequest) -> ResultResponse:
     raise NotImplementedError
 
 
-def summary(
-    start: str = Query(alias="from", pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    end: str = Query(alias="to", pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    channel: str = Query("all", pattern="^(all|web|telegram)$"),
-    source: str = Query("all", max_length=100),
-    usage_limit: int = Query(50, ge=1, le=100),
-    usage_offset: int = Query(0, ge=0),
-) -> AdminSummary:
-    raise NotImplementedError
-
 
 for path, endpoint in [
     ("/deliveries/claim", claim),
@@ -61,24 +50,6 @@ for path, endpoint in [
         dependencies=[Depends(require_internal_service)],
         responses={c: {"model": IntegrationError} for c in (400, 401, 403, 409, 413, 422, 429, 503)},
     )
-app.add_api_route(
-    "/api/admin/summary",
-    summary,
-    methods=["GET"],
-    tags=["admin"],
-    responses={
-        200: {
-            "headers": {
-                "X-Next-Usage-Offset": {
-                    "description": "Next offset, or omitted on last page",
-                    "schema": {"type": "integer"},
-                }
-            }
-        },
-        401: {"description": "No browser session"},
-        403: {"description": "Admin role required"},
-    },
-)
 spec = app.openapi()
 spec["paths"]["/internal/v1/telegram/updates"]["post"]["responses"]["200"]["content"]["application/json"]["examples"] = {
     mode: {"value": json.loads(Path(f"docs/fixtures/telegram-save-{mode}.json").read_text())}
@@ -91,7 +62,7 @@ for path, operations in spec["paths"].items():
     for method, operation in operations.items():
         if method in {"get", "post", "patch", "delete"}:
             operation["x-implementation-status"] = "implemented" if path in implemented else "contract-only"
-            if path == "/api/admin/summary":
+            if path.startswith("/api/admin/"):
                 operation["security"] = [{"BrowserSession": []}]
 spec["components"]["securitySchemes"]["BrowserSession"] = {
     "type": "apiKey",
@@ -103,27 +74,6 @@ time_resolution["security"] = [{"BrowserSession": []}]
 time_resolution["parameters"] = [{
     "name": "X-CSRF-Token", "in": "header", "required": True, "schema": {"type": "string"},
 }]
-spec["paths"]["/api/admin/export"] = {
-    "get": {
-        "operationId": "admin_export",
-        "tags": ["admin"],
-        "x-implementation-status": "implemented" if "/api/admin/export" in implemented else "contract-only",
-        "security": [{"BrowserSession": []}],
-        "parameters": [
-            p
-            for p in spec["paths"]["/api/admin/summary"]["get"]["parameters"]
-            if p["name"] not in {"usage_limit", "usage_offset"}
-        ],
-        "responses": {
-            "200": {
-                "description": "UTF-8 CSV of aggregates, same slice as summary",
-                "content": {"text/csv": {"schema": {"type": "string"}}},
-            },
-            "401": {"description": "No browser session"},
-            "403": {"description": "Admin role required"},
-        },
-    }
-}
 spec["paths"]["/internal/v1/telegram/voice"] = {
     "post": {
         "operationId": "telegram_voice",

@@ -253,7 +253,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
             yield db
 
     app.include_router(account_router(database))
-    app.include_router(admin_router(database, STATIC))
+    app.include_router(admin_router(database, STATIC, settings))
     app.include_router(internal_router(database, settings))
     app.include_router(structure_router(database))
     app.include_router(reminders_router(database))

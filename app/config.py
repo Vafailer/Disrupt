@@ -42,9 +42,12 @@ class Settings:
     audio_storage_path: str = "data/audio"
     audio_ffmpeg_path: str = "ffmpeg"
     audio_ffprobe_path: str = "ffprobe"
+    analytics_pseudonym_key: str = field(default="", repr=False)
     internal_api_token: str = field(default="", repr=False)
 
     def __post_init__(self):
+        if self.analytics_pseudonym_key and len(self.analytics_pseudonym_key) < 32:
+            raise ValueError("Analytics pseudonym key must contain at least 32 characters")
         if not 30 <= self.delivery_lease_seconds <= 300:
             raise ValueError("Delivery lease must be between 30 and 300 seconds")
         if self.internal_api_token and len(self.internal_api_token) < 32:
@@ -88,7 +91,13 @@ class Settings:
         if internal_token_file and internal_token:
             raise ValueError("Use either NOTES_INTERNAL_API_TOKEN or NOTES_INTERNAL_API_TOKEN_FILE")
 
+        analytics_file = os.environ.get("NOTES_ANALYTICS_PSEUDONYM_KEY_FILE")
+        analytics_key = os.environ.get("NOTES_ANALYTICS_PSEUDONYM_KEY", "")
+        if analytics_file and analytics_key:
+            raise ValueError("Use either NOTES_ANALYTICS_PSEUDONYM_KEY or NOTES_ANALYTICS_PSEUDONYM_KEY_FILE")
+
         return cls(
+            analytics_pseudonym_key=(read_secret_file(analytics_file, maximum=4096) if analytics_file else analytics_key),
             internal_api_token=(
                 read_secret_file(internal_token_file, maximum=4096) if internal_token_file else internal_token
             ),

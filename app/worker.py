@@ -14,6 +14,7 @@ from app.error_logging import log_error
 from app.models import Capture, Category, Item, Job, Note, ProviderBudget, TranscriptRevision, User, new_id
 from app.providers import ProviderError, make_provider, validate_result
 from app.services import ensure_category, lock_account, save_revision
+from app.usage import UsageRecorder
 
 
 class Worker:
@@ -26,6 +27,7 @@ class Worker:
         self.provider = provider if provider is not None else make_provider(settings)
         self.audio_storage = audio_storage
         self.speech_provider = speech_provider
+        self.usage = UsageRecorder(sessions, settings)
 
     def original_for_job(self, job_id):
         with self.sessions() as db:
@@ -48,7 +50,10 @@ class Worker:
             raise ProviderError("audio_invalid")
         try:
             with self.audio_storage.open_original(key) as source:
-                transcript = self.speech_provider.transcribe(source, media_type=media_type)
+                transcript = self.usage.call(
+                    job_id, "stt", self.speech_provider,
+                    lambda _: self.validate_transcript(self.speech_provider.transcribe(source, media_type=media_type)),
+                )
         except OSError:
             raise ProviderError("audio_storage_unavailable") from None
         transcript = self.validate_transcript(transcript)
@@ -174,9 +179,15 @@ class Worker:
                 }
                 if self.settings.provider == "cloudru":
                     self.reserve_budget(db, user_id)
-            result = validate_result(
-                self.provider.structure(original, categories=tuple(category_context)), original
-            )
+            def structure(on_usage):
+                measured = getattr(self.provider, "structure_with_usage", None)
+                result = (
+                    measured(original, categories=tuple(category_context), on_usage=on_usage)
+                    if measured else self.provider.structure(original, categories=tuple(category_context))
+                )
+                return validate_result(result, original)
+
+            result = self.usage.call(job_id, "llm", self.provider, structure)
             now = time.time()
             with self.sessions() as db:
                 lock_account(db, user_id)

@@ -8,15 +8,16 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.models import ProductEvent, User, new_id
 
-BACKGROUND_EVENTS = {"processing_completed", "processing_failed", "reminder_sent", "reminder_failed"}
+BACKGROUND_EVENTS = {"processing_completed", "processing_failed", "reminder_sent", "reminder_failed", "reminder_result"}
 
 
-def record_event(db, user_id, name, operation_id, channel="web", *, occurred_at=None):
+def record_event(db, user_id, name, operation_id, channel="web", *, occurred_at=None, subject_id=None, outcome=None):
     now = time.time() if occurred_at is None else occurred_at
     # An UPDATE locks the account on both supported engines and serializes session assignment.
     # Background processing must not extend a human's analytical session.
     db.execute(update(User).where(User.id == user_id).values(source=User.source))
     user = db.get(User, user_id)
+    db.refresh(user)  # Respect test/source changes committed before this account lock.
     previous = db.scalar(
         select(ProductEvent)
         .where(ProductEvent.user_id == user_id, ProductEvent.name.not_in(BACKGROUND_EVENTS))
@@ -34,6 +35,8 @@ def record_event(db, user_id, name, operation_id, channel="web", *, occurred_at=
             operation_id=operation_id,
             channel=channel,
             source=user.source,
+            subject_id=subject_id,
+            outcome=outcome,
             is_test=user.is_test,
             session_id=session_id,
             occurred_at=now,

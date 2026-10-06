@@ -88,7 +88,7 @@ def create_reminder(db, user_id, note_id, body, key):
     )
     db.add(row)
     db.flush()
-    record_event(db, user_id, "reminder_confirmed", f"{row.id}:1")
+    record_event(db, user_id, "reminder_confirmed", f"{row.id}:1", subject_id=row.note_id)
     return row
 
 
@@ -103,7 +103,7 @@ def edit_reminder(db, user_id, reminder_id, body):
     row.scheduled_at, row.timezone, row.text = scheduled_at, body.timezone, body.text
     row.status, row.confirmed_at = "confirmed", time.time()
     row.generation += 1
-    record_event(db, user_id, "reminder_confirmed", f"{row.id}:{row.generation}")
+    record_event(db, user_id, "reminder_confirmed", f"{row.id}:{row.generation}", subject_id=row.note_id)
     return row
 
 

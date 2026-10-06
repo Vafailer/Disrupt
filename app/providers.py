@@ -121,10 +121,16 @@ class CloudRuProvider:
             raise ValueError("Model base URL must be an approved HTTPS endpoint")
         self._api_key = api_key
         self._model = model
+        self.model_name = model
         self._transport = transport
         self.endpoint = base_url + "/chat/completions"
 
     def structure(self, text, *, categories=()):
+        return self.structure_with_usage(text, categories=categories, on_usage=lambda _: None)
+
+    def structure_with_usage(self, text, *, categories=(), on_usage):
+        from app.usage import response_tokens
+
         try:
             # No SDK retries, redirects, discovery, telemetry, or alternate endpoints.
             with httpx.Client(
@@ -184,6 +190,7 @@ class CloudRuProvider:
                         if len(content) > 256000:
                             raise ProviderError("provider_response_too_large")
             data = json.loads(content)
+            on_usage(response_tokens(data))
             choice = data["choices"][0]
             if choice.get("finish_reason") != "stop":
                 raise ProviderError("provider_incomplete_response")

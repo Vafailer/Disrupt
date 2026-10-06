@@ -43,3 +43,18 @@ def test_service_secret_is_separate_and_not_in_repr(tmp_path, monkeypatch):
 def test_short_service_secret_rejected():
     with pytest.raises(ValueError, match='32'):
         Settings(internal_api_token='too-short')
+
+
+def test_analytics_pseudonym_key_is_separate_and_not_in_repr(tmp_path, monkeypatch):
+    secret = tmp_path / "synthetic-analytics-key"
+    secret.write_text("synthetic-analytics-only-" + "x" * 32 + "\n")
+    monkeypatch.setenv("NOTES_ANALYTICS_PSEUDONYM_KEY_FILE", str(secret))
+    monkeypatch.delenv("NOTES_ANALYTICS_PSEUDONYM_KEY", raising=False)
+    settings = Settings.from_env()
+    assert settings.analytics_pseudonym_key == secret.read_text().strip()
+    assert settings.analytics_pseudonym_key not in repr(settings)
+    monkeypatch.setenv("NOTES_ANALYTICS_PSEUDONYM_KEY", "synthetic-other-" + "y" * 32)
+    with pytest.raises(ValueError, match="either"):
+        Settings.from_env()
+    with pytest.raises(ValueError, match="32"):
+        Settings(analytics_pseudonym_key="short")
