@@ -56,7 +56,11 @@ jobs:
       - name: Check current image and audio volume
         run: |
           docker compose config --quiet
+          docker compose -f compose.yaml -f deploy/compose.telegram.yaml --profile telegram config --quiet
+          APP_DOMAIN=example.invalid docker compose -f compose.production.yaml -f deploy/compose.telegram.yaml --profile telegram config --quiet
           docker build -t beresta-audio-check .
           docker run --rm beresta-audio-check ffmpeg -version
           docker run --rm beresta-audio-check ffprobe -version
           docker run --rm beresta-audio-check sh -c 'test -w /app/data/audio && test "$(id -u)" != 0'
+          docker build -f deploy/Dockerfile.telegram -t beresta-telegram-check .
+          docker run --rm beresta-telegram-check python -m telegram_adapter --demo

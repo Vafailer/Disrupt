@@ -85,6 +85,20 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  scheduler:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "app.scheduler"]
+    environment:
+      <<: *backend-environment
+      NOTES_PROVIDER: mock
+      NOTES_ALLOW_LIVE_REQUESTS: "false"
+    secrets:
+      - postgres_password
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   caddy:
     image: caddy:2.10
     restart: unless-stopped

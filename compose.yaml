@@ -43,6 +43,13 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+  scheduler:
+    build: .
+    command: ["python", "-m", "app.scheduler"]
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 volumes:
   audio-originals:
   postgres-data:

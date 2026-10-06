@@ -1,5 +1,10 @@
 # Optional overlay: core integration routes must exist before enabling this profile.
 services:
+  api:
+    environment:
+      NOTES_INTERNAL_API_TOKEN_FILE: /run/secrets/telegram_service_token
+    secrets:
+      - telegram_service_token
   telegram:
     profiles: [telegram]
     build:
