@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.analytics import record_event
+from app.audio_storage import AudioStorage
 from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
@@ -23,6 +24,7 @@ from app.providers import DEMO_TEXT
 from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
 from app.routes.admin import build_router as admin_router
+from app.routes.audio import build_router as audio_router
 from app.routes.internal import build_router as internal_router
 from app.routes.reminders import build_router as reminders_router
 from app.routes.structure import build_router as structure_router
@@ -37,7 +39,15 @@ from app.security import (
     throttle,
     verify_password,
 )
-from app.services import capture_text, edit_note, job_view, note_view, owned_note, search_notes
+from app.services import (
+    capture_text,
+    create_audio_capture,
+    edit_note,
+    job_view,
+    note_view,
+    owned_note,
+    search_notes,
+)
 from app.worker import Worker
 
 STATIC = Path(__file__).parent / "static"
@@ -103,6 +113,12 @@ class BodyLimit:
 
 def create_app(settings: Settings | None = None, provider=None, *, audio_storage=None, speech_provider=None):
     settings = settings or Settings.from_env()
+    if audio_storage is None:
+        audio_storage = AudioStorage(
+            settings.audio_storage_path,
+            ffmpeg_path=settings.audio_ffmpeg_path,
+            ffprobe_path=settings.audio_ffprobe_path,
+        )
     engine, sessions = make_database(settings.database_url)
 
     @asynccontextmanager
@@ -110,8 +126,12 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
         stop = asyncio.Event()
         task = None
         if settings.auto_worker:
+            worker_storage = (
+                AudioStorage(audio_storage.root, read_only=True)
+                if isinstance(audio_storage, AudioStorage) else audio_storage
+            )
             worker = Worker(
-                sessions, settings, provider, audio_storage=audio_storage, speech_provider=speech_provider,
+                sessions, settings, provider, audio_storage=worker_storage, speech_provider=speech_provider,
             )
 
             async def run_worker():
@@ -146,6 +166,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     app.state.settings = settings
     app.state.sessions = sessions
     app.state.engine = engine
+    app.state.audio_storage = audio_storage
     app.add_middleware(BodyLimit)
 
     @app.middleware("http")
@@ -225,6 +246,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     app.include_router(internal_router(database, settings))
     app.include_router(structure_router(database))
     app.include_router(reminders_router(database))
+    app.include_router(audio_router(database, settings, audio_storage, create_audio_capture))
 
     @app.get("/health")
     def health(db=Depends(database)):

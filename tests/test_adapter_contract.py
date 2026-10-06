@@ -72,6 +72,50 @@ def test_real_adapter_preserves_text_and_replays_commit(app_factory, adapter, tm
             assert len(db.scalars(select(Inbox)).all()) == 3
 
 
+def test_real_adapter_voice_uses_application_router_and_keeps_original(app_factory, adapter, tmp_path):
+    from tests.test_audio_storage import wav
+
+    app = app_factory(internal_api_token=SERVICE_TOKEN)
+    with TestClient(app) as browser:
+        linked(browser)
+        config = settings(adapter, tmp_path)
+        replies = []
+
+        class Telegram:
+            async def voice(self, file_id):
+                assert file_id == "synthetic-file"
+                return wav()
+
+            async def reply(self, chat_id, text, url=None):
+                replies.append((chat_id, url))
+
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app)) as client:
+                core = adapter["clients"].CoreClient(client, config)
+                bot = adapter["bot"].Bot(config, core, Telegram(), adapter["state"].OffsetStore(config.state_file, config.bot_id))
+                update = {
+                    "update_id": 2,
+                    "message": {
+                        "from": {"id": BASE["telegram_user_id"]},
+                        "chat": {"type": "private", "id": BASE["chat_id"]},
+                        "voice": {"file_id": "synthetic-file", "duration": 1, "file_size": len(wav())},
+                    },
+                }
+                await bot.handle(update)
+                await bot.handle(update)
+
+        asyncio.run(run())
+        assert len(replies) == 2 and replies[0] == replies[1]
+        with app.state.sessions() as db:
+            captures = db.scalars(select(Capture)).all()
+            assert len(captures) == 1
+            capture = captures[0]
+            assert capture.input_kind == "audio" and capture.channel == "telegram"
+            assert capture.original_text == "" and capture.transcript is None
+            assert (app.state.audio_storage.root / capture.audio_key).read_bytes() == wav()
+            assert browser.get(f"/api/v1/captures/{capture.id}/audio").content == wav()
+
+
 def test_real_adapter_classifies_business_and_service_errors(app_factory, adapter, tmp_path):
     app = app_factory(internal_api_token=SERVICE_TOKEN)
     with TestClient(app) as browser:

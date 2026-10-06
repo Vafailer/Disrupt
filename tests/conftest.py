@@ -53,11 +53,13 @@ def app_factory(tmp_path, monkeypatch):
     monkeypatch.setenv("NOTES_PROVIDER", "mock")
     monkeypatch.setenv("NOTES_ALLOW_LIVE_REQUESTS", "false")
     command.upgrade(Config("alembic.ini"), "head")
-    settings = Settings(database_url=database_url, auto_worker=False)
+    settings = Settings(database_url=database_url, auto_worker=False, audio_storage_path=str(tmp_path / "audio"))
     apps = []
 
-    def factory(**changes):
-        app = create_app(replace(settings, **changes))
+    def factory(*, llm_provider=None, audio_storage=None, speech_provider=None, **changes):
+        app = create_app(
+            replace(settings, **changes), llm_provider, audio_storage=audio_storage, speech_provider=speech_provider,
+        )
         apps.append(app)
         return app
 

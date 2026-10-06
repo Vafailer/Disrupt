@@ -47,6 +47,8 @@ services:
 
   api:
     build: .
+    volumes:
+      - audio-originals:/app/data/audio
     restart: unless-stopped
     command:
       - python
@@ -69,6 +71,8 @@ services:
 
   worker:
     build: .
+    volumes:
+      - audio-originals:/app/data/audio:ro
     restart: unless-stopped
     command: ["python", "-m", "app.worker"]
     environment:
@@ -104,6 +108,7 @@ secrets:
     file: ./secrets/cloudru_api_key.txt
 
 volumes:
+  audio-originals:
   postgres-data:
   caddy-data:
   caddy-config:
