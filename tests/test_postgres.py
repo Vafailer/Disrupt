@@ -165,3 +165,80 @@ def test_postgresql_internal_link_concurrent_updates_and_manual(monkeypatch):
                 assert len(events) == 1 and events[0].channel == "telegram"
     finally:
         app.state.engine.dispose()
+
+
+@pytest.mark.skipif(not os.environ.get("TEST_POSTGRES_URL"), reason="Local PostgreSQL is not configured")
+def test_postgresql_audio_duplicates_and_shared_queue_limit(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from dataclasses import replace
+
+    from fastapi import HTTPException
+    from sqlalchemy import func, select
+
+    from app.db import make_database
+    from app.models import Capture, Job, ProductEvent, User, new_id
+    from app.services import capture_text
+    from tests.test_audio_core import create
+
+    url = os.environ["TEST_POSTGRES_URL"]
+    assert make_url(url).host in {"127.0.0.1", "localhost", "::1"}
+    monkeypatch.setenv("NOTES_DATABASE_URL", url)
+    monkeypatch.setenv("NOTES_PROVIDER", "mock")
+    command.upgrade(Config("alembic.ini"), "head")
+    command.check(Config("alembic.ini"))
+    settings = Settings(database_url=url, auto_worker=False, max_pending_per_user=1)
+    engine, sessions = make_database(url)
+    try:
+        with sessions() as db:
+            user = User(id=new_id(), username="pg_audio_" + uuid.uuid4().hex, password_hash="synthetic")
+            db.add(user)
+            db.commit()
+            user_id = user.id
+
+        def duplicate(_):
+            with sessions() as db:
+                job = create(db, user_id, settings)
+                db.commit()
+                return job.id
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            ids = list(pool.map(duplicate, range(4)))
+        assert len(set(ids)) == 1
+        with sessions() as db:
+            for model in (Capture, Job, ProductEvent):
+                statement = select(func.count()).select_from(model).where(model.user_id == user_id)
+                assert db.scalar(statement) == 1
+            db.get(Job, ids[0]).status = "failed"
+            db.commit()
+
+        def competing(kind):
+            with sessions() as db:
+                try:
+                    if kind == "audio":
+                        job = create(db, user_id, settings, key="racing-audio")
+                    else:
+                        job = capture_text(db, user_id, "Synthetic text", "racing-text", settings, commit=False)
+                    db.commit()
+                    return job.id
+                except HTTPException as exc:
+                    db.rollback()
+                    return exc.status_code
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(competing, ("audio", "text")))
+        assert results.count(429) == 1 and sum(isinstance(result, str) for result in results) == 1
+        with sessions() as db:
+            assert db.scalar(
+                select(func.count()).select_from(Job).where(Job.user_id == user_id, Job.status == "queued")
+            ) == 1
+            assert db.scalar(select(func.count()).select_from(Capture).where(Capture.user_id == user_id)) == 2
+            assert db.scalar(select(func.count()).select_from(ProductEvent).where(ProductEvent.user_id == user_id)) == 2
+
+        # Manual text is allowed while the AI queue is full, regardless of input kind.
+        with sessions() as db:
+            capture_text(
+                db, user_id, "Manual synthetic text", "manual", replace(settings, max_pending_per_user=1),
+                processing_mode="manual",
+            )
+    finally:
+        engine.dispose()

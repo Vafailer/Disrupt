@@ -26,6 +26,18 @@ class TextCapture(StrictModel):
         return value  # Preserve the exact original, including whitespace.
 
 
+class AudioJobResponse(StrictModel):
+    id: str
+    capture_id: str
+    status: Literal["queued", "running", "succeeded", "failed"]
+    provider: Literal["mock", "cloudru"]
+    error_code: str | None
+    note_id: str | None
+    original_text: str
+    created_at: float
+    finished_at: float | None
+
+
 class ProposedConclusion(StrictModel):
     text: str = Field(min_length=1, max_length=1500)
     source_quote: str = Field(min_length=1, max_length=3000)

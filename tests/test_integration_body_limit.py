@@ -14,9 +14,13 @@ from app.main import BodyLimit
         ("/internal/v1/telegram/voice", "PATCH", "multipart/form-data; boundary=test", 131073, 413),
         ("/internal/v1/telegram/updates", "POST", "multipart/form-data; boundary=test", 131073, 413),
         ("/internal/v1/telegram/updates", "POST", "application/json", 131072, 200),
+        ("/api/v1/captures/audio", "POST", "multipart/form-data; boundary=test", 10 * 1024 * 1024, 200),
+        ("/api/v1/captures/audio", "POST", "multipart/form-data; boundary=test", 10 * 1024 * 1024 + 65537, 413),
+        ("/api/v1/captures/audio", "POST", "application/json", 131073, 413),
+        ("/api/v1/captures/text", "POST", "multipart/form-data; boundary=test", 131073, 413),
     ],
 )
-def test_body_limit_counts_actual_chunks_and_only_relaxes_voice(path, method, content_type, size, status):
+def test_body_limit_counts_actual_chunks_and_only_relaxes_audio(path, method, content_type, size, status):
     messages, received = [], []
 
     async def sink(scope, receive, send):
@@ -51,4 +55,7 @@ def test_body_limit_counts_actual_chunks_and_only_relaxes_voice(path, method, co
         assert received == [size]
     else:
         assert received == []
-        assert b'"code":"input_too_large"' in messages[1]["body"]
+        if path.startswith("/internal/"):
+            assert b'"code":"input_too_large"' in messages[1]["body"]
+        else:
+            assert b'"detail"' in messages[1]["body"]
