@@ -69,7 +69,7 @@ class BodyLimit:
         maximum = self.maximum
         if (
             scope["method"] == "POST"
-            and scope["path"] == "/internal/v1/telegram/voice"
+            and scope["path"] in {"/internal/v1/telegram/voice", "/api/v1/captures/audio"}
             and content_type.split(b";", 1)[0].strip() == b"multipart/form-data"
         ):
             maximum = self.AUDIO_MAXIMUM + self.MULTIPART_OVERHEAD
@@ -100,7 +100,7 @@ class BodyLimit:
         await self.app(scope, replay, send)
 
 
-def create_app(settings: Settings | None = None, provider=None):
+def create_app(settings: Settings | None = None, provider=None, *, audio_storage=None, speech_provider=None):
     settings = settings or Settings.from_env()
     engine, sessions = make_database(settings.database_url)
 
@@ -109,7 +109,9 @@ def create_app(settings: Settings | None = None, provider=None):
         stop = asyncio.Event()
         task = None
         if settings.auto_worker:
-            worker = Worker(sessions, settings, provider)
+            worker = Worker(
+                sessions, settings, provider, audio_storage=audio_storage, speech_provider=speech_provider,
+            )
 
             async def run_worker():
                 while not stop.is_set():

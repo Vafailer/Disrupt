@@ -16,7 +16,7 @@ from app.contracts import (
     ResultResponse,
 )
 from app.main import create_app
-from app.schemas import IntegrationError, TelegramCaptureResponse
+from app.schemas import AudioJobResponse, IntegrationError, TelegramCaptureResponse
 from app.security import require_internal_service
 
 app = create_app(Settings(auto_worker=False, database_url="sqlite:///:memory:"))
@@ -182,6 +182,75 @@ spec["paths"]["/internal/v1/telegram/voice"] = {
             },
         },
     }
+}
+spec["components"]["schemas"]["AudioJobResponse"] = AudioJobResponse.model_json_schema()
+audio_schema = {
+    "type": "string", "format": "binary",
+    "description": "Original Ogg/Opus, WAV/PCM or WebM/Opus, verified by full decoding; "
+    "at most 10485760 bytes and 180 seconds inclusive. Filename and declared MIME are not trusted.",
+}
+spec["paths"]["/internal/v1/telegram/voice"]["post"]["requestBody"]["content"]["multipart/form-data"][
+    "schema"
+]["properties"]["audio"] = audio_schema
+browser_errors = {
+    str(code): {
+        "description": "Safe browser error",
+        "content": {"application/json": {"schema": {
+            "type": "object", "required": ["detail"],
+            "properties": {"detail": {"type": "string"}},
+        }}},
+    }
+    for code in (400, 401, 403, 404, 409, 413, 422, 429, 503)
+}
+spec["paths"]["/api/v1/captures/audio"] = {
+    "post": {
+        "operationId": "web_audio_capture",
+        "tags": ["audio"],
+        "x-implementation-status": "contract-only",
+        "security": [{"BrowserSession": []}],
+        "description": "Authenticate before multipart parsing. Reject repeated or extra fields. "
+        "Commit the original and job before responding. Replay identical bytes without decoding again.",
+        "parameters": [
+            {"name": "X-CSRF-Token", "in": "header", "required": True, "schema": {"type": "string"}},
+            {"name": "Idempotency-Key", "in": "header", "required": True, "schema": {
+                "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[A-Za-z0-9_.:-]{1,100}$",
+            }},
+        ],
+        "requestBody": {"required": True, "content": {"multipart/form-data": {"schema": {
+            "type": "object", "additionalProperties": False, "required": ["audio", "processing_mode"],
+            "properties": {"audio": audio_schema, "processing_mode": {"type": "string", "enum": ["ai"]}},
+        }}}},
+        "responses": {
+            "202": {"description": "Committed capture, current state of its job", "content": {
+                "application/json": {"schema": {"$ref": "#/components/schemas/AudioJobResponse"}},
+            }},
+            **{code: response for code, response in browser_errors.items() if code != "404"},
+        },
+    },
+}
+spec["paths"]["/api/v1/captures/{capture_id}/audio"] = {
+    "get": {
+        "operationId": "download_audio_original",
+        "tags": ["audio"],
+        "x-implementation-status": "contract-only",
+        "security": [{"BrowserSession": []}],
+        "description": "Check capture ownership before opening the file. STT failures do not remove access. "
+        "Return 404 for missing, foreign or text captures. Never expose storage paths or keys.",
+        "parameters": [{"name": "capture_id", "in": "path", "required": True, "schema": {"type": "string"}}],
+        "responses": {
+            "200": {
+                "description": "Exact original bytes",
+                "headers": {
+                    "Content-Disposition": {"schema": {"type": "string"}, "description": "attachment; server filename"},
+                    "Cache-Control": {"schema": {"type": "string", "const": "no-store"}},
+                    "X-Content-Type-Options": {"schema": {"type": "string", "const": "nosniff"}},
+                },
+                "content": {media: {"schema": {"type": "string", "format": "binary"}}
+                            for media in ("audio/ogg", "audio/wav", "audio/webm")},
+            },
+            **{code: browser_errors[code] for code in ("401", "404", "503")},
+        },
+    },
 }
 base = {"bot_id": 1234567890123, "update_id": 12, "telegram_user_id": 2345678901234, "chat_id": 2345678901234}
 examples = {

@@ -32,6 +32,8 @@ def test_existing_records_survive_upgrade_and_downgrade(tmp_path, monkeypatch):
         assert db.get(Capture, "c").original_text == "original"
         assert db.get(Capture, "c").processing_mode == "ai"
         assert db.get(Capture, "c").channel == "web"
+        assert db.get(Capture, "c").audio_sha256 is None
+        assert db.get(Capture, "c").audio_media_type is None
         assert db.get(Note, "n").version == 1
         assert db.get(LoginSession, "token").csrf_token == "csrf"
         assert db.get(Revision, "r").version == 1

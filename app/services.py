@@ -1,10 +1,15 @@
+import math
+import re
 import time
+from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.analytics import record_event
+from app.audio_contracts import AUDIO_MEDIA_TYPES, MAX_AUDIO_BYTES, MAX_AUDIO_SECONDS, StoredAudioLike
+from app.integration import IntegrationRejection
 from app.models import Capture, Category, Item, Job, Note, Outbox, Reminder, Revision, User, new_id
 
 MAX_CATEGORIES = 100
@@ -22,7 +27,11 @@ def capture_text(db, user_id, text, key, settings, *, processing_mode="ai", chan
     def existing():
         capture = db.scalar(select(Capture).where(Capture.user_id == user_id, Capture.idempotency_key == key))
         if capture:
-            if capture.original_text != text or capture.processing_mode != processing_mode:
+            if (
+                capture.input_kind != "text"
+                or capture.original_text != text
+                or capture.processing_mode != processing_mode
+            ):
                 raise HTTPException(409, "Этот Idempotency-Key уже использован для другого текста")
             if processing_mode == "manual":
                 return db.scalar(select(Note).where(Note.capture_id == capture.id))
@@ -78,6 +87,76 @@ def capture_text(db, user_id, text, key, settings, *, processing_mode="ai", chan
             return found
         raise
     return result
+
+
+def create_audio_capture(
+    db, *, capture_id, user_id, idempotency_key, stored_audio: StoredAudioLike, channel, settings
+) -> Job:
+    """Create in the caller's transaction, after durable storage publication."""
+    try:
+        valid_id = str(UUID(capture_id)) == capture_id
+    except (ValueError, TypeError, AttributeError):
+        valid_id = False
+    if (
+        not valid_id
+        or channel not in {"web", "telegram"}
+        or not isinstance(idempotency_key, str)
+        or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", idempotency_key)
+        or stored_audio.key != f"{capture_id}.audio"
+    ):
+        raise IntegrationRejection(422, "invalid_input", "Некорректные параметры аудиозаписи")
+    info = stored_audio.info
+    if (
+        type(info.byte_count) is not int
+        or info.byte_count <= 0
+        or not isinstance(info.duration_seconds, (int, float))
+        or isinstance(info.duration_seconds, bool)
+        or not math.isfinite(info.duration_seconds)
+        or info.duration_seconds <= 0
+        or not isinstance(info.sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", info.sha256)
+        or not isinstance(info.media_type, str)
+        or info.media_type not in AUDIO_MEDIA_TYPES
+    ):
+        raise IntegrationRejection(422, "invalid_input", "Некорректные сведения об аудио")
+    if info.byte_count > MAX_AUDIO_BYTES or info.duration_seconds > MAX_AUDIO_SECONDS:
+        raise IntegrationRejection(413, "input_too_large", "Аудиозапись слишком большая или длинная")
+
+    lock_account(db, user_id)
+    capture = db.scalar(
+        select(Capture).where(Capture.user_id == user_id, Capture.idempotency_key == idempotency_key)
+    )
+    if capture:
+        if (
+            capture.input_kind != "audio"
+            or capture.audio_sha256 != info.sha256
+            or capture.audio_bytes != info.byte_count
+            or capture.audio_media_type != info.media_type
+            or capture.audio_seconds != info.duration_seconds
+            or capture.processing_mode != "ai"
+            or capture.channel != channel
+        ):
+            raise IntegrationRejection(409, "conflict", "Этот Idempotency-Key уже использован для другой записи")
+        return db.scalar(select(Job).where(Job.capture_id == capture.id))
+    pending = db.scalar(
+        select(func.count()).select_from(Job).where(Job.user_id == user_id, Job.status.in_(["queued", "running"]))
+    )
+    if pending >= settings.max_pending_per_user:
+        # Temporary queue saturation must not be remembered as a terminal Inbox rejection.
+        raise HTTPException(429, "Слишком много записей ожидают обработки")
+    capture = Capture(
+        id=capture_id, user_id=user_id, idempotency_key=idempotency_key, channel=channel,
+        input_kind="audio", processing_mode="ai", original_text="", transcript=None,
+        audio_key=stored_audio.key, audio_sha256=info.sha256, audio_bytes=info.byte_count,
+        audio_seconds=info.duration_seconds, audio_media_type=info.media_type,
+    )
+    db.add(capture)
+    db.flush()
+    job = Job(id=new_id(), capture_id=capture_id, user_id=user_id, provider=settings.provider)
+    db.add(job)
+    db.flush()
+    record_event(db, user_id, "capture_saved", capture_id, channel)
+    return job
 
 
 def owned_note(db, note_id, user_id):

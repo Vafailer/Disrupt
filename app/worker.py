@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy import select, update
 
 from app.analytics import record_event
+from app.audio_contracts import AUDIO_MEDIA_TYPES, AudioReader, SpeechProvider
 from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
@@ -15,10 +16,65 @@ from app.services import ensure_category, lock_account, save_revision
 
 
 class Worker:
-    def __init__(self, sessions, settings: Settings, provider=None):
+    def __init__(
+        self, sessions, settings: Settings, provider=None, *,
+        audio_storage: AudioReader | None = None, speech_provider: SpeechProvider | None = None,
+    ):
         self.sessions = sessions
         self.settings = settings
         self.provider = provider if provider is not None else make_provider(settings)
+        self.audio_storage = audio_storage
+        self.speech_provider = speech_provider
+
+    def original_for_job(self, job_id):
+        with self.sessions() as db:
+            job = db.get(Job, job_id)
+            if job.status != "running" or job.lease_until < time.time():
+                raise ProviderError("execution_unknown")
+            capture = db.get(Capture, job.capture_id)
+            if capture.input_kind == "text":
+                return capture.original_text
+            if capture.input_kind != "audio":
+                raise ProviderError("input_kind_invalid")
+            if capture.transcript is not None:
+                return self.validate_transcript(capture.transcript)
+            key, media_type = capture.audio_key, capture.audio_media_type
+        if self.speech_provider is None:
+            raise ProviderError("stt_not_configured")
+        if self.audio_storage is None:
+            raise ProviderError("audio_storage_unavailable")
+        if not key or media_type not in AUDIO_MEDIA_TYPES:
+            raise ProviderError("audio_invalid")
+        try:
+            with self.audio_storage.open_original(key) as source:
+                transcript = self.speech_provider.transcribe(source, media_type=media_type)
+        except OSError:
+            raise ProviderError("audio_storage_unavailable") from None
+        transcript = self.validate_transcript(transcript)
+        with self.sessions() as db:
+            # Serialize with lease expiration. A late STT result cannot start the LLM.
+            active = db.execute(
+                update(Job)
+                .where(Job.id == job_id, Job.status == "running", Job.lease_until >= time.time())
+                .values(status="running")
+            ).rowcount
+            if not active:
+                raise ProviderError("execution_unknown")
+            capture = db.get(Capture, job.capture_id)
+            if capture.transcript is None:
+                capture.transcript = transcript
+                capture.original_text = transcript
+            else:
+                transcript = self.validate_transcript(capture.transcript)
+            # Keep the transcript even if the next stage fails or the process stops.
+            db.commit()
+        return transcript
+
+    @staticmethod
+    def validate_transcript(text):
+        if not isinstance(text, str) or not text.strip() or "\x00" in text or len(text) > 12000:
+            raise ProviderError("stt_invalid_response")
+        return text
 
     def claim(self):
         now = time.time()
@@ -103,9 +159,9 @@ class Worker:
         if job_id is None:
             return False
         try:
+            original = self.original_for_job(job_id)
             with self.sessions() as db:
                 job = db.get(Job, job_id)
-                original = db.get(Capture, job.capture_id).original_text
                 capture_id, user_id = job.capture_id, job.user_id
                 category_context = {
                     category.name: category.id

@@ -68,6 +68,8 @@ class Capture(Base):
     audio_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     audio_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     audio_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    audio_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    audio_media_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     transcript_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 

@@ -41,6 +41,8 @@ def test_published_contract_marks_unimplemented_routes_and_valid_refs():
     assert spec["paths"]["/internal/v1/telegram/updates"]["post"]["x-implementation-status"] == "implemented"
     assert spec["paths"]["/internal/v1/telegram/actions"]["post"]["x-implementation-status"] == "implemented"
     assert spec["paths"]["/internal/v1/telegram/voice"]["post"]["x-implementation-status"] == "contract-only"
+    assert spec["paths"]["/api/v1/captures/audio"]["post"]["x-implementation-status"] == "contract-only"
+    assert spec["paths"]["/api/v1/captures/{capture_id}/audio"]["get"]["x-implementation-status"] == "contract-only"
     assert spec["paths"]["/api/admin/summary"]["get"]["x-implementation-status"] == "contract-only"
     app = create_app(Settings(auto_worker=False, database_url="sqlite:///:memory:"))
     try:

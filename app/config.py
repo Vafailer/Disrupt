@@ -38,6 +38,9 @@ class Settings:
     session_seconds: int = 86400
     lease_seconds: int = 120
     error_log_file: str = "data/errors.log"
+    audio_storage_path: str = "data/audio"
+    audio_ffmpeg_path: str = "ffmpeg"
+    audio_ffprobe_path: str = "ffprobe"
     internal_api_token: str = field(default="", repr=False)
 
     def __post_init__(self):
@@ -98,4 +101,7 @@ class Settings:
             live_call_limit=int(os.environ.get("NOTES_LIVE_CALL_LIMIT", "0")),
             live_user_call_limit=int(os.environ.get("NOTES_LIVE_USER_CALL_LIMIT", "0")),
             error_log_file=os.environ.get("NOTES_ERROR_LOG_FILE", "data/errors.log"),
+            audio_storage_path=os.environ.get("NOTES_AUDIO_STORAGE_PATH", cls.audio_storage_path),
+            audio_ffmpeg_path=os.environ.get("NOTES_AUDIO_FFMPEG_PATH", cls.audio_ffmpeg_path),
+            audio_ffprobe_path=os.environ.get("NOTES_AUDIO_FFPROBE_PATH", cls.audio_ffprobe_path),
         )
