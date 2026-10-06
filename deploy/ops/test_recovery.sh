@@ -77,6 +77,8 @@ for attempt in $(seq 1 30); do
   sleep 1
 done
 curl -fsS -H 'Host: localhost' http://127.0.0.1:8088/health >/dev/null
-for path in /internal /internal/telegram/updates /internal/reminders/claim; do
-  test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: localhost' "http://127.0.0.1:8088$path")" = 404
+for path in /internal/v1/telegram/updates /internal/v1/deliveries/claim; do
+  # Prove the route exists and is protected before checking ingress blocking.
+  test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "http://127.0.0.1:8000$path")" = 401
+  test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' -H 'Host: localhost' "http://127.0.0.1:8088$path")" = 404
 done
