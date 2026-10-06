@@ -107,12 +107,84 @@ def validate_tar(path):
                 raise Failure("unsafe_archive")
 
 
+class RemoteBot:
+    """One remote Compose bot, controlled through a preconfigured Docker SSH context."""
+    def __init__(self, context, project):
+        if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}", context or "") or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", project or ""):
+            raise Failure("invalid_remote_target")
+        self.command = ["docker", "--context", context]
+        endpoint = json.loads(run(["docker", "context", "inspect", context]).stdout)[0]["Endpoints"]["docker"]["Host"]
+        if not endpoint.startswith("ssh://"):
+            raise Failure("remote_context_requires_ssh")
+        ids = run(self.command + ["ps", "-aq", "--filter", "label=com.docker.compose.project=" + project,
+                                  "--filter", "label=com.docker.compose.service=telegram",
+                                  "--filter", "label=com.docker.compose.oneoff=False"]).stdout.decode().split()
+        if len(ids) != 1:
+            raise Failure("remote_bot_must_be_single_container")
+        self.container = ids[0]
+        data = self.inspect()
+        mounts = [m for m in data["Mounts"] if m["Destination"] == "/app/data" and m["Type"] == "volume"]
+        if len(mounts) != 1:
+            raise Failure("remote_bot_requires_state_volume")
+        self.volume, self.image = mounts[0]["Name"], data["Image"]
+        if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", self.volume) or not re.fullmatch(r"sha256:[a-f0-9]{64}", self.image):
+            raise Failure("invalid_remote_storage")
+        if data["State"].get("Restarting") or data["State"].get("Paused"):
+            raise Failure("remote_bot_unstable")
+        self.was_running = data["State"]["Running"]
+
+    def inspect(self):
+        return json.loads(run(self.command + ["inspect", self.container]).stdout)[0]
+
+    def stop(self):
+        if self.was_running:
+            run(self.command + ["stop", "--time", "30", self.container], timeout=60)
+        self.assert_stopped()
+
+    def assert_stopped(self):
+        if self.inspect()["State"]["Running"]:
+            raise Failure("remote_bot_not_stopped")
+
+    def archive(self, target):
+        self.assert_stopped()
+        run(self.command + ["run", "--rm", "--network", "none", "--read-only", "--user", "1000:1000",
+                            "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+                            "--mount", "type=volume,src=" + self.volume + ",dst=/state,readonly",
+                            "--entrypoint", "tar", self.image, "--hard-dereference", "-C", "/state", "-cf", "-", "."], output=target)
+        self.assert_stopped()
+
+    def restart(self):
+        if self.was_running:
+            run(self.command + ["start", self.container])
+
+
 def backup(args):
+    if not args.maintenance:
+        raise Failure("backup_requires_maintenance_flag")
+    context, project = getattr(args, "bot_context", None), getattr(args, "bot_project", None)
+    if bool(context) != bool(project) or (context and args.telegram):
+        raise Failure("choose_local_or_remote_bot")
+    destination = private_dir(args.destination)
+    with lock(destination / ".backup.lock"):
+        remote = RemoteBot(context, project) if context else None
+        try:
+            if remote:
+                remote.stop()
+            return _backup(args, remote)
+        finally:
+            if remote:
+                try:
+                    remote.restart()
+                except Failure:
+                    raise Failure("remote_restart_failed_operator_action_required") from None
+
+
+def _backup(args, remote=None):
     if not args.maintenance:
         raise Failure("backup_requires_maintenance_flag")
     command = compose(args)
     destination = private_dir(args.destination)
-    with lock(destination / ".backup.lock"), tempfile.TemporaryDirectory(dir=destination, prefix=".working-") as directory:
+    with tempfile.TemporaryDirectory(dir=destination, prefix=".working-") as directory:
         work = Path(directory)
         current = states(command)
         services = [s for s in ("telegram", "scheduler", "worker", "api") if current.get(s, {}).get("State") == "running"]
@@ -138,7 +210,11 @@ def backup(args):
                 run(command + ["run", "--rm", "--no-deps", "-T", "--entrypoint", "tar", "api",
                                "--hard-dereference", "-C", "/app/data/audio", "-cf", "-", "."], output=target)
             names = ["database.dump", "audio.tar"]
-            if args.telegram:
+            if remote:
+                with (work / "telegram.tar").open("wb") as target:
+                    remote.archive(target)
+                names.append("telegram.tar")
+            elif args.telegram:
                 with (work / "telegram.tar").open("wb") as target:
                     run(command + ["run", "--rm", "--no-deps", "-T", "--entrypoint", "tar", "telegram",
                                    "--hard-dereference", "-C", "/app/data", "-cf", "-", "."], output=target)
@@ -146,7 +222,7 @@ def backup(args):
             for name in names[1:]:
                 validate_tar(work / name)
             metadata = {"version": 1, "created_at": datetime.now(UTC).isoformat(), "project": args.project,
-                        "telegram": args.telegram, "files": {name: digest(work / name) for name in names}}
+                        "telegram": bool(args.telegram or remote), "files": {name: digest(work / name) for name in names}}
             (work / "manifest.json").write_text(json.dumps(metadata))
             with tarfile.open(work / "bundle.tar", "w") as bundle:
                 for name in [*names, "manifest.json"]:
@@ -251,6 +327,15 @@ MONITOR_SQL = """SELECT json_build_object(
 
 def monitor(args):
     command, alerts = compose(args), []
+    context, project = getattr(args, "bot_context", None), getattr(args, "bot_project", None)
+    if bool(context) != bool(project) or (context and args.telegram):
+        raise Failure("choose_local_or_remote_bot")
+    if context:
+        try:
+            if not RemoteBot(context, project).was_running:
+                alerts.append("remote_bot_not_running")
+        except (Failure, ValueError, KeyError, TypeError):
+            alerts.append("remote_bot_unavailable")
     current = states(command)
     required = ["db", "api", "worker", "scheduler"] + (["telegram"] if args.telegram else [])
     for service in required:
@@ -286,6 +371,8 @@ def main():
         sub.add_argument("--compose", action="append", required=True)
         sub.add_argument("--env-file")
         sub.add_argument("--telegram", action="store_true")
+        sub.add_argument("--bot-context", help="Docker SSH context for the separate bot VPS")
+        sub.add_argument("--bot-project", help="Compose project on the bot VPS")
         if name == "backup":
             sub.add_argument("--destination", required=True)
             sub.add_argument("--recipient", required=True)

@@ -126,3 +126,63 @@ def test_operator_locks_exclude_overlapping_backups(tmp_path):
         with pytest.raises(ops.Failure, match="already_running"):
             with ops.lock(tmp_path / "lock"):
                 pytest.fail("second lock acquired")
+
+
+@pytest.mark.parametrize("stage", ["stop", "archive", "core"])
+def test_remote_failure_never_marks_complete_and_restarts(tmp_path, monkeypatch, stage):
+    tmp_path.chmod(0o700)
+    events = []
+    class Remote:
+        def __init__(self, *args): pass
+        def stop(self):
+            events.append("stop")
+            if stage == "stop":
+                raise ops.Failure("stop_failed")
+        def restart(self): events.append("restart")
+    monkeypatch.setattr(ops, "RemoteBot", Remote)
+    def core(args, remote):
+        events.append("core")
+        raise ops.Failure(stage + "_failed")
+    monkeypatch.setattr(ops, "_backup", core)
+    args = SimpleNamespace(maintenance=True, destination=tmp_path, telegram=False, bot_context="bot", bot_project="bot")
+    with pytest.raises(ops.Failure):
+        ops.backup(args)
+    assert events[0] == "stop" and events[-1] == "restart"
+    assert not (tmp_path / "latest.json").exists()
+
+
+def test_remote_success_is_coordinated(tmp_path, monkeypatch):
+    tmp_path.chmod(0o700)
+    events = []
+    class Remote:
+        def __init__(self, *args): pass
+        def stop(self): events.append("stop")
+        def restart(self): events.append("restart")
+    monkeypatch.setattr(ops, "RemoteBot", Remote)
+    monkeypatch.setattr(ops, "_backup", lambda args, remote: events.append("core_and_bot_snapshot"))
+    ops.backup(SimpleNamespace(maintenance=True, destination=tmp_path, telegram=False, bot_context="bot", bot_project="bot"))
+    assert events == ["stop", "core_and_bot_snapshot", "restart"]
+
+
+def test_remote_requires_encrypted_transport(monkeypatch):
+    monkeypatch.setattr(ops, "run", lambda *a, **k: SimpleNamespace(stdout=json.dumps([{"Endpoints": {"docker": {"Host": "tcp://host:2375"}}}]).encode()))
+    with pytest.raises(ops.Failure, match="requires_ssh"):
+        ops.RemoteBot("bot", "bot")
+
+
+def test_remote_does_not_start_previously_stopped_bot():
+    remote = object.__new__(ops.RemoteBot)
+    remote.was_running = False
+    remote.restart()  # No Docker command or configuration should be needed.
+
+
+def test_remote_restart_failure_is_actionable(tmp_path, monkeypatch):
+    tmp_path.chmod(0o700)
+    class Remote:
+        def __init__(self, *args): pass
+        def stop(self): pass
+        def restart(self): raise ops.Failure("command_failed")
+    monkeypatch.setattr(ops, "RemoteBot", Remote)
+    monkeypatch.setattr(ops, "_backup", lambda *a: None)
+    with pytest.raises(ops.Failure, match="operator_action_required"):
+        ops.backup(SimpleNamespace(maintenance=True, destination=tmp_path, telegram=False, bot_context="bot", bot_project="bot"))

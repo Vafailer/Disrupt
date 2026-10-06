@@ -1,0 +1,13 @@
+# Overlay for compose.staging.yaml or compose.production.yaml, rooted at repository.
+# CORE_VPN_IP must be the core host's WireGuard address, never a public/wildcard IP.
+services:
+  api:
+    ports:
+      - "${CORE_VPN_IP:?Set private WireGuard address of core}:18000:8000"
+    environment:
+      NOTES_INTERNAL_API_TOKEN_FILE: /run/secrets/telegram_service_token
+    secrets:
+      - telegram_service_token
+secrets:
+  telegram_service_token:
+    file: ./secrets/telegram_service_token.txt
