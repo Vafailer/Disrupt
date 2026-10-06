@@ -193,6 +193,7 @@ def test_postgres_concurrent_audio(tmp_path, monkeypatch):
 
     from alembic import command
     from alembic.config import Config
+    from sqlalchemy import create_engine, text
     from sqlalchemy.engine import make_url
 
     from app.config import Settings
@@ -201,6 +202,12 @@ def test_postgres_concurrent_audio(tmp_path, monkeypatch):
     if not url:
         pytest.skip("Local PostgreSQL is not configured")
     assert make_url(url).host in {"localhost", "127.0.0.1", "::1"}
+    # Each concurrency test owns a schema; its queued jobs must not affect other workers.
+    schema = "audio_" + uuid4().hex
+    admin_engine = create_engine(url)
+    with admin_engine.begin() as connection:
+        connection.execute(text('CREATE SCHEMA "' + schema + '"'))
+    url = make_url(url).update_query_dict({"options": "-csearch_path=" + schema}).render_as_string(hide_password=False)
     monkeypatch.setenv("NOTES_DATABASE_URL", url)
     monkeypatch.setenv("NOTES_PROVIDER", "mock")
     command.upgrade(Config("alembic.ini"), "head")
@@ -234,3 +241,6 @@ def test_postgres_concurrent_audio(tmp_path, monkeypatch):
             assert len(list(storage.root.glob("*.audio"))) == 2
     finally:
         app.state.engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text('DROP SCHEMA "' + schema + '" CASCADE'))
+        admin_engine.dispose()
