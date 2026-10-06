@@ -8,6 +8,7 @@ import httpx
 from .bot import Bot
 from .clients import CoreClient, RemoteFailure, TelegramClient
 from .config import Settings
+from .delivery import DeliveryJournal, DeliverySender
 from .state import InstanceLock, OffsetStore
 
 
@@ -33,14 +34,45 @@ async def poll(settings):
             TelegramClient(telegram_http, settings.bot_token),
             state,
         )
-        while True:
-            try:
-                await bot.poll_once()
-            except RemoteFailure as error:
-                logging.getLogger(__name__).warning("bot_paused code=%s", error.code)
-                if error.fatal:
-                    return 1
-                await asyncio.sleep(error.retry_after)
+        sender = DeliverySender(
+            settings, bot.core, bot.telegram,
+            DeliveryJournal(settings.state_file.with_suffix(".delivery.json"), settings.bot_id),
+        )
+        return await serve(bot, sender)
+
+
+async def poll_loop(bot):
+    while True:
+        try:
+            await bot.poll_once()
+        except RemoteFailure as error:
+            logging.getLogger(__name__).warning("bot_paused code=%s", error.code)
+            if error.fatal:
+                return 1
+            await asyncio.sleep(error.retry_after)
+
+
+async def delivery_loop(sender):
+    while True:
+        try:
+            worked = await sender.run_once()
+            await asyncio.sleep(0.05 if worked else 1)
+        except RemoteFailure as error:
+            logging.getLogger(__name__).warning("delivery_paused code=%s", error.code)
+            if error.fatal:
+                return 1
+            await asyncio.sleep(error.retry_after)
+
+
+async def serve(bot, sender):
+    tasks = [asyncio.create_task(poll_loop(bot)), asyncio.create_task(delivery_loop(sender))]
+    try:
+        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        return next(iter(done)).result()
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def main():

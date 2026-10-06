@@ -1,3 +1,4 @@
+import asyncio
 import re
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -139,6 +140,52 @@ class TelegramClient:
             payload["reply_markup"] = {"inline_keyboard": [[{"text": "Открыть Beresta", "url": url}]]}
         # Plain text: never interpret user/model supplied Markdown or HTML.
         return await self.call("sendMessage", payload)
+
+    async def send_reminder(self, item):
+        payload = {
+            "chat_id": item["chat_id"], "text": item["text"],
+            "link_preview_options": {"is_disabled": True},
+            "reply_markup": {"inline_keyboard": [[{"text": "Открыть Beresta", "url": item["note_url"]}]]},
+        }
+        if item["callback_token"] is not None:
+            payload["reply_markup"]["inline_keyboard"].append([
+                {"text": "Выполнено", "callback_data": item["callback_token"]},
+            ])
+        result = {"status": "unknown", "telegram_message_id": None,
+                  "error_code": "telegram_unknown", "retry_after_seconds": None}
+        try:
+            # Total wall time, including pool waits and response reads, stays below the minimum 30s lease.
+            async with asyncio.timeout(10):
+                response = await self.client.post(
+                    self._base + "sendMessage", json=payload, timeout=httpx.Timeout(8, connect=3),
+                )
+                data = response.json()
+        except (httpx.HTTPError, ValueError, TimeoutError):
+            return result
+        if not isinstance(data, dict):
+            return result
+        message = data.get("result")
+        if response.status_code == 200 and data.get("ok") is True and isinstance(message, dict):
+            chat = message.get("chat")
+            if (
+                type(message.get("message_id")) is int and 0 < message["message_id"] < 2**63
+                and isinstance(chat, dict) and type(chat.get("id")) is int and chat["id"] == item["chat_id"]
+            ):
+                return {**result, "status": "sent", "telegram_message_id": message["message_id"], "error_code": None}
+        # Only coherent Telegram rejections prove that this request did not send a message.
+        code = data.get("error_code")
+        if data.get("ok") is not False or type(code) is not int or response.status_code != code:
+            return result
+        if code == 403:
+            return {**result, "status": "blocked", "error_code": "telegram_403"}
+        if code == 429:
+            parameters = data.get("parameters")
+            retry = parameters.get("retry_after") if isinstance(parameters, dict) else None
+            if type(retry) is int and 0 <= retry <= 86400:
+                return {**result, "status": "retryable", "error_code": "telegram_429", "retry_after_seconds": retry}
+        if code == 401:
+            return {**result, "error_code": "telegram_401"}
+        return result
 
     async def voice(self, file_id):
         result = await self.call("getFile", {"file_id": file_id})
