@@ -21,7 +21,7 @@ YAML
 cleanup() {
   docker rm -f beresta-remote-bot-ci >/dev/null 2>&1 || true
   docker compose -p beresta-ops-ci -f compose.yaml -f "$work/telegram-fixture.yaml" down -v --remove-orphans >/dev/null 2>&1 || true
-  docker compose -p beresta-restore-ci -f deploy/ops/restore.compose.yaml down -v --remove-orphans >/dev/null 2>&1 || true
+  docker compose -p beresta-restore-ci -f deploy/ops/restore.compose.yaml --profile tools down -v --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$work"
 }
 trap cleanup EXIT
