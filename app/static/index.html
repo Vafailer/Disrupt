@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/auth.css">
   <link rel="stylesheet" href="/static/structure.css">
+  <link rel="stylesheet" href="/static/audio.css">
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -38,6 +39,17 @@
           <p class="eyebrow">Новая запись</p><h1>О чём думаете?</h1>
           <p>Пишите как есть. Порядок наведём потом.</p>
           <form id="capture-form"><label for="thought">Ваши мысли</label><textarea id="thought" rows="8" maxlength="12000" required placeholder="Сегодня обсуждали запуск…"></textarea><label for="processing-mode">Обработка</label><select id="processing-mode"><option value="ai">Структурировать с ИИ</option><option value="manual">Сохранить без ИИ</option></select><div class="actions"><button id="capture-submit" type="submit">Сделать заметку</button><button id="example" type="button" class="secondary">Попробовать пример</button></div></form>
+          <details><summary>Записать или загрузить аудио</summary>
+            <p class="muted">Ogg/Opus, WebM/Opus или WAV/PCM. До 3 минут и 10 МиБ. Файл сохраняется до обработки.</p>
+            <form id="audio-form">
+              <label for="audio-file">Аудиофайл</label><input id="audio-file" type="file" accept=".ogg,.oga,.webm,.wav,audio/ogg,audio/webm,audio/wav">
+              <div class="actions"><button id="record-start" type="button" class="secondary">Записать голос</button><button id="record-stop" type="button" class="quiet" disabled>Остановить</button></div>
+              <p id="record-status" class="muted" aria-live="polite"></p>
+              <p id="audio-selected" aria-live="polite">Файл не выбран.</p>
+              <audio id="audio-preview" controls preload="none" hidden></audio>
+              <div class="actions"><button id="audio-submit" type="submit" disabled>Загрузить аудио</button><button id="audio-clear" type="button" class="quiet" disabled>Убрать файл</button></div>
+            </form>
+          </details>
           <p id="job-status" aria-live="polite"></p>
           <details><summary>Последние записи</summary><div id="jobs"></div></details>
         </section>
@@ -53,9 +65,22 @@
           <h2>Выводы</h2><p class="muted">Проверьте их перед тем, как принять.</p><div id="conclusions"></div>
           <details><summary>История</summary><button id="load-history" class="quiet">Показать версии</button><div id="history"></div></details>
         </section>
+        <section id="source-card" class="card" hidden>
+          <p class="eyebrow">Исходная запись</p><h2>Оригинал</h2>
+          <div id="source-audio" hidden><audio id="audio-player" controls preload="none"></audio><p id="audio-info" class="muted"></p><a id="audio-download" download>Скачать оригинал</a></div>
+          <pre id="source-original" hidden></pre>
+          <div id="transcript-editor" hidden>
+            <p id="transcript-label" class="muted"></p>
+            <p class="muted">Расшифровка может содержать ошибки. Сохранение правок не запускает ИИ и не меняет готовую заметку.</p>
+            <form id="transcript-form"><label for="transcript-text">Расшифровка</label><textarea id="transcript-text" rows="7" maxlength="12000" required></textarea><button id="transcript-save" type="submit">Сохранить расшифровку</button></form>
+            <div id="transcript-conflict" hidden><p>В другой вкладке сохранена новая версия. Сравните её с вашим текстом.</p><button id="transcript-compare" type="button" class="quiet">Показать текущую версию</button><pre id="transcript-remote" hidden></pre><button id="transcript-use-version" type="button" class="secondary" hidden>Продолжить правку с этой версии</button></div>
+            <details><summary>История расшифровки</summary><button id="transcript-history-load" type="button" class="quiet">Показать версии</button><div id="transcript-history"></div></details>
+          </div>
+          <button id="source-refresh" type="button" class="quiet">Обновить запись</button>
+        </section>
       </div>
     </div>
   </main>
-  <footer>Пока работают только текстовые заметки.</footer>
+  <footer>Текст и аудио. Оригиналы остаются у вас.</footer>
 </body>
 </html>

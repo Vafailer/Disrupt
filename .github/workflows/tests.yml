@@ -43,6 +43,9 @@ jobs:
       - run: node tests/web_structure.cjs
         env:
           NODE_PATH: ${{ runner.temp }}/beresta-web-tests/node_modules
+      - run: node tests/web_audio.cjs
+        env:
+          NODE_PATH: ${{ runner.temp }}/beresta-web-tests/node_modules
       - run: python -m alembic upgrade head
       - run: python -m alembic check
 

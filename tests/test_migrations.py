@@ -47,6 +47,35 @@ def test_existing_records_survive_upgrade_and_downgrade(tmp_path, monkeypatch):
     engine.dispose()
 
 
+def test_transcript_history_preserves_existing_text_without_invented_dates(tmp_path, monkeypatch):
+    url = "sqlite:///" + (tmp_path / "transcripts.db").as_posix()
+    monkeypatch.setenv("NOTES_DATABASE_URL", url)
+    monkeypatch.setenv("NOTES_PROVIDER", "mock")
+    config = Config("alembic.ini")
+    command.upgrade(config, "9a16c3d80b24")
+    engine, _ = make_database(url)
+    with engine.begin() as db:
+        db.execute(text("INSERT INTO users (id,username,password_hash,live_calls) VALUES ('u','legacy','hash',0)"))
+        db.execute(text(
+            "INSERT INTO captures (id,user_id,original_text,idempotency_key,created_at,input_kind,transcript,transcript_version) "
+            "VALUES ('c','u','initial','key',1,'audio','edited',3)"
+        ))
+    command.upgrade(config, "head")
+    command.check(config)
+    with engine.connect() as db:
+        row = db.execute(text("SELECT version,text,origin,created_at FROM transcript_revisions")).one()
+        assert tuple(row) == (3, "edited", "legacy", None)
+        assert db.execute(text("SELECT original_text,transcript,transcript_version FROM captures")).one() == ("initial", "edited", 3)
+        assert db.execute(text("SELECT COUNT(*) FROM product_events")).scalar() == 0
+        assert db.execute(text("PRAGMA foreign_key_check")).all() == []
+    command.downgrade(config, "9a16c3d80b24")
+    with engine.connect() as db:
+        assert db.execute(text("SELECT original_text,transcript FROM captures")).one() == ("initial", "edited")
+    command.upgrade(config, "head")
+    command.check(config)
+    engine.dispose()
+
+
 def test_structure_migration_keeps_populated_foreign_keys(tmp_path, monkeypatch):
     url = "sqlite:///" + (tmp_path / "structure.db").as_posix()
     monkeypatch.setenv("NOTES_DATABASE_URL", url)
