@@ -91,3 +91,38 @@ def test_manifest_hash_mismatch_rejected(tmp_path):
     output.mkdir()
     with pytest.raises(ops.Failure, match="checksum"):
         ops.unpack_bundle(bundle, output)
+
+
+def test_backup_cannot_silently_omit_telegram_state(tmp_path, monkeypatch):
+    tmp_path.chmod(0o700)
+    args = SimpleNamespace(maintenance=True, project="test", compose=["compose.yaml"],
+                           env_file=None, telegram=False, destination=tmp_path, recipient="public")
+    monkeypatch.setattr(ops, "states", lambda _: {"db": {"State": "running"}, "telegram": {"State": "exited"}})
+    with pytest.raises(ops.Failure, match="telegram_backup_flag_required"):
+        ops.backup(args)
+
+
+def test_maintenance_must_be_explicit():
+    with pytest.raises(ops.Failure, match="maintenance"):
+        ops.backup(SimpleNamespace(maintenance=False))
+
+
+def test_monitor_reports_stalled_delivery_and_old_backup(tmp_path, monkeypatch, capsys):
+    args = SimpleNamespace(project="test", compose=["compose.yaml"], env_file=None,
+                           telegram=True, backup_dir=tmp_path)
+    monkeypatch.setattr(ops, "states", lambda _: {name: {"State": "running"} for name in ("db", "api", "worker", "scheduler", "telegram")})
+    monkeypatch.setattr(ops.shutil, "disk_usage", lambda _: SimpleNamespace(free=10 * 1024**3, used=1, total=20 * 1024**3))
+    def run(command, **kwargs):
+        output = json.dumps({"unknown_deliveries": 1, "late_deliveries": 2}).encode() if "psql" in command else b""
+        return subprocess.CompletedProcess(command, 0, output)
+    monkeypatch.setattr(ops, "run", run)
+    assert ops.monitor(args) == 1
+    data = json.loads(capsys.readouterr().out)
+    assert set(data["alerts"]) == {"unknown_deliveries", "late_deliveries", "backup_missing_or_old"}
+
+
+def test_operator_locks_exclude_overlapping_backups(tmp_path):
+    with ops.lock(tmp_path / "lock"):
+        with pytest.raises(ops.Failure, match="already_running"):
+            with ops.lock(tmp_path / "lock"):
+                pytest.fail("second lock acquired")
