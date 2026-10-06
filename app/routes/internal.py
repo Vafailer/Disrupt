@@ -9,7 +9,17 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.analytics import record_event
-from app.contracts import ActionRequest, ActionResponse
+from app.contracts import (
+    ActionRequest,
+    ActionResponse,
+    AuthorizeRequest,
+    AuthorizeResponse,
+    ClaimRequest,
+    ClaimResponse,
+    ResultRequest,
+    ResultResponse,
+)
+from app.deliveries import authorize_delivery, claim_deliveries, record_delivery_result
 from app.integration import IntegrationRejection
 from app.models import Inbox, Item, LinkRequest, Note, Outbox, Reminder, TelegramIdentity, new_id
 from app.schemas import (
@@ -112,7 +122,10 @@ def complete_telegram_task(db, body):
         raise IntegrationRejection(409, "action_expired", "Кнопка больше не относится к действующей задаче")
     if item.status == "completed":
         return {"status": "already_completed"}
-    if reminder.status != "confirmed" or reminder.generation != delivery.generation or delivery.status == "cancelled":
+    if (
+        reminder.status not in {"confirmed", "sent", "unknown"}
+        or reminder.generation != delivery.generation or delivery.status == "cancelled"
+    ):
         raise IntegrationRejection(409, "action_expired", "Напоминание отменено или изменено")
     note = db.scalar(select(Note).where(Note.id == item.note_id, Note.user_id == identity.user_id))
     if note is None:
@@ -210,5 +223,23 @@ def build_router(database, settings):
     @router.post("/telegram/actions", response_model=ActionResponse)
     def telegram_action(body: ActionRequest, db=Depends(database)):
         return process_update(db, body, "action", lambda _: complete_telegram_task(db, body))
+
+    @router.post("/deliveries/claim", response_model=ClaimResponse)
+    def claim(body: ClaimRequest, db=Depends(database)):
+        response = claim_deliveries(db, body, settings)
+        db.commit()
+        return response
+
+    @router.post("/deliveries/{delivery_id}/authorize", response_model=AuthorizeResponse)
+    def authorize(delivery_id: str, body: AuthorizeRequest, db=Depends(database)):
+        response = authorize_delivery(db, delivery_id, body, settings)
+        db.commit()
+        return response
+
+    @router.post("/deliveries/{delivery_id}/result", response_model=ResultResponse)
+    def result(delivery_id: str, body: ResultRequest, db=Depends(database)):
+        response = record_delivery_result(db, delivery_id, body)
+        db.commit()
+        return response
 
     return router

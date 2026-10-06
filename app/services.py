@@ -351,7 +351,7 @@ def cancel_item_reminders(db, user_id, item_id):
             .where(
                 Reminder.item_id == item_id,
                 Reminder.user_id == user_id,
-                Reminder.status == "confirmed",
+                Reminder.status.in_(["confirmed", "sent", "unknown", "blocked", "failed"]),
             )
             .values(status="cancelled", generation=Reminder.generation + 1)
             .returning(Reminder.id)
@@ -361,10 +361,14 @@ def cancel_item_reminders(db, user_id, item_id):
     )
     if not cancelled:
         return
+    cancel_reminder_deliveries(db, user_id, cancelled)
+
+
+def cancel_reminder_deliveries(db, user_id, reminder_ids):
     db.execute(
         update(Outbox)
         .where(
-            Outbox.reminder_id.in_(cancelled),
+            Outbox.reminder_id.in_(reminder_ids),
             Outbox.user_id == user_id,
             Outbox.status.in_(["pending", "leased", "retryable"]),
         )
@@ -373,7 +377,7 @@ def cancel_item_reminders(db, user_id, item_id):
     db.execute(
         update(Outbox)
         .where(
-            Outbox.reminder_id.in_(cancelled),
+            Outbox.reminder_id.in_(reminder_ids),
             Outbox.user_id == user_id,
             Outbox.status == "authorized",
         )

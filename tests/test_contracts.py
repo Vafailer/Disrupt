@@ -48,7 +48,8 @@ def test_published_contract_marks_unimplemented_routes_and_valid_refs():
     try:
         runtime = app.openapi()
         assert "/api/admin/summary" not in runtime["paths"]
-        assert "/internal/v1/deliveries/claim" not in runtime["paths"]
+        assert "/internal/v1/deliveries/claim" in runtime["paths"]
+        assert spec["paths"]["/internal/v1/deliveries/claim"]["post"]["x-implementation-status"] == "implemented"
         for path in runtime["paths"]:
             assert path in spec["paths"]
     finally:

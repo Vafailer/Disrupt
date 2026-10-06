@@ -60,8 +60,22 @@ class AuthorizeResponse(StrictModel):
 class ResultRequest(AuthorizeRequest):
     status: Literal["sent", "blocked", "retryable", "unknown"]
     telegram_message_id: TelegramID | None
-    error_code: str | None = Field(max_length=64)
+    error_code: str | None = Field(max_length=64, pattern=r"^[a-z][a-z0-9_]*$")
     retry_after_seconds: int | None = Field(ge=0, le=86400)
+
+    @model_validator(mode="after")
+    def consistent_result(self):
+        if self.status == "sent":
+            if self.telegram_message_id is None or self.error_code is not None or self.retry_after_seconds is not None:
+                raise ValueError("Sent requires a message ID and no failure fields")
+        elif self.telegram_message_id is not None:
+            raise ValueError("A failed send cannot contain a message ID")
+        if self.status == "retryable":
+            if self.retry_after_seconds is None:
+                raise ValueError("Retryable requires an explicit retry delay")
+        elif self.retry_after_seconds is not None:
+            raise ValueError("Only retryable results can contain a retry delay")
+        return self
 
 
 class ResultResponse(StrictModel):

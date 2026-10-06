@@ -24,6 +24,7 @@ from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
 from app.routes.admin import build_router as admin_router
 from app.routes.internal import build_router as internal_router
+from app.routes.reminders import build_router as reminders_router
 from app.routes.structure import build_router as structure_router
 from app.schemas import ConclusionEdit, Credentials, NoteEdit, NoteResponse, NoteSummary, TextCapture
 from app.security import (
@@ -223,6 +224,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     app.include_router(admin_router(database, STATIC))
     app.include_router(internal_router(database, settings))
     app.include_router(structure_router(database))
+    app.include_router(reminders_router(database))
 
     @app.get("/health")
     def health(db=Depends(database)):

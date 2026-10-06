@@ -9,6 +9,7 @@ from sqlalchemy import (
     CheckConstraint,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -178,7 +179,10 @@ class Item(Base):
 
 class Reminder(Base):
     __tablename__ = "reminders"
-    __table_args__ = (CheckConstraint("generation >= 1", name="ck_reminders_generation"),)
+    __table_args__ = (
+        CheckConstraint("generation >= 1", name="ck_reminders_generation"),
+        Index("uq_reminders_user_idempotency", "user_id", "idempotency_key", unique=True),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     note_id: Mapped[str] = mapped_column(ForeignKey("notes.id"))
@@ -189,6 +193,8 @@ class Reminder(Base):
     status: Mapped[str] = mapped_column(String(16), default="confirmed", index=True)
     generation: Mapped[int] = mapped_column(Integer, default=1)
     confirmed_at: Mapped[float] = mapped_column(Float, default=time.time)
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    creation_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class Inbox(Base):
