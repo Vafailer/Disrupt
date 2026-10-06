@@ -1,0 +1,31 @@
+# Recovery sandbox only. No ports, app, worker, scheduler, bot or model credentials.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: notes
+      POSTGRES_DB: notes
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - restore-db:/var/lib/postgresql/data
+    networks: [recovery]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U notes -d notes']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  files:
+    image: postgres:17
+    profiles: [tools]
+    network_mode: none
+    volumes:
+      - restore-audio:/audio
+      - restore-state:/state
+    entrypoint: [tar]
+volumes:
+  restore-db:
+  restore-audio:
+  restore-state:
+networks:
+  recovery:
+    internal: true

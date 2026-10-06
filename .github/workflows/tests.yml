@@ -40,8 +40,12 @@ jobs:
           node-version: '22'
       - run: node --check app/static/app.js
       - run: node --check app/static/reminders.js
+      - run: node --check app/static/admin.js
       - run: npm install --prefix "$RUNNER_TEMP/beresta-web-tests" --no-audit --no-fund --ignore-scripts jsdom@26.0.0
       - run: node tests/web_structure.cjs
+        env:
+          NODE_PATH: ${{ runner.temp }}/beresta-web-tests/node_modules
+      - run: node tests/web_admin.cjs
         env:
           NODE_PATH: ${{ runner.temp }}/beresta-web-tests/node_modules
       - run: node tests/web_audio.cjs

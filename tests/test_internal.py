@@ -316,16 +316,21 @@ def test_analytical_session_combines_channels_without_background_extension(servi
 
 
 def test_admin_page_and_static_files_require_server_role(app, client):
-    for path in ("/admin", "/static/admin.html", "/static/admin.js"):
+    for path in ("/admin", "/static/admin.html", "/static/admin.js", "/static/admin.css"):
         assert client.get(path).status_code == 401
     owner = register(client)
-    for path in ("/admin", "/static/admin.html", "/static/admin.js"):
+    for path in ("/admin", "/static/admin.html", "/static/admin.js", "/static/admin.css"):
         assert client.get(path).status_code == 403
     with app.state.sessions() as db:
         db.get(User, owner["id"]).role = "admin"
         db.commit()
-    assert client.get("/admin").status_code == 503  # No fake dashboard when the screen is absent.
-    assert client.get("/static/admin.js").status_code == 404
+    assert client.get("/admin").status_code == 200
+    assert client.get("/static/admin.js").status_code == 200
+    assert client.get("/static/admin.css").status_code == 200
+    with app.state.sessions() as db:
+        db.get(User, owner["id"]).role = "user"
+        db.commit()
+    assert client.get("/admin").status_code == 403
 
 
 def test_concurrent_queue_limit_and_manual_bypass(app_factory):
