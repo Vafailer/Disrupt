@@ -39,6 +39,8 @@ chmod 600 secrets/*.txt
 
 ## Запуск
 
+В ветке развёртывания worker по умолчанию выключен. Обычный `up -d` запускает только ядро. Владелец отдельно задаёт `NOTES_ALLOW_LIVE_REQUESTS=true` и включает профиль `owner-live`. Подробный порядок для двух VPS находится в [server-deploy-v1.md](server-deploy-v1.md).
+
 ```sh
 docker compose --env-file .env.production -f compose.production.yaml config
 docker compose --env-file .env.production -f compose.production.yaml up -d --build
