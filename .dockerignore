@@ -13,3 +13,6 @@ secrets
 *.key
 *.pem
 .local
+**/Beresta-recovery
+*.tar.age
+*.tar.age.part
