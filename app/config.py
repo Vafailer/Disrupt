@@ -57,12 +57,11 @@ class Settings:
         if self.lease_seconds < 90:
             raise ValueError("Worker lease must exceed the provider timeout")
         if self.provider == "cloudru" and (
-            not self.allow_live_requests
-            or not self.cloudru_model
+            not self.cloudru_model
             or self.live_call_limit <= 0
             or self.live_user_call_limit <= 0
         ):
-            raise ValueError("Live mode requires explicit permission, model and positive call limits")
+            raise ValueError("Live mode requires model and positive call limits")
         if self.provider == "cloudru" and self.cloudru_base_url.rstrip("/") not in ALLOWED_MODEL_BASE_URLS:
             raise ValueError("Model base URL must be an approved HTTPS endpoint")
 

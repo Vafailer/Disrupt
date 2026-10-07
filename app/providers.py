@@ -207,7 +207,9 @@ class CloudRuProvider:
 def make_provider(settings: Settings) -> LLMProvider:
     if settings.provider == "mock":
         return MockProvider()  # Do not even read the credential in this branch.
-    # Settings validates the independent opt-in and budgets before this secret is read.
+    if not settings.allow_live_requests:
+        raise ValueError("Live requests are disabled")
+    # The opt-in above and Settings budgets are checked before this secret is read.
     key = os.environ.get("NOTES_CLOUDRU_API_KEY", "")
     key_file = os.environ.get("NOTES_CLOUDRU_API_KEY_FILE", "")
     if key and key_file:

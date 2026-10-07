@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app.models import Capture, Job, ProductEvent, ProviderUsage, User, new_id
 from app.providers import CloudRuProvider, MockProvider, ProviderError
 from app.services import lock_account
-from app.speech import MockSpeechProvider
+from app.speech import CloudRuSpeechProvider, MockSpeechProvider
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,7 @@ class UsageRecorder:
             ))
             mock = type(provider) in {MockProvider, MockSpeechProvider}
             model = "mock" if mock else (
-                provider.model_name if isinstance(provider, CloudRuProvider) else "injected"
+                provider.model_name if isinstance(provider, (CloudRuProvider, CloudRuSpeechProvider)) else "injected"
             )
             row = ProviderUsage(
                 id=new_id(), user_id=job.user_id, operation_id=job.id, request_id=job.id + ":" + kind,
@@ -93,7 +93,7 @@ class UsageRecorder:
             result = function(lambda values: self.tokens(row_id, values))
         except Exception as exc:
             ambiguous = isinstance(exc, ProviderError) and (
-                exc.code.endswith("_unknown") or exc.code in {"execution_unknown", "provider_unavailable"}
+                exc.code.endswith("_unknown") or exc.code in {"execution_unknown", "provider_unavailable", "stt_unavailable"}
             )
             self.finish(row_id, started, "unknown" if ambiguous else "failed")
             raise

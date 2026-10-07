@@ -9,3 +9,7 @@ __pycache__
 .ruff_cache
 tests
 docs
+secrets
+*.key
+*.pem
+.local
