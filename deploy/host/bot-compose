@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+cd /opt/beresta/current
+exec docker compose --env-file .env.bot -p beresta-bot -f deploy/compose.bot-vps.yaml "$@"

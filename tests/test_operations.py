@@ -53,6 +53,22 @@ def test_restore_refuses_existing_target_before_decrypt(monkeypatch):
     assert calls == [["docker", "volume", "inspect", "beresta-restore-check_restore-db"]]
 
 
+def test_restore_identity_can_use_ssh_stdin(tmp_path, monkeypatch):
+    tmp_path.chmod(0o700)
+    calls = []
+    def run(args, **kwargs):
+        calls.append(args)
+        if args[0] == "age":
+            raise ops.Failure("fixture_decryption_stop")
+        return subprocess.CompletedProcess(args, 1)
+    monkeypatch.setattr(ops, "run", run)
+    args = SimpleNamespace(project="beresta-restore-pipe", work_dir=tmp_path,
+                           identity="-", bundle=tmp_path / "synthetic.tar.age")
+    with pytest.raises(ops.Failure, match="fixture_decryption_stop"):
+        ops.restore(args)
+    assert calls[-1][:4] == ["age", "-d", "-i", "-"]
+
+
 @pytest.mark.parametrize("project", ["production", "beresta", "beresta-restore-", "beresta-restore-../prod"])
 def test_restore_refuses_production_names(project):
     with pytest.raises(ops.Failure, match="new_beresta"):

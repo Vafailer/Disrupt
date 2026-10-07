@@ -1,0 +1,4 @@
+deploy/host/* text eol=lf
+deploy/ops/*.sh text eol=lf
+*.yaml text eol=lf
+deploy/Caddyfile* text eol=lf

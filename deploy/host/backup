@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+cd /opt/beresta/current
+recipient=$(cat /etc/beresta/backup-recipient)
+exec python3 deploy/ops/beresta_ops.py backup --project beresta-pilot \
+    --compose compose.production.yaml --compose deploy/compose.core-private.yaml \
+    --compose deploy/compose.limits.yaml --env-file .env.production \
+    --bot-context beresta-bot --bot-project beresta-bot \
+    --destination /var/backups/beresta --recipient "$recipient" --maintenance

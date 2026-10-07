@@ -1,0 +1,5 @@
+# Public maintenance page until an owner supplies a domain.
+services:
+  caddy:
+    volumes:
+      - ./deploy/Caddyfile.pre-domain:/etc/caddy/Caddyfile:ro

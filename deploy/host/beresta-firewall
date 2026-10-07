@@ -1,0 +1,22 @@
+#!/bin/sh
+# Docker iptables backend only. Never flush UFW or Docker chains.
+set -eu
+ipt() { iptables -w 10 "$@"; }
+ensure() {
+    chain=$1; shift
+    ipt -C "$chain" "$@" 2>/dev/null || ipt -A "$chain" "$@"
+}
+ipt -S DOCKER-USER >/dev/null
+ipt -N BERESTA-API 2>/dev/null || true
+# Match the ORIGINAL port, before Docker DNAT, and allow only the WG peer.
+ensure BERESTA-API -i beresta -s 10.77.0.2/32 -p tcp -m conntrack --ctorigdst 10.77.0.1 --ctorigdstport 18000 -j ACCEPT
+ensure BERESTA-API -p tcp -m conntrack --ctorigdstport 18000 -j DROP
+ipt -C DOCKER-USER -j BERESTA-API 2>/dev/null || ipt -I DOCKER-USER 1 -j BERESTA-API
+# Also cover a userland proxy or a future host process on this port.
+ipt -N BERESTA-HOST 2>/dev/null || true
+ensure BERESTA-HOST -i beresta -s 10.77.0.2/32 -d 10.77.0.1/32 -p tcp --dport 18000 -j ACCEPT
+ensure BERESTA-HOST -p tcp --dport 18000 -j DROP
+ipt -C INPUT -j BERESTA-HOST 2>/dev/null || ipt -I INPUT 1 -j BERESTA-HOST
+# No IPv6 listener for the private IPv4 API.
+ip6tables -w 10 -C INPUT -p tcp --dport 18000 -j DROP 2>/dev/null || ip6tables -w 10 -I INPUT 1 -p tcp --dport 18000 -j DROP
+ip6tables -w 10 -C FORWARD -p tcp -m conntrack --ctorigdstport 18000 -j DROP 2>/dev/null || ip6tables -w 10 -I FORWARD 1 -p tcp -m conntrack --ctorigdstport 18000 -j DROP

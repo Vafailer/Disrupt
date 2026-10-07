@@ -283,7 +283,9 @@ def restore(args):
     destination = private_dir(args.work_dir)
     with lock(destination / ".restore.lock"), tempfile.TemporaryDirectory(dir=destination) as temp:
         work = Path(temp)
-        run(["age", "-d", "-i", str(Path(args.identity).resolve()), "-o", str(work / "bundle.tar"), str(Path(args.bundle).resolve())], timeout=1800)
+        # age can read an identity from the SSH stdin pipe without storing it on this host.
+        identity = "-" if args.identity == "-" else str(Path(args.identity).resolve())
+        run(["age", "-d", "-i", identity, "-o", str(work / "bundle.tar"), str(Path(args.bundle).resolve())], timeout=1800)
         metadata = unpack_bundle(work / "bundle.tar", work)
         run(command + ["up", "-d", "--wait", "db"])
         try:
