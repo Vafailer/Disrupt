@@ -32,6 +32,11 @@ async function settled(){for(let i=0;i<8;i++)await tick();}
 async function reload(fn){if(fn)nextResponse=fn;$('filters').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await settled();}
 (async()=>{
   w.eval(js);await settled();
+  nextResponse = () => reply(fixture,200,{'X-Next-Usage-Offset':'50'});
+  await reload();
+  $('next').focus(); $('next').click(); await settled();
+  assert.equal(w.document.activeElement.id,'usage');
+  await reload();
   assert.equal($('dashboard').hidden,false);
   assert.equal($('to').value,'2026-10-06');
   assert.equal(calls[0].url.searchParams.get('usage_limit'),'50');
@@ -75,6 +80,7 @@ async function reload(fn){if(fn)nextResponse=fn;$('filters').dispatchEvent(new w
   $('filters').dispatchEvent(new w.Event('submit',{cancelable:true}));await settled();
   $('channel').value='telegram';$('channel').dispatchEvent(new w.Event('input',{bubbles:true}));
   assert.equal($('dashboard').hidden,true);
+  assert.equal($('dashboard').getAttribute('aria-busy'),'false');
   await reload();
   assert.equal(calls.at(-1).url.searchParams.get('channel'),'telegram');
   assert.equal(calls.at(-1).url.searchParams.get('usage_offset'),'0');

@@ -113,6 +113,7 @@
   }
   const errorMessage = error => ({401:'Сессия завершилась. Войди в приложение заново.',403:'Доступ только для администратора.',404:'API статистики ещё не подключён. Данные не загружены.',503:'Статистика временно недоступна. Попробуй позже.',filters:'Проверь даты: начало периода не должно быть позже окончания.'})[error.status || error.message] || 'Не удалось загрузить данные. Повтори запрос.';
   async function load(targetOffset = 0, history = [], slice) {
+    const focusAfter = ['next','previous'].includes(document.activeElement.id);
     const serial = ++generation;
     if (controller) controller.abort();
     controller = new AbortController();
@@ -131,6 +132,7 @@
       applied = {...slice}; offset = targetOffset; offsets = history; next = cursor === null ? null : Number(cursor);
       $('dashboard').hidden = false; $('export').disabled = false; $('next').disabled = next === null; $('previous').disabled = !offsets.length;
       status('Данные загружены.');
+      if (focusAfter) $('usage').focus({preventScroll:true});
     } catch (error) {
       if (serial !== generation) return;
       clear(); status(errorMessage(error), true); $('login').hidden = error.status !== 401;
@@ -142,6 +144,7 @@
   $('filters').addEventListener('submit', event => {event.preventDefault(); load();});
   $('filters').addEventListener('input', () => {
     generation++; if (controller) controller.abort(); clear(); $('apply').disabled = false;
+    $('dashboard').setAttribute('aria-busy','false');
     status('Фильтры изменены. Нажми «Показать».');
   });
   $('next').addEventListener('click', () => {if (next !== null && applied) load(next, [...offsets,offset], applied);});
