@@ -328,6 +328,8 @@ def test_voice_multipart_from_trusted_download(settings):
             assert b"OggS123" in calls[0].content
             assert b'name="telegram_user_id"' in calls[0].content
             assert len(replies) == 1
+            assert "Оригинал голосовой записи сохранён" in replies[0]["text"]
+            assert "ещё не готовая расшифровка" in replies[0]["text"]
 
     asyncio.run(scenario())
 
@@ -481,3 +483,21 @@ def test_redirect_cannot_be_mistaken_for_saved_capture(settings):
 
 def test_backoff_does_not_retry_before_long_provider_limit():
     assert RemoteFailure(retry_after=600).retry_after == 600
+
+
+def test_pilot_copy_distinguishes_manual_and_pending_link(settings):
+    async def scenario():
+        def core(request):
+            if request.url.path.endswith('/link-request'):
+                return httpx.Response(200, json={'status': 'pending', 'link_request_id': 'synthetic'})
+            return httpx.Response(200, json=SAVED)
+        bot, c, t, calls, replies, _ = await session(settings, [message(1, '/help'), message(2, '/save исходник'),
+            message(3, '/start ' + 'a' * 32)], core_handler=core)
+        async with c, t:
+            await bot.poll_once()
+        assert 'Если распознавание выключено' in replies[0]['text']
+        assert 'без обработки ИИ' in replies[1]['text']
+        assert 'До подтверждения' in replies[2]['text']
+        assert json.loads(calls[0].content)['text'] == 'исходник'
+        assert bot.state.offset == 4
+    asyncio.run(scenario())

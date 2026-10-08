@@ -71,14 +71,19 @@ class Bot:
                         raise RemoteFailure("core_invalid_response")
                     await self.notify(
                         chat_id,
-                        "Теперь подтверди подключение Telegram в веб-приложении.",
+                        "Запрос на подключение отправлен. Вернись в Beresta, проверь свой Telegram "
+                        "и подтверди привязку. До подтверждения записи из бота не сохраняются.",
                         self.settings.web_url,
                     )
                 else:
                     await self.notify(
                         chat_id,
-                        "Войди в Beresta и подключи Telegram. Затем отправляй текст или голос. "
-                        "Для текста без ИИ: /save текст записи. Просмотр и правки — в вебе.",
+                        "Войди в Beresta, подключи Telegram и подтверди привязку в вебе. "
+                        "Обычный текст отправляется на обработку ИИ. "
+                        "Команда /save текст записи сохраняет текст без ИИ и автоматической структуры. "
+                        "Голос сохраняется как оригинал; это ещё не готовая расшифровка. "
+                        "Если распознавание выключено, расшифровка не появится. "
+                        "Статус, оригинал и правки доступны в вебе. Можно отправить мысль текстом через /save.",
                         self.settings.web_url,
                     )
                 return
@@ -111,9 +116,17 @@ class Bot:
                 )
                 return
             url = self.core.validate_saved(result)
-            await self.notify(
-                chat_id, "Запись сохранена. Результат и статус обработки доступны в Beresta.", url
-            )
+            if isinstance(message.get("voice"), dict):
+                notice = (
+                    "Оригинал голосовой записи сохранён. Статус и аудио доступны по ссылке. "
+                    "Это ещё не готовая расшифровка. Если распознавание выключено, "
+                    "можно сохранить мысль текстом через /save текст записи."
+                )
+            elif mode == "manual":
+                notice = "Текст сохранён без обработки ИИ. Открыть и отредактировать запись можно по ссылке."
+            else:
+                notice = "Запись сохранена. Результат и статус обработки доступны в Beresta."
+            await self.notify(chat_id, notice, url)
         except Rejected as error:
             await self.notify(chat_id, REJECTIONS[str(error)], self.settings.web_url)
 
