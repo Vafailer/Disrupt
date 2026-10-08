@@ -57,7 +57,7 @@ def build(root):
     @app.get("/qa/narrow")
     def narrow():
         return HTMLResponse("""<h1>Browser viewport 360 px</h1>
-<iframe id="screen" src="/admin?qa_embed=1" style="width:360px;height:780px;border:1px solid"></iframe>
+<iframe id="screen" src="/admin?qa_embed=1" width="360" height="780"></iframe>
 """)
 
     @app.get("/qa")
