@@ -115,7 +115,12 @@ class Bot:
         # Capture acceptance is durable even when its acknowledgement cannot be delivered.
         # Never replay an ambiguous sendMessage just to obtain a success response.
         try:
-            await self.telegram.reply(chat_id, text, url, button=button, reply_markup=reply_markup)
+            extra = {}
+            if button != "Открыть Beresta":
+                extra["button"] = button
+            if reply_markup is not None:
+                extra["reply_markup"] = reply_markup
+            await self.telegram.reply(chat_id, text, url, **extra)
         except RemoteFailure as error:
             if error.fatal:
                 raise
