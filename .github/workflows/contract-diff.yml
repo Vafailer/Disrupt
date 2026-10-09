@@ -1,0 +1,20 @@
+name: Temporary recovery debug
+on:
+  push:
+    branches: [tmp/ci-debug-3]
+permissions:
+  contents: read
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y age openssh-server
+      - run: |
+          bash -x deploy/ops/test_recovery.sh > rec.txt 2>&1 || echo "EXIT $?" >> rec.txt
+          docker ps -a >> rec.txt 2>&1 || true
+          for c in $(docker ps -aq); do echo "== $(docker inspect --format '{{.Name}} {{.State.Status}} {{.State.ExitCode}}' $c)"; docker logs --tail 40 $c 2>&1; done >> rec.txt || true
+          python -c "d=open('rec.txt').read()[-60000:];print('::error title=recovery::'+d.replace('%','%25').replace('\r','').replace('\n','%0A'))"
