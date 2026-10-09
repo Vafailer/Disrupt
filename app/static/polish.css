@@ -182,8 +182,9 @@ footer{flex:none;padding:14px 20px;border-top:1px solid var(--line);background:v
   .library-heading{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
   .library-heading .eyebrow{display:none}
   .library-heading h2{font-size:18px}
-  #notes{margin-top:12px;padding-bottom:6px;scrollbar-width:thin}
-  #notes button{flex-basis:170px;padding:10px 12px;font-size:13px}
+  #notes{flex-direction:column;gap:2px;margin-top:12px;max-height:340px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
+  #notes button{flex:none;width:100%;padding:10px 12px;font-size:14px;border-color:transparent;background:transparent}
+  #notes button[aria-current=true]{border-color:#cbd9bf;background:#eaf0e2}
   .editor-column{padding:24px 16px 40px;background:var(--paper)}
   .editor-column h1{font-size:26px}
   #capture-card>p:not(.eyebrow){font-size:15px}
@@ -208,3 +209,5 @@ footer{flex:none;padding:14px 20px;border-top:1px solid var(--line);background:v
   .structure-check button{width:100%}
 }
 @media(min-width:1100px){.workspace{grid-template-columns:224px 292px minmax(0,1fr)}.nav-action{padding:8px 10px}}
+
+.note-meta{display:block;margin-top:2px;font-size:12px;font-weight:400;color:#7a897d;overflow:hidden;text-overflow:ellipsis}

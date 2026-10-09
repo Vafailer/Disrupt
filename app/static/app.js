@@ -78,6 +78,10 @@ async function loadNotes(reset = true) {
   for (const note of list) {
     const button = element('button', note.title);
     button.dataset.noteId = note.id;
+    const category = categories.find(c => c.id === note.category_id);
+    const when = typeof note.updated_at === 'number' ? new Date(note.updated_at*1000).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '';
+    const meta = [when, category?.name].filter(Boolean).join(' · ');
+    if (meta) button.append(element('span',meta,'note-meta'));
     button.onclick = () => openNote(note.id,{userAction:true,search:context}).catch(e => message(e.message));
     $('notes').append(button);
   }
