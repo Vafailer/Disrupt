@@ -335,6 +335,10 @@ def test_telegram_voice_reports_units_left_and_reset(limited_audio):
         telegram(client, wav(0.2), update=3)  # 2 units
         limited = telegram(client, wav(0.3), update=4).json()  # 2 units, does not fit
         assert limited["ai_limit_exceeded"] is True and limited["ai_units_remaining"] == 1
+
+
+def test_telegram_voice_reports_nothing_when_daily_limit_is_off(limited_audio):
+    # A separate test: both apps of one fixture share a database and its accounts.
     off = limited_audio(daily_unit_limit=0)
     with TestClient(off) as client:
         linked(client)

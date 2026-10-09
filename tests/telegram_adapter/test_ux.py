@@ -209,3 +209,46 @@ def test_save_command_still_works(settings):
             assert saved_requests(calls)[0]["processing_mode"] == "manual"
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("kind", ["audio", "video_note"])
+def test_audio_file_and_video_note_get_clear_reply(settings, kind):
+    async def scenario():
+        update = message(10)
+        del update["message"]["text"]
+        update["message"][kind] = {"file_id": "abc", "duration": 2}
+        bot, c, t, calls, replies, _ = await session(settings, [update])
+        async with c, t:
+            await bot.poll_once()
+            assert not calls
+            assert replies[0]["text"] == (
+                "Пока принимаю только голосовые сообщения. Запиши голосовое кнопкой микрофона."
+            )
+
+    asyncio.run(scenario())
+
+
+def test_unreadable_voice_reply_does_not_ask_for_voice_again(settings):
+    async def scenario():
+        update = message(10)
+        del update["message"]["text"]
+        update["message"]["voice"] = {"file_id": "abc", "duration": 2, "file_size": 7}
+
+        def tg(request):
+            if request.url.path.endswith("/getFile"):
+                return httpx.Response(200, json={"ok": True, "result": {"file_path": "voice/a.oga"}})
+            if "/file/" in request.url.path:
+                return httpx.Response(200, content=b"OggS123")
+
+        def core(_):
+            return httpx.Response(400, json={"error": {"code": "unsupported_audio", "message": "x"}})
+
+        bot, c, t, _, replies, _ = await session(settings, [update], core_handler=core, tg_handler=tg)
+        async with c, t:
+            await bot.poll_once()
+            assert replies[0]["text"] == (
+                "Не удалось прочитать это голосовое. Попробуй записать ещё раз. "
+                "Если повторится, напиши нам через «Сообщить об ошибке» в beresta."
+            )
+
+    asyncio.run(scenario())

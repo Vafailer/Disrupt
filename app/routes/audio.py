@@ -1,4 +1,5 @@
 """Audio intake. Core supplies transactions/models; storage never calls STT."""
+import logging
 import re
 from contextlib import contextmanager
 from typing import Literal
@@ -20,6 +21,8 @@ from app.schemas import TelegramOperation
 from app.security import get_login_session, require_internal_service
 from app.services import job_view, lock_account, saved_audio_view, saved_without_ai
 
+logger = logging.getLogger(__name__)
+
 
 class VoiceUpdate(TelegramOperation):
     processing_mode: Literal["ai"]
@@ -27,12 +30,14 @@ class VoiceUpdate(TelegramOperation):
 
 
 @contextmanager
-def audio_errors():
+def audio_errors(channel="web"):
     try:
         yield
     except AudioTooLarge:
         raise IntegrationRejection(413, "input_too_large", "Аудиозапись слишком большая или длинная") from None
-    except UnsupportedAudio:
+    except UnsupportedAudio as error:
+        reason = str(error) if re.fullmatch(r"[a-z_]{1,40}", str(error)) else "unknown"
+        logger.warning("audio_rejected reason=%s channel=%s", reason, channel)
         raise IntegrationRejection(400, "unsupported_audio", "Не удалось прочитать аудиофайл") from None
     except AudioStorageUnavailable:
         raise HTTPException(503, "Хранилище аудио временно недоступно") from None
@@ -62,7 +67,7 @@ def build_router(database, settings, storage, create_audio_capture):
         ))
         if pending >= settings.max_pending_per_user:
             raise HTTPException(429, "Слишком много записей ожидают обработки")
-        with audio_errors():
+        with audio_errors(channel):
             info = storage.inspect(staged)
             capture_id = new_id()
             stored = storage.publish(staged, capture_id, info)
@@ -73,7 +78,7 @@ def build_router(database, settings, storage, create_audio_capture):
         )
 
     def telegram_save(db, fields, source):
-        with audio_errors(), storage.stage(source) as staged:
+        with audio_errors("telegram"), storage.stage(source) as staged:
             try:
                 body = VoiceUpdate(**fields, audio_sha256=staged.sha256)
             except ValidationError:
@@ -111,7 +116,7 @@ def build_router(database, settings, storage, create_audio_capture):
             return await run_in_threadpool(telegram_save, db, fields, form["audio"].file)
 
     def web_save(db, user_id, key, source):
-        with audio_errors(), storage.stage(source) as staged:
+        with audio_errors("web"), storage.stage(source) as staged:
             lock_account(db, user_id)
             existing = db.scalar(select(Capture).where(Capture.user_id == user_id, Capture.idempotency_key == key))
             if existing:

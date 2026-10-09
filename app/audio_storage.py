@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 import os
 import selectors
 import stat
@@ -17,6 +18,7 @@ from uuid import UUID
 
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
 MAX_AUDIO_SECONDS = 180
+logger = logging.getLogger(__name__)
 _DECODE_SLOTS = threading.BoundedSemaphore(2)
 
 
@@ -136,22 +138,26 @@ def _webm_header(data):
 
 
 def _ogg_complete(source):
-    serial, sequence, ended = None, 0, False
+    """Check every page is whole, one stream, contiguous numbering, nothing after EOS.
+
+    The EOS flag on the last page is not required: several Telegram clients write
+    voice notes without it. Truncation still shows as a page with missing body.
+    """
+    serial, sequence, ended = None, None, False
     while header := source.read(27):
         if len(header) != 27 or header[:5] != b"OggS\0" or ended:
             raise UnsupportedAudio("invalid_container")
         current = header[14:18]
+        number = int.from_bytes(header[18:22], "little")
         if serial is None:
             serial = current
-        if current != serial or int.from_bytes(header[18:22], "little") != sequence:
+        if current != serial or (sequence is not None and number != sequence):
             raise UnsupportedAudio("unsupported_streams")
-        sequence += 1
+        sequence = number + 1
         lacing = source.read(header[26])
         if len(lacing) != header[26] or len(source.read(sum(lacing))) != sum(lacing):
             raise UnsupportedAudio("truncated_audio")
         ended = bool(header[5] & 4)
-    if not ended:
-        raise UnsupportedAudio("truncated_audio")
 
 
 class AudioStorage:
@@ -239,8 +245,11 @@ class AudioStorage:
             if not 1 <= rate <= 384000:
                 raise UnsupportedAudio("unsupported_sample_rate")
             # Preserve the input sample rate; duration is a count of decoded samples.
+            # Real Telegram Ogg files carry small muxer quirks that ffmpeg reports as
+            # recoverable. Strict error detection stays on for WAV and WebM only.
+            strict = [] if demuxer == "ogg" else ["-err_detect", "explode"]
             size = _run([
-                self.ffmpeg_path, "-nostdin", "-xerror", *common, "-threads", "1", "-err_detect", "explode",
+                self.ffmpeg_path, "-nostdin", "-xerror", *common, "-threads", "1", *strict,
                 "-i", str(staged.path), "-map", "0:a:0", "-vn", "-sn", "-dn",
                 "-threads", "1", "-filter_threads", "1", "-ac", "1", "-ar", str(rate),
                 "-f", "s16le", "-acodec", "pcm_s16le", "pipe:1",
