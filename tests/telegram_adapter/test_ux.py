@@ -4,7 +4,16 @@ import json
 import httpx
 import pytest
 
-from telegram_adapter.bot import BTN_HELP, BTN_LINK, BTN_MANUAL, BTN_MENU, BTN_WEB, BTN_WRITE, BUTTONS, MAIN_MENU
+from telegram_adapter.bot import (
+    BTN_HELP,
+    BTN_LINK,
+    BTN_MANUAL,
+    BTN_MENU,
+    BTN_WEB,
+    BTN_WRITE,
+    BUTTONS,
+    MAIN_MENU,
+)
 from tests.telegram_adapter.test_adapter import message, session
 from tests.telegram_adapter.test_adapter import settings as settings
 
