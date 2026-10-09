@@ -26,7 +26,7 @@ def test_normalization_uses_bounded_copy_and_gateway_minimal_fields(monkeypatch)
         calls.append(request)
         assert b'recording.wav' in request.content and b'RIFF' in request.content
         assert b'synthetic-original-webm' not in request.content
-        assert b'name="language"' not in request.content and b'name="response_format"' not in request.content
+        assert b'name="language"' in request.content and b'name="response_format"' not in request.content
         return httpx.Response(200, json={'text':'Синтетическая речь'})
     provider = CloudRuSpeechProvider('synthetic-secret','whisper-large-v3',base_url=PROGRAM_BASE_URL,
                                     normalize_audio=True,transport=httpx.MockTransport(handler))

@@ -25,7 +25,7 @@ def main():
     if settings.provider != "cloudru" or not settings.allow_live_requests:
         raise SystemExit("Live owner permission required")
     engine, sessions = make_database(settings.database_url)
-    request_id = "stt-readiness:" + args.capture_id + ":wav-v1"
+    request_id = "stt-readiness:" + args.capture_id + ":wav-ru-v1"
     with sessions() as db:
         capture = db.get(Capture, args.capture_id)
         if capture is None or capture.input_kind != "audio":

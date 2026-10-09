@@ -62,7 +62,7 @@ class CloudRuSpeechProvider:
                               trust_env=False, transport=self._transport) as client:
                 with client.stream(
                     "POST", self.endpoint, headers={"Authorization": f"Bearer {self._api_key}"},
-                    data={"model": self.model_name},
+                    data={"model": self.model_name, "language": "ru"},
                     files={"file": ("recording." + extension, bytes(audio), media_type)},
                 ) as response:
                     if response.status_code != 200:
