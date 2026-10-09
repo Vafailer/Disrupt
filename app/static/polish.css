@@ -12,7 +12,7 @@ header{width:100%;margin:0;display:flex;flex-wrap:nowrap;justify-content:space-b
 .brand{display:flex;align-items:baseline;gap:12px;font-size:22px;line-height:1.2;white-space:nowrap}
 .brand span{display:inline;font-size:12px;letter-spacing:.2px;color:var(--muted)}
 .header-actions{display:flex;flex-wrap:nowrap;align-items:center;gap:12px;min-width:0}
-.community-link{min-height:38px;padding:0 14px;gap:8px;font-size:13px}
+.telegram-channel-link{min-height:38px;padding:0 14px;gap:8px;font-size:13px}
 #account{display:flex;align-items:center;gap:10px;min-width:0;flex-basis:auto}
 #username{max-width:180px;padding:6px 12px;border-radius:999px;background:#eef1e8;color:#3d5144;font-size:13px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #logout{min-height:36px;padding:0 14px;font-size:13px}
@@ -160,9 +160,9 @@ footer{flex:none;padding:14px 20px;border-top:1px solid var(--line);background:v
   header{min-height:56px;padding:8px 14px;gap:10px}
   .brand{font-size:21px}.brand span{display:none}
   .header-actions{flex:1 1 auto;justify-content:flex-end;gap:8px}
-  .community-link{padding:0 12px}
-  header:has(#account:not([hidden])) .community-link{width:38px;padding:0}
-  header:has(#account:not([hidden])) .community-link span{display:none}
+  .telegram-channel-link{padding:0 12px}
+  header:has(#account:not([hidden])) .telegram-channel-link{width:38px;padding:0}
+  header:has(#account:not([hidden])) .telegram-channel-link span{display:none}
   #account{flex:0 1 auto;gap:8px}
   #username{max-width:92px;padding:5px 10px;font-size:12px}
   #logout{padding:0 12px}
