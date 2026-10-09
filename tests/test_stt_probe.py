@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import httpx
-import yaml
 
 from app.config import PROGRAM_BASE_URL
 from app.stt_probe import main
@@ -103,11 +102,15 @@ def test_unknown_extension_rejected(monkeypatch, tmp_path, capsys):
 
 
 def test_worker_compose_passes_disabled_stt_settings():
-    compose = yaml.safe_load((ROOT / "compose.production.yaml").read_text(encoding="utf-8"))
-    names = ("NOTES_STT_ENABLED", "NOTES_STT_PROTOCOL_CONFIRMED", "NOTES_STT_MODEL")
-    worker = compose["services"]["worker"]["environment"]
-    assert worker["NOTES_STT_ENABLED"] == "${NOTES_STT_ENABLED:-false}"
-    assert worker["NOTES_STT_PROTOCOL_CONFIRMED"] == "${NOTES_STT_PROTOCOL_CONFIRMED:-false}"
-    assert worker["NOTES_STT_MODEL"] == "${NOTES_STT_MODEL:-}"
-    for service in ("api", "scheduler", "migrate"):
-        assert not set(names) & set(compose["services"][service].get("environment", {}))
+    lines = (ROOT / "compose.production.yaml").read_text(encoding="utf-8").splitlines()
+    start = lines.index("  worker:")
+    end = next((n for n in range(start + 1, len(lines))
+                if lines[n].startswith("  ") and not lines[n].startswith("   ")
+                and lines[n].strip()), len(lines))
+    block = [line.strip() for line in lines[start:end]]
+    for expected in ("NOTES_STT_ENABLED: ${NOTES_STT_ENABLED:-false}",
+                     "NOTES_STT_PROTOCOL_CONFIRMED: ${NOTES_STT_PROTOCOL_CONFIRMED:-false}",
+                     "NOTES_STT_MODEL: ${NOTES_STT_MODEL:-}"):
+        assert expected in block
+    outside = lines[:start] + lines[end:]
+    assert not any("NOTES_STT_" in line for line in outside)
