@@ -13,7 +13,7 @@ from starlette.responses import StreamingResponse
 
 from app.audio_storage import AudioStorageUnavailable, AudioTooLarge, UnsupportedAudio
 from app.integration import IntegrationRejection
-from app.models import Capture, Job, new_id
+from app.models import Capture, Job, Outbox, new_id
 from app.routes.internal import process_update, telegram_identity
 from app.schemas import TelegramOperation
 from app.security import get_login_session, require_internal_service
@@ -81,6 +81,8 @@ def build_router(database, settings, storage, create_audio_capture):
             def handle(operation_id):
                 identity = telegram_identity(db, body)
                 job = create(db, identity.user_id, "telegram:" + operation_id, staged, "telegram")
+                db.add(Outbox(job_id=job.id, user_id=identity.user_id, bot_id=identity.bot_id,
+                              chat_id=identity.chat_id, generation=1, status="pending"))
                 return {
                     "capture_id": job.capture_id, "job_id": job.id, "status": "saved",
                     "note_url": settings.public_origin + "/?capture=" + job.capture_id,
