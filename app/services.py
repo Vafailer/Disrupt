@@ -254,6 +254,7 @@ def note_view(db, note):
     return {
         "id": note.id,
         "capture_id": note.capture_id,
+        "channel": capture.channel,
         "original_text": capture.original_text,
         **audio_metadata(db, capture),
         **snapshot(db, note),
@@ -486,7 +487,7 @@ def edit_item(db, note, item_id, body):
     db.commit()
 
 
-def search_notes(db, user_id, *, q=None, category_id=None, limit=20, offset=0):
+def search_notes(db, user_id, *, q=None, category_id=None, channel=None, input_kind=None, limit=20, offset=0):
     if q and "\x00" in q:
         raise HTTPException(422, "Уберите нулевой символ из поиска")
     statement = select(Note).where(Note.user_id == user_id)
@@ -495,6 +496,12 @@ def search_notes(db, user_id, *, q=None, category_id=None, limit=20, offset=0):
     elif category_id is not None:
         owned_category(db, category_id, user_id)
         statement = statement.where(Note.category_id == category_id)
+    if channel or input_kind or (q and q.strip()):
+        statement = statement.join(Capture, Capture.id == Note.capture_id).where(Capture.user_id == user_id)
+    if channel:
+        statement = statement.where(Capture.channel == channel)
+    if input_kind:
+        statement = statement.where(Capture.input_kind == input_kind)
     if q and q.strip():
         value = q.strip()
         if db.bind.dialect.name == "sqlite":
@@ -516,8 +523,7 @@ def search_notes(db, user_id, *, q=None, category_id=None, limit=20, offset=0):
             )
             .exists()
         )
-        statement = statement.join(Capture, Capture.id == Note.capture_id).where(
-            Capture.user_id == user_id,
+        statement = statement.where(
             or_(
                 contains(Note.title),
                 contains(Note.markdown),

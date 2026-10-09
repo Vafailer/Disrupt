@@ -3812,6 +3812,46 @@
               ],
               "title": "Category Id"
             }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "web",
+                    "telegram"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channel"
+            }
+          },
+          {
+            "name": "input_kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "text",
+                    "audio"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Input Kind"
+            }
           }
         ],
         "responses": {
@@ -5583,6 +5623,14 @@
             "type": "string",
             "title": "Capture Id"
           },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "web",
+              "telegram"
+            ],
+            "title": "Channel"
+          },
           "original_text": {
             "type": "string",
             "title": "Original Text"
@@ -5664,6 +5712,7 @@
         "required": [
           "id",
           "capture_id",
+          "channel",
           "original_text",
           "title",
           "markdown",
@@ -5707,6 +5756,22 @@
               }
             ],
             "title": "Category Id"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "web",
+              "telegram"
+            ],
+            "title": "Channel"
+          },
+          "input_kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "audio"
+            ],
+            "title": "Input Kind"
           }
         },
         "additionalProperties": false,
@@ -5716,7 +5781,9 @@
           "title",
           "version",
           "updated_at",
-          "category_id"
+          "category_id",
+          "channel",
+          "input_kind"
         ],
         "title": "NoteSummary"
       },

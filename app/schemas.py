@@ -294,6 +294,7 @@ class ConclusionResponse(ProposedConclusion):
 class NoteResponse(AudioMetadata):
     id: str
     capture_id: str
+    channel: Literal["web", "telegram"]
     original_text: str
     title: str
     markdown: str
@@ -314,6 +315,8 @@ class NoteSummary(StrictModel):
     version: int
     updated_at: float
     category_id: str | None
+    channel: Literal["web", "telegram"]
+    input_kind: Literal["text", "audio"]
 
 
 TelegramID = Annotated[int, Field(ge=1, le=9223372036854775807)]
