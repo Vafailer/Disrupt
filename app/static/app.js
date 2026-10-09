@@ -4,7 +4,6 @@ let csrf = '', currentNote = null, epoch = 0, notesOffset = 0, pendingCapture = 
 let categories = [], searchOperation = null, notesGeneration = 0, noteBusy = false;
 let activeFilter = {q:'',category:'',source:''};
 const sourceQuery = {telegram:{channel:'telegram'},voice:{input_kind:'audio'},text:{input_kind:'text'}};
-const aiLimitMessage = 'Лимит ИИ на сегодня исчерпан. Запись сохранится без ИИ.';
 let currentCapture = null, selectedAudio = null, pendingAudio = null, captureBusy = false, viewGeneration = 0;
 let recorder = null, recordStream = null, recordTimer = null, recordBytes = 0, recordChunks = [], recordInvalid = false, microphonePending = false;
 const audioMaximum = 10 * 1024 * 1024;
@@ -82,21 +81,77 @@ function showUser(user) {
 }
 const LIMIT_SPENT = 'Лимит ИИ на сегодня исчерпан. Запись сохранена без ИИ, разобрать её можно завтра.';
 function setMode(text = '') { $('mode').textContent = text; }
-function showAiLimit(text = '', warn = false) {
-  $('ai-limit-note').textContent = text; $('ai-limit-note').hidden = !text;
-  $('ai-limit-note').classList.toggle('is-warning',warn);
+// Daily AI limit. The counter is a quiet line. The notice replaces it when the day's units are spent.
+const LIMIT_TICK_MS = 30000;
+let limitTimer = null, limitResetsAt = null, limitHit = null;
+function formatWait(ms) {
+  const minutes = Math.ceil(ms / 60000);
+  if (!(ms >= 60000)) return 'меньше минуты';
+  const hours = Math.floor(minutes / 60), rest = minutes % 60;
+  return hours ? `${hours} ч ${rest} мин` : `${rest} мин`;
+}
+function stopLimitTimer() { if (limitTimer !== null) { clearInterval(limitTimer); limitTimer = null; } }
+function renderLimitWait() {
+  const ms = Date.parse(limitResetsAt) - Date.now();
+  $('ai-limit-wait').textContent = Number.isNaN(ms) ? '' : ms > 0 ? `Обновится через ${formatWait(ms)}.` : 'Скоро обновится.';
+  return ms;
+}
+function limitTick() {
+  if (renderLimitWait() > 0) return;
+  stopLimitTimer(); limitHit = null;
+  loadProviderUsage().catch(() => {});
+}
+function showAiLimit({counter = '', title = '', warn = false, spent = false, appLimit = false} = {}) {
+  const note = $('ai-limit-note'), line = $('ai-limit-counter');
+  line.hidden = !counter; $('ai-limit-count').textContent = counter;
+  line.title = title; $('ai-limit-cost').textContent = title; line.classList.toggle('is-warning',warn);
+  note.hidden = !spent; note.classList.toggle('is-warning',spent);
+  // Only the first sentence is a live region, and only when it changes. The countdown is never announced.
+  const text = spent ? 'Лимит ИИ на сегодня исчерпан.' : '';
+  if ($('ai-limit-text').textContent !== text) $('ai-limit-text').textContent = text;
+  $('ai-limit-tail').textContent = spent ? 'Записи сохраняются без ИИ.' : '';
+  if (spent && limitResetsAt && !appLimit) {
+    renderLimitWait();
+    if (limitTimer === null && !$('workspace').hidden) limitTimer = setInterval(limitTick,LIMIT_TICK_MS);
+  } else { stopLimitTimer(); $('ai-limit-wait').textContent = ''; }
+}
+function markLimitHit() {
+  limitHit = {resetsAt: limitResetsAt};
+  $('processing-mode').value = 'manual';
+  $('processing-mode').querySelector('option[value="ai"]').disabled = true;
+  showAiLimit({spent: true});
+  loadProviderUsage().catch(() => {});
 }
 async function loadProviderUsage() {
   const usage = await api('/api/v1/provider/usage');
   const daily = typeof usage.daily_units_remaining === 'number' ? usage.daily_units_remaining : null;
+  const total = typeof usage.daily_unit_limit === 'number' && usage.daily_unit_limit > 0 ? usage.daily_unit_limit : null;
+  limitResetsAt = typeof usage.limit_resets_at === 'string' ? usage.limit_resets_at : null;
+  // A capture that came back without AI keeps the notice until the day changes.
+  if (limitHit && limitHit.resetsAt !== limitResetsAt) limitHit = null;
+  // A long voice note can cost more than what is left. Units that remain stay usable for text.
+  if (limitHit && daily !== null && daily > 0) limitHit = null;
   const appLimit = !usage.simulation && (usage.global_remaining === 0 || usage.user_remaining === 0);
-  const exhausted = appLimit || daily === 0;
+  const spent = daily === 0 || limitHit !== null;
+  const exhausted = appLimit || spent;
   // The banner stays empty for the real provider. It speaks only for the demo and for limits.
   if (!usage.simulation) setMode(appLimit ? 'Лимит ИИ исчерпан. Сохранение без ИИ доступно.' : '');
   $('processing-mode').querySelector('option[value="ai"]').disabled = exhausted;
   if (exhausted) $('processing-mode').value = 'manual';
-  showAiLimit(daily === 0 ? aiLimitMessage : daily !== null && daily >= 1 && daily <= 3 ? `Осталось на сегодня: ${daily}` : '',daily === 0);
+  const showCounter = daily !== null && !exhausted;
+  showAiLimit({
+    counter: showCounter ? `ИИ на сегодня: осталось ${daily}${total ? ` из ${total}` : ''}` : '',
+    title: showCounter && typeof usage.text_unit_cost === 'number'
+      ? `Текст ${usage.text_unit_cost}, голос ${usage.audio_unit_base} + ${usage.audio_unit_per_minute} за минуту` : '',
+    warn: showCounter && daily <= 3,
+    spent: spent && !appLimit,
+    appLimit,
+  });
 }
+// A refresh after a save must never break the save itself.
+const refreshUsage = () => loadProviderUsage().catch(() => {});
+new MutationObserver(() => { if ($('workspace').hidden) { stopLimitTimer(); limitHit = null; } })
+  .observe($('workspace'),{attributes:true,attributeFilter:['hidden']});
 async function loadNotes(reset = true) {
   if (reset) { notesGeneration++; notesOffset = 0; $('notes').replaceChildren(); }
   const generation = notesGeneration, currentEpoch = epoch, context = searchOperation;
@@ -368,9 +423,8 @@ $('capture-form').onsubmit = async event => {
     // The server may save without AI when the daily limit ends. Tell the person, even if the flag shape changes.
     const downgraded = processing_mode === 'ai' && (job.ai_limit_exceeded === true || job.ai_limit_reached === true || job.processing_mode === 'manual');
     if (downgraded) {
-      showAiLimit(aiLimitMessage,true); $('processing-mode').value = 'manual';
-      $('processing-mode').querySelector('option[value="ai"]').disabled = true;
-    }
+      markLimitHit();
+    } else { refreshUsage(); }
     if (processing_mode === 'manual' || downgraded) {
       $('thought').value = ''; pendingCapture = null;
       await loadNotes(); await openNote(job.note_id);
@@ -604,9 +658,9 @@ $('audio-form').onsubmit = async event => {
     // A successful response confirms durable storage even if polling later loses the network.
     clearAudio();
     if (job.ai_limit_exceeded) {
-      message(LIMIT_SPENT); showAiLimit(aiLimitMessage,true); $('job-status').textContent = ''; await loadNotes();
+      message(LIMIT_SPENT); markLimitHit(); $('job-status').textContent = ''; await loadNotes();
     } else {
-      savedJob = job;
+      savedJob = job; refreshUsage();
       $('job-status').textContent = 'Аудио сохранено. Статус обработки появится в последних записях.';
     }
   } catch(e) {
@@ -669,7 +723,7 @@ $('record-start').onclick = async () => {
   } finally { microphonePending = false; setAudioControls(); }
 };
 $('record-stop').onclick = stopRecording;
-window.addEventListener('pagehide',() => { epoch++; stopRecording(); releaseMicrophone(); });
+window.addEventListener('pagehide',() => { epoch++; stopLimitTimer(); stopRecording(); releaseMicrophone(); });
 
 function hideSource() {
   $('source-card').hidden = true;

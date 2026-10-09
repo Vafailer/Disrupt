@@ -5,6 +5,7 @@ import time
 
 from .clients import MAX_AUDIO_BYTES, REJECTIONS, CoreClient, Rejected, RemoteFailure, TelegramClient
 from .config import Settings
+from .limit_text import saved_reply
 from .state import OffsetStore
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,9 @@ HELP_TEXT = (
     "🔗 Подключить аккаунт. Свяжу этот чат с beresta.\n"
     "🌐 Открыть beresta. Ссылка на веб.\n"
     "🏠 Меню. Вернуть кнопки, если они пропали.\n\n"
-    "Голосовое тоже сохраняется. Текст из него появится в beresta."
+    "Голосовое тоже сохраняется. Текст из него появится в beresta.\n"
+    "ИИ на день есть лимит. Текст стоит 1, голос 2 и ещё 1 за минуту. Когда лимит кончится, "
+    "записи сохраню без ИИ."
 )
 MANUAL_TTL = 600
 WATCH_TTL = 600
@@ -226,11 +229,7 @@ class Bot:
                 )
                 return
             url = self.core.validate_saved(result)
-            saved = (
-                "Лимит ИИ на сегодня исчерпан. Запись сохранена без ИИ, разобрать её можно завтра."
-                if result.get("ai_limit_exceeded") is True
-                else "Запись сохранена. Результат и статус обработки доступны в Beresta."
-            )
+            saved = saved_reply(result)
             await self.notify(chat_id, saved, url)
         except Rejected as error:
             await self.notify(chat_id, REJECTIONS[str(error)], self.settings.web_url)

@@ -1,6 +1,8 @@
 import asyncio
 import json
+import re
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 
 import httpx
 import pytest
@@ -97,6 +99,30 @@ def test_daily_limit_reply_says_saved_without_ai(settings):
                 "Лимит ИИ на сегодня исчерпан. Запись сохранена без ИИ, разобрать её можно завтра."
             )
             assert replies[1]["text"] == "Запись сохранена. Результат и статус обработки доступны в Beresta."
+
+    asyncio.run(scenario())
+
+
+def test_replies_show_wait_and_low_counter_from_core_keys(settings):
+    async def scenario():
+        reset = (datetime.now(timezone.utc) + timedelta(hours=2, minutes=30)).isoformat()
+        responses = {
+            10: {**SAVED, "ai_limit_exceeded": True, "ai_units_remaining": 0, "ai_limit_resets_at": reset},
+            11: {**SAVED, "ai_units_remaining": 4, "ai_limit_resets_at": reset},
+            12: {**SAVED, "ai_units_remaining": 20, "ai_limit_resets_at": reset},
+        }
+        bot, c, t, calls, replies, _ = await session(
+            settings, [message(10), message(11), message(12)],
+            lambda request: httpx.Response(200, json=responses[json.loads(request.content)["update_id"]]),
+        )
+        async with c, t:
+            await bot.poll_once()
+            assert re.fullmatch(
+                r"Лимит ИИ на сегодня исчерпан\. Запись сохранена без ИИ\. Лимит обновится через 2 ч (29|30) мин\.",
+                replies[0]["text"],
+            )
+            assert replies[1]["text"].endswith("\nИИ на сегодня: осталось 4.")
+            assert replies[2]["text"] == "Запись сохранена. Результат и статус обработки доступны в Beresta."
 
     asyncio.run(scenario())
 

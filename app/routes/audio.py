@@ -13,6 +13,7 @@ from starlette.responses import StreamingResponse
 
 from app.audio_storage import AudioStorageUnavailable, AudioTooLarge, UnsupportedAudio
 from app.integration import IntegrationRejection
+from app.limits import telegram_state
 from app.models import Capture, Job, Outbox, new_id
 from app.routes.internal import process_update, telegram_identity
 from app.schemas import TelegramOperation
@@ -92,7 +93,8 @@ def build_router(database, settings, storage, create_audio_capture):
                 saved["note_url"] = settings.public_origin + "/?capture=" + saved["capture_id"]
                 if isinstance(job, Capture):
                     saved["ai_limit_exceeded"] = True  # Daily AI limit spent, the recording is kept without AI.
-                return saved
+                db.flush()  # The stored recording counts in the remaining units.
+                return {**saved, **telegram_state(db, settings, identity.user_id)}
 
             return process_update(db, body, "voice", handle)
 

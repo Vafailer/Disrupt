@@ -63,3 +63,11 @@ def daily_state(db, settings, user_id, now=None):
         "audio_unit_per_minute": settings.audio_unit_per_minute,
         "limit_resets_at": day_window(settings, now)[1].isoformat(),
     }
+
+
+def telegram_state(db, settings, user_id, now=None):
+    """Remaining units and next reset for the bot reply. Both are null when the daily limit is off."""
+    if settings.daily_unit_limit == 0:
+        return {"ai_units_remaining": None, "ai_limit_resets_at": None}
+    daily = daily_state(db, settings, user_id, now)
+    return {"ai_units_remaining": daily["daily_units_remaining"], "ai_limit_resets_at": daily["limit_resets_at"]}

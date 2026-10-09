@@ -6293,6 +6293,28 @@
             "type": "boolean",
             "title": "Ai Limit Exceeded",
             "default": false
+          },
+          "ai_units_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Units Remaining"
+          },
+          "ai_limit_resets_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Limit Resets At"
           }
         },
         "additionalProperties": false,

@@ -20,7 +20,7 @@ function boot({health = {simulation: false}, usage = cloudUsage, list = () => su
   try { Object.defineProperty(w.crypto, 'randomUUID', {value: require('node:crypto').randomUUID, configurable: true}); } catch { /* already provided */ }
   w.confirm = () => true;
   const state = {
-    calls: [],
+    calls: [], timers: new Set(), ticks: [], usage: {value: usage},
     note: {id: 'n1', capture_id: 'k1', channel: 'telegram', input_kind: 'text', title: 'Из Telegram', markdown: '## План\nПозвонить',
       original_text: 'Исходник', items: [], conclusions: [], version: 3, provider: 'cloudru', category_id: 'c1',
       category_name: 'Работа', structure_confirmed_at: null, created_at: 1791220000, updated_at: 1791220000},
@@ -30,7 +30,7 @@ function boot({health = {simulation: false}, usage = cloudUsage, list = () => su
     const body = options.body && typeof options.body === 'string' ? JSON.parse(options.body) : null;
     state.calls.push({url, method, body});
     if (url.pathname === '/health') return reply(health);
-    if (url.pathname === '/api/v1/provider/usage') return reply(usage);
+    if (url.pathname === '/api/v1/provider/usage') return reply(state.usage.value);
     if (url.pathname === '/api/v1/auth/me') return reply({username: 'tester', csrf_token: 'csrf'});
     if (url.pathname === '/api/v1/categories') return reply([{id: 'c1', name: 'Работа', version: 1}]);
     if (url.pathname === '/api/v1/jobs') return reply([]);
@@ -50,6 +50,9 @@ function boot({health = {simulation: false}, usage = cloudUsage, list = () => su
     if (url.pathname.endsWith('/opened') || url.pathname.endsWith('/original-opened') || url.pathname === '/api/v1/search/events') return reply(null, 204);
     throw new Error(`Unexpected ${method} ${url.pathname}`);
   };
+  const setTimer = w.setInterval.bind(w), clearTimer = w.clearInterval.bind(w);
+  w.setInterval = (fn, ms) => { const id = setTimer(fn, ms); state.timers.add(id); state.ticks.push(fn); return id; };
+  w.clearInterval = id => { state.timers.delete(id); clearTimer(id); };
   w.eval(read('app.js') + '\n' + read('workspace.js'));
   return {dom, w, $: id => w.document.getElementById(id), state};
 }
@@ -73,24 +76,89 @@ async function usageHints() {
     assert.ok(!t.$('mode').textContent.includes('Cloud.ru'));
   } finally { t.dom.window.close(); }
 
-  t = boot({usage: {...cloudUsage, daily_unit_limit: 10, daily_units_used: 10, daily_units_remaining: 0}}); await settled();
-  try {
-    assert.equal(t.$('processing-mode').querySelector('option[value=ai]').disabled, true);
-    assert.equal(t.$('ai-limit-note').hidden, false);
-    assert.equal(t.$('ai-limit-note').textContent, 'Лимит ИИ на сегодня исчерпан. Запись сохранится без ИИ.');
-    assert.equal(t.$('mode').textContent, '');
-  } finally { t.dom.window.close(); }
+  const daily = (remaining, extra = {}) => ({...cloudUsage, daily_unit_limit: 30, daily_units_used: 30 - remaining,
+    daily_units_remaining: remaining, text_unit_cost: 1, audio_unit_base: 2, audio_unit_per_minute: 1, ...extra});
+  const inHours = (hours, minutes) => new Date(Date.now() + ((hours * 60 + minutes) * 60 - 5) * 1000).toISOString();
+  const ai = t => t.$('processing-mode').querySelector('option[value=ai]');
 
-  t = boot({usage: {...cloudUsage, daily_units_remaining: 2}}); await settled();
-  try {
-    assert.equal(t.$('processing-mode').querySelector('option[value=ai]').disabled, false);
-    assert.equal(t.$('ai-limit-note').textContent, 'Осталось на сегодня: 2');
-  } finally { t.dom.window.close(); }
-
-  for (const remaining of [4, null, undefined, '2']) {
-    t = boot({usage: {...cloudUsage, daily_units_remaining: remaining}}); await settled();
-    try { assert.equal(t.$('ai-limit-note').hidden, true, String(remaining)); } finally { t.dom.window.close(); }
+  // The counter is always there while the daily limit is on, and turns warm at three or less.
+  for (const [remaining, warn] of [[30, false], [27, false], [4, false], [3, true], [1, true]]) {
+    t = boot({usage: daily(remaining)}); await settled();
+    try {
+      assert.equal(t.$('ai-limit-counter').hidden, false, String(remaining));
+      assert.equal(t.$('ai-limit-count').textContent, `ИИ на сегодня: осталось ${remaining} из 30`);
+      assert.equal(t.$('ai-limit-counter').classList.contains('is-warning'), warn, String(remaining));
+      assert.equal(t.$('ai-limit-counter').title, 'Текст 1, голос 2 + 1 за минуту');
+      assert.equal(t.$('ai-limit-cost').textContent, 'Текст 1, голос 2 + 1 за минуту');
+      assert.equal(t.$('ai-limit-note').hidden, true);
+      assert.equal(ai(t).disabled, false);
+      assert.equal(t.state.timers.size, 0, 'no countdown while units remain');
+    } finally { t.dom.window.close(); }
   }
+
+  // Spent: notice with a live countdown, AI option disabled, no counter.
+  t = boot({usage: daily(0, {limit_resets_at: inHours(5, 12)})}); await settled();
+  try {
+    assert.equal(ai(t).disabled, true);
+    assert.equal(t.$('processing-mode').value, 'manual');
+    assert.equal(t.$('ai-limit-note').hidden, false);
+    assert.equal(t.$('ai-limit-note').textContent.replace(/\s+/g, ' ').trim(),
+      'Лимит ИИ на сегодня исчерпан. Обновится через 5 ч 12 мин. Записи сохраняются без ИИ.');
+    assert.equal(t.$('ai-limit-counter').hidden, true);
+    assert.equal(t.$('mode').textContent, '');
+    assert.equal(t.state.timers.size, 1, 'one countdown interval');
+    assert.equal(t.$('ai-limit-wait').closest('[aria-live]'), null, 'countdown is not a live region');
+    // Logout hides the workspace and stops the countdown.
+    t.$('workspace').hidden = true; await settled();
+    assert.equal(t.state.timers.size, 0, 'interval cleared on logout');
+  } finally { t.dom.window.close(); }
+
+  for (const [hours, minutes, text] of [[0, 40, 'Обновится через 40 мин.'], [1, 0, 'Обновится через 1 ч 0 мин.']]) {
+    t = boot({usage: daily(0, {limit_resets_at: inHours(hours, minutes)})}); await settled();
+    try { assert.equal(t.$('ai-limit-wait').textContent, text); } finally { t.dom.window.close(); }
+  }
+  t = boot({usage: daily(0, {limit_resets_at: new Date(Date.now() + 20000).toISOString()})}); await settled();
+  try { assert.equal(t.$('ai-limit-wait').textContent, 'Обновится через меньше минуты.'); } finally { t.dom.window.close(); }
+
+  // At zero the page asks again and the AI option comes back.
+  t = boot({usage: daily(0, {limit_resets_at: new Date(Date.now() - 1000).toISOString()})}); await settled();
+  try {
+    assert.equal(ai(t).disabled, true);
+    const before = t.state.calls.filter(c => c.url.pathname === '/api/v1/provider/usage').length;
+    t.state.usage.value = daily(30, {limit_resets_at: inHours(23, 0)});
+    t.state.ticks[0](); await settled();
+    assert.equal(t.state.calls.filter(c => c.url.pathname === '/api/v1/provider/usage').length, before + 1);
+    assert.equal(ai(t).disabled, false);
+    assert.equal(t.$('ai-limit-note').hidden, true);
+    assert.equal(t.$('ai-limit-count').textContent, 'ИИ на сегодня: осталось 30 из 30');
+    assert.equal(t.state.timers.size, 0);
+  } finally { t.dom.window.close(); }
+
+  // Disabled limit and the older lifetime cap show no counter and no countdown.
+  for (const usage of [{...cloudUsage, daily_unit_limit: 0, daily_units_remaining: null},
+    {...daily(20, {limit_resets_at: inHours(5, 0)}), user_remaining: 0}]) {
+    t = boot({usage}); await settled();
+    try {
+      assert.equal(t.$('ai-limit-counter').hidden, true);
+      assert.equal(t.$('ai-limit-note').hidden, true);
+      assert.equal(t.state.timers.size, 0);
+    } finally { t.dom.window.close(); }
+  }
+  for (const remaining of [null, undefined, '2']) {
+    t = boot({usage: {...cloudUsage, daily_units_remaining: remaining}}); await settled();
+    try { assert.equal(t.$('ai-limit-counter').hidden, true, String(remaining)); } finally { t.dom.window.close(); }
+  }
+
+  // Not enough units for this recording, but some are left: the counter stays and AI is still offered.
+  t = boot({usage: daily(1), capture: {id: 'j1', capture_id: 'k1', status: 'saved', note_id: 'n1', job_id: null, ai_limit_exceeded: true}}); await settled();
+  try {
+    t.$('thought').value = 'Длинная мысль';
+    await t.$('capture-form').onsubmit({preventDefault() {}});
+    await settled();
+    assert.equal(t.$('ai-limit-note').hidden, true);
+    assert.equal(t.$('ai-limit-count').textContent, 'ИИ на сегодня: осталось 1 из 30');
+    assert.equal(ai(t).disabled, false);
+  } finally { t.dom.window.close(); }
 
   t = boot({health: {simulation: true}, usage: {simulation: true}}); await settled();
   try { assert.match(t.$('mode').textContent, /Демо без ИИ/); } finally { t.dom.window.close(); }
@@ -102,8 +170,10 @@ async function usageHints() {
       t.$('thought').value = 'Позвонить завтра';
       await t.$('capture-form').onsubmit({preventDefault() {}});
       await settled();
-      assert.equal(t.$('ai-limit-note').textContent, 'Лимит ИИ на сегодня исчерпан. Запись сохранится без ИИ.');
+      assert.equal(t.$('ai-limit-note').hidden, false);
+      assert.match(t.$('ai-limit-note').textContent, /^Лимит ИИ на сегодня исчерпан\.\s+Записи сохраняются без ИИ\.$/);
       assert.equal(t.$('processing-mode').value, 'manual');
+      assert.ok(t.state.calls.filter(c => c.url.pathname === '/api/v1/provider/usage').length >= 2, 'usage is read again');
     } finally { t.dom.window.close(); }
   }
 }
