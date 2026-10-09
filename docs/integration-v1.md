@@ -297,7 +297,7 @@ NoteResponse теперь содержит items[], category_id, category_name
 
 | Метод | Запрос и результат |
 |---|---|
-| GET /api/v1/notes | Список своих заметок. q до 200 символов, category_id=UUID или none, limit 1..100, offset от 0. X-Next-Notes-Offset появляется, если есть следующая страница |
+| GET /api/v1/notes | Список своих заметок. q до 200 символов, category_id=UUID или none, channel=web/telegram, input_kind=text/audio, limit 1..100, offset от 0. Фильтры сочетаются. В каждой записи есть channel и input_kind. X-Next-Notes-Offset появляется, если есть следующая страница |
 | GET /api/v1/categories | Свои категории с id, name и version |
 | POST /api/v1/categories | name. Возвращает CategoryResponse с кодом 201. Имя обрезается по краям. Повтор имени без учёта регистра возвращает существующую категорию |
 | PATCH /api/v1/categories/{id} | name, version категории. Чужая категория даёт 404, устаревшая версия или занятое имя даёт 409 |
