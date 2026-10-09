@@ -7,3 +7,33 @@
 .reminder-row p { white-space: pre-wrap; overflow-wrap: anywhere; }
 #reminder-remote { white-space: pre-wrap; overflow-wrap: anywhere; }
 #reminder-conflict { margin-top: 16px; }
+
+/* Quick form: chips, custom time, compact rows */
+.reminders-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.reminders-head #reminders-heading { margin: 0; }
+#reminders-panel .reminder-small { padding: 4px 10px; min-height: 32px; font-size: 13px; font-weight: 500; }
+#reminder-form { padding: 16px; background: #fff; }
+#reminder-form label, .reminder-label { display: block; margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: #24352d; }
+.reminder-label { color: #24352d; }
+.reminder-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+#reminders-panel .reminder-chip { min-height: 38px; padding: 6px 14px; border-radius: 999px; border: 1px solid #cad3c7; background: #fff; color: #345943; font-weight: 500; }
+#reminders-panel .reminder-chip[aria-pressed="true"] { background: #345943; border-color: #345943; color: #fff; }
+.reminder-chip:focus-visible, .reminder-link:focus-visible, #reminders-panel .reminder-small:focus-visible { outline: 2px solid #719079; outline-offset: 2px; }
+.reminder-custom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 4px; }
+.reminder-custom input { min-width: 0; }
+#reminder-form .reminder-zone-line { margin: 12px 0 0; }
+.reminder-link { padding: 0; border: 0; background: none; color: #345943; font-size: 13px; font-weight: 600; text-decoration: underline; }
+#reminder-target-wrap select, #reminder-zone-edit input { width: 100%; }
+#reminder-form #reminder-preview:not(:empty) { margin: 16px 0 0; color: #24352d; }
+.reminder-row { margin-top: 8px; padding: 12px 14px; }
+.reminder-row.is-cancelled { opacity: .65; }
+.reminder-row p { margin: 4px 0 0; }
+.reminder-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.reminder-when { font-size: 15px; color: #24352d; }
+.reminder-status { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eaf0e6; color: #345943; }
+.reminder-what { color: #24352d; }
+.reminder-actions { display: flex; gap: 6px; margin-top: 8px; }
+@media (max-width: 480px) {
+  .reminder-custom { grid-template-columns: 1fr; }
+  #reminders-panel .reminder-chip { flex: 1 1 auto; }
+}
