@@ -25,6 +25,7 @@ from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
 from app.routes.admin import build_router as admin_router
 from app.routes.audio import build_router as audio_router
+from app.routes.feedback import build_router as feedback_router
 from app.routes.internal import build_router as internal_router
 from app.routes.reminders import build_router as reminders_router
 from app.routes.structure import build_router as structure_router
@@ -253,6 +254,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
             yield db
 
     app.include_router(account_router(database))
+    app.include_router(feedback_router(database))
     app.include_router(admin_router(database, STATIC, settings))
     app.include_router(internal_router(database, settings))
     app.include_router(structure_router(database))

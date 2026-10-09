@@ -72,6 +72,7 @@ async function loadNotes(reset = true) {
   if (!list.length && notesOffset === 0) $('notes').append(element('p','Записей не найдено.'));
   for (const note of list) {
     const button = element('button', note.title);
+    button.dataset.noteId = note.id;
     button.onclick = () => openNote(note.id,{userAction:true,search:context}).catch(e => message(e.message));
     $('notes').append(button);
   }

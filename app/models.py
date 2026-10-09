@@ -282,3 +282,7 @@ class ProviderUsage(Base):
     cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
     estimated_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
     occurred_at: Mapped[float] = mapped_column(Float, default=time.time, index=True)
+
+
+# Register the independent feedback table for Alembic metadata.
+from app.feedback_models import Feedback  # noqa: E402, F401
