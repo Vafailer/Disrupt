@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from app.analytics import record_event
 from app.audio_contracts import AUDIO_MEDIA_TYPES, MAX_AUDIO_BYTES, MAX_AUDIO_SECONDS, StoredAudioLike
 from app.integration import IntegrationRejection
+from app.limits import LIMIT_OUTCOME, capture_cost, within_daily_limit
 from app.models import (
     Capture,
     Category,
@@ -17,6 +18,7 @@ from app.models import (
     Job,
     Note,
     Outbox,
+    ProductEvent,
     Reminder,
     Revision,
     TranscriptRevision,
@@ -32,6 +34,14 @@ def lock_account(db, user_id):
     db.execute(update(User).where(User.id == user_id).values(source=User.source))
 
 
+def saved_without_ai(db, capture):
+    """True when an AI request was saved as manual because the daily limit was spent."""
+    return capture.processing_mode == "manual" and db.scalar(select(ProductEvent.id).where(
+        ProductEvent.user_id == capture.user_id, ProductEvent.name == "capture_saved",
+        ProductEvent.operation_id == capture.id, ProductEvent.outcome == LIMIT_OUTCOME,
+    )) is not None
+
+
 def capture_text(db, user_id, text, key, settings, *, processing_mode="ai", channel="web", commit=True):
     # Serialize quota checking for this account before counting queued jobs.
     lock_account(db, user_id)
@@ -42,16 +52,23 @@ def capture_text(db, user_id, text, key, settings, *, processing_mode="ai", chan
             if (
                 capture.input_kind != "text"
                 or capture.original_text != text
-                or capture.processing_mode != processing_mode
+                or (
+                    capture.processing_mode != processing_mode
+                    and not (processing_mode == "ai" and saved_without_ai(db, capture))
+                )
             ):
                 raise HTTPException(409, "Этот Idempotency-Key уже использован для другого текста")
-            if processing_mode == "manual":
+            if capture.processing_mode == "manual":
                 return db.scalar(select(Note).where(Note.capture_id == capture.id))
             return db.scalar(select(Job).where(Job.capture_id == capture.id))
 
     found = existing()
     if found:
         return found
+    # The account lock above serializes this check with every other capture of the same user.
+    limited = processing_mode == "ai" and not within_daily_limit(db, settings, user_id, capture_cost(settings, "text"))
+    if limited:
+        processing_mode = "manual"  # The original is kept; only the AI step is skipped.
     pending = db.scalar(
         select(func.count())
         .select_from(Job)
@@ -87,7 +104,7 @@ def capture_text(db, user_id, text, key, settings, *, processing_mode="ai", chan
         db.flush()
         if processing_mode == "manual":
             save_revision(db, result)
-        record_event(db, user_id, "capture_saved", capture.id, channel)
+        record_event(db, user_id, "capture_saved", capture.id, channel, outcome=LIMIT_OUTCOME if limited else None)
         if commit:
             db.commit()
     except IntegrityError:
@@ -145,25 +162,41 @@ def create_audio_capture(
             or capture.audio_bytes != info.byte_count
             or capture.audio_media_type != info.media_type
             or capture.audio_seconds != info.duration_seconds
-            or capture.processing_mode != "ai"
+            or (capture.processing_mode != "ai" and not saved_without_ai(db, capture))
             or capture.channel != channel
         ):
             raise IntegrationRejection(409, "conflict", "Этот Idempotency-Key уже использован для другой записи")
+        if capture.processing_mode == "manual":
+            return capture
         return db.scalar(select(Job).where(Job.capture_id == capture.id))
-    pending = db.scalar(
-        select(func.count()).select_from(Job).where(Job.user_id == user_id, Job.status.in_(["queued", "running"]))
-    )
-    if pending >= settings.max_pending_per_user:
-        # Temporary queue saturation must not be remembered as a terminal Inbox rejection.
-        raise HTTPException(429, "Слишком много записей ожидают обработки")
+    # The account lock above serializes this check with every other capture of the same user.
+    limited = not within_daily_limit(db, settings, user_id, capture_cost(settings, "audio", info.duration_seconds))
+    if not limited:
+        pending = db.scalar(
+            select(func.count()).select_from(Job).where(Job.user_id == user_id, Job.status.in_(["queued", "running"]))
+        )
+        if pending >= settings.max_pending_per_user:
+            # Temporary queue saturation must not be remembered as a terminal Inbox rejection.
+            raise HTTPException(429, "Слишком много записей ожидают обработки")
     capture = Capture(
         id=capture_id, user_id=user_id, idempotency_key=idempotency_key, channel=channel,
-        input_kind="audio", processing_mode="ai", original_text="", transcript=None,
+        input_kind="audio", processing_mode="manual" if limited else "ai", original_text="", transcript=None,
         audio_key=stored_audio.key, audio_sha256=info.sha256, audio_bytes=info.byte_count,
         audio_seconds=info.duration_seconds, audio_media_type=info.media_type,
     )
     db.add(capture)
     db.flush()
+    if limited:
+        # No AI job. A plain note keeps the recording visible, playable and open to a manual transcript.
+        note = Note(
+            id=new_id(), capture_id=capture_id, user_id=user_id, provider="manual", conclusions=[], version=1,
+            title="Голосовая запись без ИИ", markdown="Запись сохранена без ИИ. Расшифровку можно добавить вручную.",
+        )
+        db.add(note)
+        db.flush()
+        save_revision(db, note)
+        record_event(db, user_id, "capture_saved", capture_id, channel, outcome=LIMIT_OUTCOME)
+        return capture
     job = Job(id=new_id(), capture_id=capture_id, user_id=user_id, provider=settings.provider)
     db.add(job)
     db.flush()
@@ -529,6 +562,16 @@ def search_notes(db, user_id, *, q=None, category_id=None, limit=20, offset=0):
     return db.scalars(
         statement.order_by(Note.updated_at.desc(), Note.id).offset(offset).limit(limit + 1)
     ).all()
+
+
+def saved_audio_view(db, capture):
+    """Web answer for audio saved without AI. Same keys as a job, no job id, plus the flag."""
+    return {
+        "id": None, "capture_id": capture.id, "job_id": None, "status": "saved", "provider": "manual",
+        "error_code": None, "note_id": db.scalar(select(Note.id).where(Note.capture_id == capture.id)),
+        "original_text": capture.original_text, "created_at": capture.created_at, "finished_at": None,
+        "ai_limit_exceeded": True,
+    }
 
 
 def job_view(db, job):
