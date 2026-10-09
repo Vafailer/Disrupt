@@ -81,7 +81,10 @@
     if (currentNote?.id !== lastNote) {lastNote = currentNote?.id; showPanel('');get('workspace').classList.remove('library-open');get('mobile-library-toggle').setAttribute('aria-expanded','false');}
     get('workspace').classList.toggle('has-note',!get('note-card').hidden);
     get('workspace').classList.toggle('has-source',!get('source-card').hidden);
-    get('original-audio-hint').hidden = !(get('original-details').hidden && !get('source-card').hidden);
+    // This observer watches the note card subtree: write the attribute only when it changes,
+    // otherwise every write queues a new mutation and the page spins forever.
+    const audioHint = !(get('original-details').hidden && !get('source-card').hidden);
+    if (get('original-audio-hint').hidden !== audioHint) get('original-audio-hint').hidden = audioHint;
     for (const button of get('notes').querySelectorAll('button')) {
       button.setAttribute('aria-current',String(button.dataset.noteId === currentNote?.id));
     }
