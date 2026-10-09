@@ -17,13 +17,14 @@
   <div id="mode" class="banner">Проверяем состояние приложения…</div>
   <p id="message" role="status" aria-live="polite"></p>
   <main>
+    <p><a href="https://t.me/+kwnF-xaajiA3YmQy" target="_blank" rel="noopener noreferrer">Подписаться на Telegram-канал Beresta</a></p>
     <section id="auth" class="card auth">
       <p class="eyebrow">Береста</p>
       <h1>Записывайте как есть</h1>
       <p>Мы соберём ваши мысли в заметку. Исходный текст останется рядом.</p>
       <form id="auth-form" novalidate>
-        <label for="login">Имя пользователя</label><input id="login" name="username" autocomplete="username" required minlength="3" maxlength="64" pattern="[A-Za-zА-Яа-яЁё0-9_.-]+" placeholder="Например, Марк">
-        <p class="field-hint">От 3 символов. Можно по-русски.</p>
+        <label for="login">Имя пользователя</label><input id="login" name="username" autocomplete="username" required minlength="3" maxlength="64" pattern="[A-Za-z0-9_.\-]+" placeholder="username" aria-describedby="username-hint">
+        <p id="username-hint" class="field-hint">От 3 до 64 символов. Латинские буквы, цифры и символы _ . -</p>
         <label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="128" placeholder="Не менее 10 символов">
         <div class="actions"><button type="submit" value="login">Войти</button><button type="submit" value="register" class="secondary">Создать аккаунт</button></div>
         <p id="auth-message" role="alert" aria-live="assertive" hidden></p>
