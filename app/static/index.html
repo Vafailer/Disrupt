@@ -13,11 +13,20 @@
   <script src="/static/app.js" defer></script>
 </head>
 <body>
-  <header><a href="/" class="brand">Умные заметки<span>Береста</span></a><div id="account" hidden><span id="username"></span><button id="logout" class="quiet">Выйти</button></div></header>
+  <header>
+    <a href="/" class="brand">Умные заметки<span>Береста</span></a>
+    <div class="header-actions">
+      <a class="telegram-channel-link" href="https://t.me/+kwnF-xaajiA3YmQy" target="_blank" rel="noopener noreferrer" aria-label="Наш Telegram, открыть канал в новой вкладке">
+        <svg class="telegram-channel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+        <span>Наш Telegram</span>
+        <svg class="telegram-channel-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m7 17 10-10M7 7h10v10"/></svg>
+      </a>
+      <div id="account" hidden><span id="username"></span><button id="logout" class="quiet">Выйти</button></div>
+    </div>
+  </header>
   <div id="mode" class="banner">Проверяем состояние приложения…</div>
   <p id="message" role="status" aria-live="polite"></p>
   <main>
-    <p><a href="https://t.me/+kwnF-xaajiA3YmQy" target="_blank" rel="noopener noreferrer">Подписаться на Telegram-канал Beresta</a></p>
     <section id="auth" class="card auth">
       <p class="eyebrow">Береста</p>
       <h1>Записывайте как есть</h1>
