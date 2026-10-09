@@ -262,6 +262,7 @@ def test_live_usage_reports_reserved_calls(app, client):
     with TestClient(live_app) as live_client:
         live_client.cookies.update(client.cookies)
         usage = live_client.get("/api/v1/provider/usage").json()
+        daily = {key: usage.pop(key) for key in list(usage) if key.startswith(("daily_", "limit_"))}
         assert usage == {
             "provider": "cloudru",
             "simulation": False,
@@ -272,7 +273,11 @@ def test_live_usage_reports_reserved_calls(app, client):
             "user_used": 0,
             "user_limit": 3,
             "user_remaining": 3,
+            "text_unit_cost": 1,
+            "audio_unit_base": 2,
+            "audio_unit_per_minute": 1,
         }
+        assert daily["daily_unit_limit"] == 30 and daily["daily_units_remaining"] == 30
 
 
 def test_mock_worker_does_not_consume_cloud_queue(app, client):

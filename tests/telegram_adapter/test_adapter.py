@@ -84,6 +84,23 @@ def test_save_preserves_original_and_deduplicates_across_restart(settings):
     asyncio.run(scenario())
 
 
+def test_daily_limit_reply_says_saved_without_ai(settings):
+    async def scenario():
+        limited = {**SAVED, "ai_limit_exceeded": True}
+        bot, c, t, calls, replies, _ = await session(
+            settings, [message(10), message(11)],
+            lambda request: httpx.Response(200, json=limited if json.loads(request.content)["update_id"] == 10 else SAVED),
+        )
+        async with c, t:
+            await bot.poll_once()
+            assert replies[0]["text"] == (
+                "Лимит ИИ на сегодня исчерпан. Запись сохранена без ИИ, разобрать её можно завтра."
+            )
+            assert replies[1]["text"] == "Запись сохранена. Результат и статус обработки доступны в Beresta."
+
+    asyncio.run(scenario())
+
+
 def test_outage_does_not_acknowledge_or_skip_later_updates(settings):
     async def scenario():
         def outage(request):

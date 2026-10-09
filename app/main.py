@@ -19,6 +19,7 @@ from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
 from app.integration import IntegrationRejection
+from app.limits import daily_state
 from app.models import Job, LoginSession, Note, ProviderBudget, Revision, User
 from app.providers import DEMO_TEXT
 from app.routes.account import build_router as account_router
@@ -341,8 +342,9 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     def provider_usage(request: Request, db=Depends(database)):
         session = get_login_session(request, db)
         user = db.get(User, session.user_id)
+        daily = daily_state(db, settings, user.id)
         if settings.provider == "mock":
-            return {"provider": "mock", "simulation": True}
+            return {"provider": "mock", "simulation": True, **daily}
         budget = db.get(ProviderBudget, "cloudru")
         used = budget.reserved_calls if budget else 0
         return {
@@ -355,6 +357,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
             "user_used": user.live_calls,
             "user_limit": settings.live_user_call_limit,
             "user_remaining": max(0, settings.live_user_call_limit - user.live_calls),
+            **daily,
         }
 
     @app.post("/api/v1/auth/logout", status_code=204)
@@ -378,7 +381,10 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
             db, session.user_id, body.text, idempotency_key, settings, processing_mode=body.processing_mode,
         )
         if isinstance(result, Note):
-            return {"capture_id": result.capture_id, "job_id": None, "status": "saved", "note_id": result.id}
+            saved = {"capture_id": result.capture_id, "job_id": None, "status": "saved", "note_id": result.id}
+            if body.processing_mode == "ai":
+                saved["ai_limit_exceeded"] = True  # An AI request that ended as a note: daily limit spent.
+            return saved
         return job_view(db, result)
 
     @app.get("/api/v1/captures/{capture_id}", response_model=CaptureResponse)

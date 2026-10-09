@@ -211,12 +211,15 @@ def build_router(database, settings):
                 commit=False,
             )
             # A stable capture link works before the asynchronous note exists.
-            return {
+            saved = {
                 "capture_id": result.capture_id,
                 "job_id": None if isinstance(result, Note) else result.id,
                 "status": "saved",
                 "note_url": settings.public_origin + "/?capture=" + result.capture_id,
             }
+            if isinstance(result, Note) and body.processing_mode == "ai":
+                saved["ai_limit_exceeded"] = True  # Daily AI limit spent, saved without AI.
+            return saved
 
         return process_update(db, body, "text", handle)
 

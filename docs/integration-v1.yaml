@@ -6221,6 +6221,11 @@
           "note_url": {
             "type": "string",
             "title": "Note Url"
+          },
+          "ai_limit_exceeded": {
+            "type": "boolean",
+            "title": "Ai Limit Exceeded",
+            "default": false
           }
         },
         "additionalProperties": false,

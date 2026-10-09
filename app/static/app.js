@@ -57,6 +57,7 @@ function showUser(user) {
   csrf = user.csrf_token; $('username').textContent = user.username;
   $('auth').hidden = true; $('account').hidden = false; $('workspace').hidden = false;
 }
+const LIMIT_SPENT = 'Лимит ИИ на сегодня исчерпан. Запись сохранена без ИИ, разобрать её можно завтра.';
 async function loadProviderUsage() {
   const usage = await api('/api/v1/provider/usage');
   if (usage.simulation) return;
@@ -322,9 +323,10 @@ $('capture-form').onsubmit = async event => {
   try {
     const job = await api('/api/v1/captures/text',{method:'POST',headers:{'Idempotency-Key':pendingCapture.key},body:JSON.stringify({text,processing_mode})});
     message('Запись сохранена.');
-    if (processing_mode === 'manual') {
+    if (processing_mode === 'manual' || job.ai_limit_exceeded) {
       $('thought').value = ''; pendingCapture = null;
       await loadNotes(); await openNote(job.note_id);
+      if (job.ai_limit_exceeded) message(LIMIT_SPENT);
     } else {
       // The POST acknowledgement confirms storage; a later poll must never clear a new draft.
       $('thought').value = ''; pendingCapture = null; savedJob = job;
@@ -555,8 +557,12 @@ $('audio-form').onsubmit = async event => {
     message('Аудио сохранено.');
     // A successful response confirms durable storage even if polling later loses the network.
     clearAudio();
-    savedJob = job;
-    $('job-status').textContent = 'Аудио сохранено. Статус обработки появится в последних записях.';
+    if (job.ai_limit_exceeded) {
+      message(LIMIT_SPENT); $('job-status').textContent = ''; await loadNotes();
+    } else {
+      savedJob = job;
+      $('job-status').textContent = 'Аудио сохранено. Статус обработки появится в последних записях.';
+    }
   } catch(e) {
     message(selectedAudio ? `${e.message}. Файл остался выбранным. Можно повторить загрузку.` : e.message);
   } finally { setCaptureBusy(false); }

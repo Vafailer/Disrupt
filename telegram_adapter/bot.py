@@ -111,9 +111,12 @@ class Bot:
                 )
                 return
             url = self.core.validate_saved(result)
-            await self.notify(
-                chat_id, "Запись сохранена. Результат и статус обработки доступны в Beresta.", url
+            saved = (
+                "Лимит ИИ на сегодня исчерпан. Запись сохранена без ИИ, разобрать её можно завтра."
+                if result.get("ai_limit_exceeded") is True
+                else "Запись сохранена. Результат и статус обработки доступны в Beresta."
             )
+            await self.notify(chat_id, saved, url)
         except Rejected as error:
             await self.notify(chat_id, REJECTIONS[str(error)], self.settings.web_url)
 

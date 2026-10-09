@@ -350,6 +350,7 @@ class TelegramCaptureResponse(StrictModel):
     job_id: str | None
     status: Literal["saved"]
     note_url: str
+    ai_limit_exceeded: bool = False
 
 
 class IntegrationErrorDetail(StrictModel):
