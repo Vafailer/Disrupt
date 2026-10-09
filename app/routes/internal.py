@@ -21,7 +21,7 @@ from app.contracts import (
 )
 from app.deliveries import authorize_delivery, claim_deliveries, record_delivery_result
 from app.integration import IntegrationRejection
-from app.models import Inbox, Item, LinkRequest, Note, Outbox, Reminder, TelegramIdentity, new_id
+from app.models import Inbox, Item, LinkRequest, Note, Outbox, Reminder, TelegramIdentity, User, new_id
 from app.schemas import (
     IntegrationError,
     LinkResponse,
@@ -196,6 +196,20 @@ def build_router(database, settings):
 
         return process_update(db, body, "link", handle)
 
+    # Not in the published OpenAPI contract: a small status poll for the adapter's welcome message.
+    @router.get("/telegram/link-requests/{link_request_id}", include_in_schema=False)
+    def link_request_status(link_request_id: str, telegram_user_id: int, db=Depends(database)):
+        link = db.scalar(select(LinkRequest).where(LinkRequest.id == link_request_id))
+        if link is None or link.telegram_user_id != telegram_user_id:
+            raise HTTPException(404, "Запрос не найден")
+        status = link.status
+        if status in {"issued", "pending"} and link.expires_at <= time.time():
+            status = "expired"
+        username = None
+        if status == "confirmed":
+            username = db.scalar(select(User.username).where(User.id == link.user_id))
+        return {"status": status, "username": username}
+
     @router.post("/telegram/updates", response_model=TelegramCaptureResponse)
     def telegram_text(body: TelegramText, db=Depends(database)):
         def handle(operation_id):
@@ -214,12 +228,15 @@ def build_router(database, settings):
                 db.add(Outbox(job_id=result.id, user_id=identity.user_id, bot_id=identity.bot_id,
                               chat_id=identity.chat_id, generation=1, status="pending"))
             # A stable capture link works before the asynchronous note exists.
-            return {
+            saved = {
                 "capture_id": result.capture_id,
                 "job_id": None if isinstance(result, Note) else result.id,
                 "status": "saved",
                 "note_url": settings.public_origin + "/?capture=" + result.capture_id,
             }
+            if isinstance(result, Note) and body.processing_mode == "ai":
+                saved["ai_limit_exceeded"] = True  # Daily AI limit spent, saved without AI.
+            return saved
 
         return process_update(db, body, "text", handle)
 

@@ -89,7 +89,7 @@
   }
   function refreshTelegramFromDialog() {
     const text = get('telegram-links').textContent;
-    if (/Связан Telegram ID/.test(text) && !telegramLinked) { telegramLinked = true; if (panel) renderSteps(); }
+    if (/Telegram подключён|Связан Telegram ID/.test(text) && !telegramLinked) { telegramLinked = true; if (panel) renderSteps(); }
   }
   new MutationObserver(refreshLibrary).observe(get('notes'), {childList: true});
   new MutationObserver(() => { if (panel) renderSteps(); }).observe(get('jobs'), {childList: true});

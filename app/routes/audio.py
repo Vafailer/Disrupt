@@ -17,7 +17,7 @@ from app.models import Capture, Job, Outbox, new_id
 from app.routes.internal import process_update, telegram_identity
 from app.schemas import TelegramOperation
 from app.security import get_login_session, require_internal_service
-from app.services import job_view, lock_account
+from app.services import job_view, lock_account, saved_audio_view, saved_without_ai
 
 
 class VoiceUpdate(TelegramOperation):
@@ -81,12 +81,18 @@ def build_router(database, settings, storage, create_audio_capture):
             def handle(operation_id):
                 identity = telegram_identity(db, body)
                 job = create(db, identity.user_id, "telegram:" + operation_id, staged, "telegram")
-                db.add(Outbox(job_id=job.id, user_id=identity.user_id, bot_id=identity.bot_id,
-                              chat_id=identity.chat_id, generation=1, status="pending"))
-                return {
-                    "capture_id": job.capture_id, "job_id": job.id, "status": "saved",
-                    "note_url": settings.public_origin + "/?capture=" + job.capture_id,
+                if isinstance(job, Job):
+                    # Durable Telegram reply with the text result, only when AI processing was queued.
+                    db.add(Outbox(job_id=job.id, user_id=identity.user_id, bot_id=identity.bot_id,
+                                  chat_id=identity.chat_id, generation=1, status="pending"))
+                saved = {
+                    "capture_id": job.capture_id if isinstance(job, Job) else job.id,
+                    "job_id": job.id if isinstance(job, Job) else None, "status": "saved",
                 }
+                saved["note_url"] = settings.public_origin + "/?capture=" + saved["capture_id"]
+                if isinstance(job, Capture):
+                    saved["ai_limit_exceeded"] = True  # Daily AI limit spent, the recording is kept without AI.
+                return saved
 
             return process_update(db, body, "voice", handle)
 
@@ -108,17 +114,20 @@ def build_router(database, settings, storage, create_audio_capture):
             existing = db.scalar(select(Capture).where(Capture.user_id == user_id, Capture.idempotency_key == key))
             if existing:
                 if (
-                    existing.input_kind != "audio" or existing.processing_mode != "ai"
-                    or existing.channel != "web" or existing.audio_sha256 != staged.sha256
+                    existing.input_kind != "audio" or existing.channel != "web"
+                    or (existing.processing_mode != "ai" and not saved_without_ai(db, existing))
+                    or existing.audio_sha256 != staged.sha256
                 ):
                     raise HTTPException(409, "Этот ключ уже использован для другой записи")
-                job = db.scalar(select(Job).where(Job.capture_id == existing.id))
+                job = db.scalar(select(Job).where(Job.capture_id == existing.id)) or (
+                    existing if existing.processing_mode == "manual" else None
+                )
                 if job is None:
                     raise HTTPException(503, "Задание временно недоступно")
             else:
                 job = create(db, user_id, key, staged, "web")
             db.commit()
-            return job_view(db, job)
+            return job_view(db, job) if isinstance(job, Job) else saved_audio_view(db, job)
 
     @router.post("/api/v1/captures/audio", status_code=202)
     async def web_audio(request: Request, db=Depends(database)):
