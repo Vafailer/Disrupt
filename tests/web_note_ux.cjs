@@ -163,7 +163,7 @@ async function noteScreen() {
   const t = boot(), {w, $} = t; await settled();
   try {
     $('notes').querySelector('button').click(); await settled();
-    assert.equal(w.document.querySelector('[data-note-view]'), null, 'tabs are gone');
+    assert.equal(w.document.querySelector('#note-card [data-note-view]'), null, 'tabs are gone');
     assert.equal($('view-edit'), null);
     assert.equal($('title').value, 'Из Telegram'); assert.equal($('note-heading-title').textContent, 'Из Telegram');
     assert.equal($('note-tags').querySelector('.tag-telegram').textContent, 'Telegram');

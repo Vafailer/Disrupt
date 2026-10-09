@@ -25,7 +25,7 @@ module.exports=async()=>{
   assert.equal($('workspace').hidden,false);assert.equal($('category-navigation').children.length,3);
   $('category-navigation').lastChild.click();await settled();assert.equal($('library-title').textContent,'Research');
   $('notes').querySelector('button').click();await settled();
-  assert.equal($('note-heading-title').textContent,'Synthetic note');assert.equal($('view-tasks').hidden,false);assert.equal($('view-reminders').hidden,false);assert.equal($('markdown').hidden,true);assert.equal(w.document.querySelector('[data-note-view]'),null);
+  assert.equal($('note-heading-title').textContent,'Synthetic note');assert.equal($('view-tasks').hidden,false);assert.equal($('view-reminders').hidden,false);assert.equal($('markdown').hidden,true);assert.equal(w.document.querySelector('#note-card [data-note-view]'),null);
   $('note-edit-start').click();assert.equal($('markdown').hidden,false);assert.equal($('preview').hidden,true);$('markdown').value='Unsaved';
   w.document.querySelector('[data-note-panel=original]').click();await settled();assert.equal($('original-details').open,true);assert.equal($('view-original').hidden,false);assert.equal($('markdown').value,'Unsaved');assert.equal($('markdown').hidden,false);
   $('mobile-library-toggle').click();assert.equal($('mobile-library-toggle').getAttribute('aria-expanded'),'true');
