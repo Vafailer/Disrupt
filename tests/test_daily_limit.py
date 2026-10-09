@@ -15,7 +15,7 @@ from sqlalchemy.engine import make_url
 
 from app.audio_storage import AudioStorage
 from app.config import Settings
-from app.limits import capture_cost, daily_state, day_window, units_used, within_daily_limit
+from app.limits import capture_cost, daily_state, day_window, telegram_state, units_used, within_daily_limit
 from app.main import create_app
 from app.models import Capture, Job, Note, ProviderBudget, User
 from app.providers import MockProvider
@@ -233,6 +233,22 @@ def test_daily_room_does_not_lift_the_user_cap(app_factory):
         assert states == {"succeeded", "failed"}
 
 
+def test_limit_state_helper_matches_daily_state(app_factory):
+    app = app_factory(daily_unit_limit=5)
+    with TestClient(app) as client:
+        register(client)
+        text_post(client, "a")
+    with app.state.sessions() as db:
+        user_id = db.scalar(select(User.id))
+        settings = app.state.settings
+        state = telegram_state(db, settings, user_id)
+        assert state["ai_units_remaining"] == 4
+        assert state["ai_limit_resets_at"] == daily_state(db, settings, user_id)["limit_resets_at"]
+    off = app_factory(daily_unit_limit=0)
+    with off.state.sessions() as db:
+        assert telegram_state(db, off.state.settings, "any") == {"ai_units_remaining": None, "ai_limit_resets_at": None}
+
+
 @pytest.fixture
 def limited_audio(app_factory, tmp_path):
     def make(**changes):
@@ -284,6 +300,46 @@ def test_telegram_text_over_limit_is_saved_without_ai(limited_audio):
     with app.state.sessions() as db:
         saved = db.scalar(select(Capture).where(Capture.id == limited.json()["capture_id"]))
         assert (saved.processing_mode, saved.original_text) == ("manual", "Второй текст")
+
+
+def test_telegram_text_reports_units_left_and_reset(limited_audio):
+    app = limited_audio(daily_unit_limit=2)
+    with TestClient(app) as client:
+        linked(client)
+        first = message(client, update_id=2).json()
+        assert first["ai_units_remaining"] == 1
+        reset = datetime.fromisoformat(first["ai_limit_resets_at"])
+        assert (reset.hour, reset.minute) == (0, 0) and reset > datetime.now(MOSCOW)
+        message(client, update_id=3, text="Второй")
+        limited = message(client, update_id=4, text="Третий").json()
+        assert limited["ai_limit_exceeded"] is True and limited["ai_units_remaining"] == 0
+        assert limited["ai_limit_resets_at"] == first["ai_limit_resets_at"]
+        manual = message(client, update_id=5, text="Ручной", mode="manual").json()
+        assert manual["ai_units_remaining"] == 0
+
+
+def test_telegram_text_keys_are_null_when_limit_is_off(limited_audio):
+    app = limited_audio(daily_unit_limit=0)
+    with TestClient(app) as client:
+        linked(client)
+        body = message(client, update_id=2).json()
+    assert body["ai_units_remaining"] is None and body["ai_limit_resets_at"] is None
+
+
+def test_telegram_voice_reports_units_left_and_reset(limited_audio):
+    app = limited_audio(daily_unit_limit=5)
+    with TestClient(app) as client:
+        linked(client)
+        first = telegram(client, wav(0.1), update=2).json()  # 2 units
+        assert first["ai_units_remaining"] == 3 and first["ai_limit_resets_at"]
+        telegram(client, wav(0.2), update=3)  # 2 units
+        limited = telegram(client, wav(0.3), update=4).json()  # 2 units, does not fit
+        assert limited["ai_limit_exceeded"] is True and limited["ai_units_remaining"] == 1
+    off = limited_audio(daily_unit_limit=0)
+    with TestClient(off) as client:
+        linked(client)
+        body = telegram(client, wav(0.1), update=2).json()
+    assert body["ai_units_remaining"] is None and body["ai_limit_resets_at"] is None
 
 
 def test_telegram_voice_over_limit_is_saved_without_ai(limited_audio):

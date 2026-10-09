@@ -21,6 +21,7 @@ from app.contracts import (
 )
 from app.deliveries import authorize_delivery, claim_deliveries, record_delivery_result
 from app.integration import IntegrationRejection
+from app.limits import telegram_state
 from app.models import Inbox, Item, LinkRequest, Note, Outbox, Reminder, TelegramIdentity, User, new_id
 from app.schemas import (
     IntegrationError,
@@ -236,7 +237,8 @@ def build_router(database, settings):
             }
             if isinstance(result, Note) and body.processing_mode == "ai":
                 saved["ai_limit_exceeded"] = True  # Daily AI limit spent, saved without AI.
-            return saved
+            db.flush()  # The stored capture counts in the remaining units.
+            return {**saved, **telegram_state(db, settings, identity.user_id)}
 
         return process_update(db, body, "text", handle)
 

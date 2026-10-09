@@ -354,6 +354,8 @@ class TelegramCaptureResponse(StrictModel):
     status: Literal["saved"]
     note_url: str
     ai_limit_exceeded: bool = False
+    ai_units_remaining: int | None = None
+    ai_limit_resets_at: str | None = None
 
 
 class IntegrationErrorDetail(StrictModel):
