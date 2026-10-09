@@ -1,0 +1,7 @@
+# Deployment-only build from a verified local runtime. Dependencies must match exactly.
+ARG BERESTA_RUNTIME_BASE
+FROM ${BERESTA_RUNTIME_BASE}
+COPY --chown=notes:notes app /app/app
+COPY --chown=notes:notes migrations /app/migrations
+COPY --chown=notes:notes alembic.ini /app/alembic.ini
+USER notes

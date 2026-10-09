@@ -24,16 +24,17 @@ def ready_note(app, client):
     return client.get("/api/v1/notes/" + job["note_id"]).json()
 
 
-def test_cyrillic_username_can_register_and_log_in(client):
-    account = register(client, "Марк")
-    assert account["username"] == "марк"
+@pytest.mark.parametrize("name", ["Ab3", "User.Name_123-X", "A" * 64])
+def test_ascii_username_can_register_and_log_in(client, name):
+    account = register(client, name)
+    assert account["username"] == name.lower()
     assert client.post("/api/v1/auth/logout").status_code == 204
     response = client.post(
         "/api/v1/auth/login",
-        json={"username": "МАРК", "password": "test-only-password-123"},
+        json={"username": name.swapcase(), "password": "test-only-password-123"},
     )
     assert response.status_code == 200
-    assert response.json()["username"] == "марк"
+    assert response.json()["username"] == name.lower()
 
 
 def test_full_note_lifecycle_and_restart(app, client, app_factory):

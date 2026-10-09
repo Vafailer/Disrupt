@@ -1,0 +1,10 @@
+[Unit]
+Description=Coordinated encrypted Beresta backup
+After=docker.service wg-quick@beresta.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beresta-backup
+UMask=0077
+TimeoutStartSec=3600

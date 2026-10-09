@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+cd /opt/beresta/current
+# The owner removes the maintenance overlay only after DNS and HTTPS are ready.
+if [ ! -f /etc/beresta/domain-ready ]; then
+    exec docker compose --env-file .env.production -p beresta-pilot -f compose.production.yaml -f deploy/compose.core-private.yaml -f deploy/compose.limits.yaml -f deploy/compose.pre-domain.yaml "$@"
+fi
+exec docker compose --env-file .env.production -p beresta-pilot -f compose.production.yaml -f deploy/compose.core-private.yaml -f deploy/compose.limits.yaml "$@"

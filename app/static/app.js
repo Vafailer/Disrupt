@@ -16,6 +16,7 @@ const errors = {
   provider_bad_request:'Cloud.ru отклонил запрос. Проверьте выбранную модель.',
   provider_auth:'Нет доступа к модели. Проверьте настройки сервера.',
   provider_model_not_found:'Модель не найдена. Проверьте её название и доступ команды.',
+  provider_invalid_response:'ИИ ответил, но формат результата не удалось принять. Исходник сохранён.',
   provider_rate_limit:'Cloud.ru ограничил запросы. Повтора не было.',
   provider_unavailable:'Cloud.ru сейчас недоступен. Запись сохранена, повтора не было.',
   provider_conflict:'Cloud.ru отклонил запрос. Повтора не было.',
@@ -60,6 +61,12 @@ async function loadProviderUsage() {
   const usage = await api('/api/v1/provider/usage');
   if (usage.simulation) return;
   $('mode').textContent = `Cloud.ru · ${usage.model} · обращений в приложении ${usage.global_used}/${usage.global_limit}`;
+  const exhausted = usage.global_remaining === 0 || usage.user_remaining === 0;
+  $('processing-mode').querySelector('option[value="ai"]').disabled = exhausted;
+  if (exhausted) {
+    $('processing-mode').value = 'manual';
+    $('mode').textContent += ' · Лимит ИИ исчерпан. Сохранение без ИИ доступно.';
+  }
 }
 async function loadNotes(reset = true) {
   if (reset) { notesGeneration++; notesOffset = 0; $('notes').replaceChildren(); }
@@ -169,7 +176,7 @@ function renderNote(note) {
     block.append(actions); $('conclusions').append(block);
   }
 }
-async function openNote(id, {userAction = false, search = null, reminder = null} = {}) {
+async function openNote(id, {userAction = false, search = null, reminder = null, backgroundDraft} = {}) {
   if (noteBusy) return message('Дождитесь сохранения.');
   if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
   if (hasDrafts() && !confirm('Есть несохранённые правки. Открыть другую заметку?')) return;
@@ -180,6 +187,7 @@ async function openNote(id, {userAction = false, search = null, reminder = null}
     await loadCategories();
     const note = await api(`/api/v1/notes/${id}`);
     if (currentEpoch !== epoch || generation !== viewGeneration) return;
+    if (backgroundDraft !== undefined && !jobDraftUnchanged(backgroundDraft)) return;
     renderNote(note); setNoteBusy(true); message();
     if (userAction) await api(`/api/v1/notes/${id}/opened`,{
       method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID(),search_operation_id:search,reminder_id:reminder}),
@@ -203,39 +211,64 @@ async function loadJobs() {
   }
   return jobs;
 }
-async function pollJob(id, currentEpoch, {kind = 'text', generation = viewGeneration} = {}) {
-  for (let i=0; i<120 && currentEpoch===epoch; i++) {
+function jobDraftUnchanged(draft) {
+  return !captureBusy && !recorder && !microphonePending &&
+    !selectedAudio && !hasDrafts() && $('thought').value === draft;
+}
+function canShowJobResult(generation, draft) {
+  return generation === viewGeneration && !noteBusy && jobDraftUnchanged(draft);
+}
+function watchSavedJob(job, generation, kind = 'text', draft = '') {
+  const currentEpoch = epoch;
+  (async () => {
+    await loadJobs();
+    await pollJob(job.id, currentEpoch, {kind,generation,draft});
+  })().catch(error => {
+    if (currentEpoch === epoch && generation === viewGeneration) {
+      message(`Исходник сохранён. Не удалось обновить статус: ${error.message}. Посмотрите последние записи.`);
+    }
+  });
+}
+async function pollJob(id, currentEpoch, {kind = 'text', generation = viewGeneration, draft = $('thought').value} = {}) {
+  let lastStatus = 'queued';
+  for (let i=0; i<120 && currentEpoch===epoch && generation===viewGeneration; i++) {
     const job = await api(`/api/v1/jobs/${id}`);
-    if (currentEpoch!==epoch) return;
-    $('job-status').textContent = statusLabels[job.status];
+    if (currentEpoch!==epoch || generation!==viewGeneration) return;
+    lastStatus = job.status;
+    $('job-status').textContent = job.status === 'queued'
+      ? 'В очереди. Исходник сохранён. Можно продолжить работу.' : statusLabels[job.status];
     if (job.status === 'succeeded') {
-      if (kind === 'text') { $('thought').value = ''; pendingCapture = null; }
-      else clearAudio();
-      await loadNotes(); await loadJobs();
-      if (generation === viewGeneration) await openNote(job.note_id);
+      await loadNotes(); await loadJobs(); await loadProviderUsage();
+      if (currentEpoch!==epoch || generation!==viewGeneration) return;
+      if (canShowJobResult(generation,draft)) await openNote(job.note_id,{backgroundDraft:draft});
       else message('Запись обработана. Она доступна в списке заметок.');
       return;
     }
     if (job.status === 'failed') {
-      if (kind === 'text') pendingCapture = null;
-      else {
-        clearAudio();
-        if (generation === viewGeneration) await openCapture(job.capture_id);
-      }
       await loadJobs(); await loadProviderUsage();
-      throw new Error(errors[job.error_code] || `Не удалось обработать запись. Она сохранена. Код: ${job.error_code}.`);
+      if (currentEpoch!==epoch || generation!==viewGeneration) return;
+      const error = errors[job.error_code] || `Не удалось обработать запись. Она сохранена. Код: ${job.error_code}.`;
+      if (kind === 'audio' && canShowJobResult(generation,draft)) {
+        await openCapture(job.capture_id,{backgroundDraft:draft});
+        if (currentEpoch===epoch && currentCapture?.capture_id===job.capture_id) message(error);
+      } else message(error);
+      return;
     }
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
-  if (currentEpoch===epoch) message('Запись сохранена. Обработка ещё идёт.');
+  if (currentEpoch===epoch && generation===viewGeneration) {
+    message(lastStatus === 'queued'
+      ? 'Исходник сохранён. Задание пока в очереди. Статус доступен в последних записях.'
+      : 'Исходник сохранён. Обработка ещё не завершилась. Статус доступен в последних записях.');
+  }
 }
 $('auth-form').onsubmit = async event => {
   event.preventDefault();
-  const username = $('login').value.trim();
+  const username = $('login').value;
   const password = $('password').value;
   const action = event.submitter?.value || 'login';
-  if (!/^[A-Za-zА-Яа-яЁё0-9_.-]{3,64}$/u.test(username)) {
-    authMessage('Имя должно содержать от 3 до 64 символов. Можно по-русски.');
+  if (username.length < 3 || username.length > 64 || /[^A-Za-z0-9_.-]/u.test(username)) {
+    authMessage('От 3 до 64 символов. Латинские буквы, цифры и символы _ . -');
     $('login').focus(); return;
   }
   if ([...password].length < 10 || [...password].length > 128) {
@@ -273,6 +306,8 @@ $('capture-form').onsubmit = async event => {
   if (!pendingCapture || pendingCapture.text !== text || pendingCapture.processing_mode !== processing_mode) {
     pendingCapture = {text,processing_mode,key:crypto.randomUUID()};
   }
+  const generation = ++viewGeneration;
+  let savedJob = null;
   setCaptureBusy(true);
   try {
     const job = await api('/api/v1/captures/text',{method:'POST',headers:{'Idempotency-Key':pendingCapture.key},body:JSON.stringify({text,processing_mode})});
@@ -280,10 +315,15 @@ $('capture-form').onsubmit = async event => {
     if (processing_mode === 'manual') {
       $('thought').value = ''; pendingCapture = null;
       await loadNotes(); await openNote(job.note_id);
-    } else { await loadJobs(); await pollJob(job.id,epoch); }
+    } else {
+      // The POST acknowledgement confirms storage; a later poll must never clear a new draft.
+      $('thought').value = ''; pendingCapture = null; savedJob = job;
+      $('job-status').textContent = 'Исходник сохранён. Статус обработки появится в последних записях.';
+    }
   } catch(e) { message(e.message); } finally {
     setCaptureBusy(false);
   }
+  if (savedJob) watchSavedJob(savedJob,generation);
 };
 $('edit-form').onsubmit = async event => {
   event.preventDefault();
@@ -447,9 +487,9 @@ async function openLinkedCapture() {
   else if (capture.input_kind === 'audio') {
     await openCapture(id);
     if (capture.job && ['queued','running'].includes(capture.job.status)) {
-      await pollJob(capture.job.id,epoch,{kind:'audio'});
+      watchSavedJob(capture.job,viewGeneration,'audio',$('thought').value);
     }
-  } else if (capture.job) await pollJob(capture.job.id, epoch);
+  } else if (capture.job) watchSavedJob(capture.job,viewGeneration,'text',$('thought').value);
 }
 function setAudioControls() {
   const recording = Boolean(recorder || microphonePending);
@@ -497,17 +537,20 @@ $('audio-form').onsubmit = async event => {
   if (!pendingAudio || pendingAudio.file !== selectedAudio) pendingAudio = {file:selectedAudio,key:crypto.randomUUID()};
   const form = new FormData();
   form.append('audio',pendingAudio.file); form.append('processing_mode','ai');
-  const generation = viewGeneration;
+  const generation = ++viewGeneration, draft = $('thought').value;
+  let savedJob = null;
   setCaptureBusy(true); $('job-status').textContent = 'Загружаем аудио…';
   try {
     const job = await api('/api/v1/captures/audio',{method:'POST',headers:{'Idempotency-Key':pendingAudio.key},body:form});
     message('Аудио сохранено.');
     // A successful response confirms durable storage even if polling later loses the network.
     clearAudio();
-    await loadJobs(); await pollJob(job.id,epoch,{kind:'audio',generation});
+    savedJob = job;
+    $('job-status').textContent = 'Аудио сохранено. Статус обработки появится в последних записях.';
   } catch(e) {
     message(selectedAudio ? `${e.message}. Файл остался выбранным. Можно повторить загрузку.` : e.message);
   } finally { setCaptureBusy(false); }
+  if (savedJob) watchSavedJob(savedJob,generation,'audio',draft);
 };
 function recordingMime() {
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') return null;
@@ -598,7 +641,7 @@ function renderSource(capture) {
   } else { $('audio-player').removeAttribute('src'); $('audio-download').removeAttribute('href'); }
   setTranscriptControls();
 }
-async function openCapture(id, {userAction = false} = {}) {
+async function openCapture(id, {userAction = false, backgroundDraft} = {}) {
   if (noteBusy) return message('Дождитесь сохранения.');
   if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
   if (hasDrafts() && !confirm('Есть несохранённые правки. Открыть исходник?')) return;
@@ -607,6 +650,7 @@ async function openCapture(id, {userAction = false} = {}) {
   try {
     const capture = await api(`/api/v1/captures/${encodeURIComponent(id)}`);
     if (generation !== viewGeneration || currentEpoch !== epoch) return;
+    if (backgroundDraft !== undefined && !jobDraftUnchanged(backgroundDraft)) return;
     if (currentNote?.capture_id !== id) { currentNote = null; $('note-card').hidden = true; window.BerestaReminders?.hide(); }
     $('capture-card').hidden = true; renderSource(capture);
     if (userAction) await api(`/api/v1/captures/${encodeURIComponent(id)}/original-opened`,{

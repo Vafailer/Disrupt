@@ -1,0 +1,6 @@
+# Create one stopped container for coordinated backup; never launch this profile.
+services:
+  telegram:
+    restart: "no"
+    environment:
+      BERESTA_BOT_NETWORK_ENABLED: "false"

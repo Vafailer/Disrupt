@@ -6,6 +6,10 @@
 *.key
 credentials*.json
 secrets/
+.local/
+Beresta-recovery/
+*.tar.age
+*.tar.age.part
 
 # Local data
 data/

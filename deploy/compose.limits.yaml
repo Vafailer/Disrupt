@@ -1,0 +1,36 @@
+# Overlay rooted at the repository. Existing volumes are never pruned.
+x-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: 5m
+    max-file: "3"
+services:
+  db:
+    logging: *bounded-logging
+    mem_limit: 1g
+    pids_limit: 256
+  migrate:
+    logging: *bounded-logging
+    mem_limit: 384m
+  api:
+    logging: *bounded-logging
+    mem_limit: 768m
+    pids_limit: 128
+    environment:
+      NOTES_ERROR_LOG_FILE: ""
+  worker:
+    logging: *bounded-logging
+    mem_limit: 512m
+    pids_limit: 128
+    environment:
+      NOTES_ERROR_LOG_FILE: ""
+  scheduler:
+    logging: *bounded-logging
+    mem_limit: 256m
+    pids_limit: 64
+    environment:
+      NOTES_ERROR_LOG_FILE: ""
+  caddy:
+    logging: *bounded-logging
+    mem_limit: 128m
+    pids_limit: 64

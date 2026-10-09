@@ -14,6 +14,7 @@ from app.error_logging import log_error
 from app.models import Capture, Category, Item, Job, Note, ProviderBudget, TranscriptRevision, User, new_id
 from app.providers import ProviderError, make_provider, validate_result
 from app.services import ensure_category, lock_account, save_revision
+from app.speech import CloudRuSpeechProvider, make_speech_provider
 from app.usage import UsageRecorder
 
 
@@ -48,6 +49,12 @@ class Worker:
             raise ProviderError("audio_storage_unavailable")
         if not key or media_type not in AUDIO_MEDIA_TYPES:
             raise ProviderError("audio_invalid")
+        if isinstance(self.speech_provider, CloudRuSpeechProvider):
+            if self.settings.provider != "cloudru" or not self.settings.allow_live_requests:
+                raise ProviderError("stt_not_configured")
+            with self.sessions() as db:
+                # STT and LLM each consume a durable slot before their own dispatch.
+                self.reserve_budget(db, db.get(Job, job_id).user_id)
         try:
             with self.audio_storage.open_original(key) as source:
                 transcript = self.usage.call(
@@ -259,13 +266,25 @@ class Worker:
             self.fail(job_id, "internal_error", exception=exc)
         return True
 
+    def budget_available(self):
+        """Keep queued originals intact when the deployment's total call cap is spent."""
+        if self.settings.provider != "cloudru":
+            return True
+        with self.sessions() as db:
+            budget = db.get(ProviderBudget, "cloudru")
+            return budget is not None and budget.reserved_calls < self.settings.live_call_limit
+
 
 def main():
     settings = Settings.from_env()
     engine, sessions = make_database(settings.database_url)
     try:
-        worker = Worker(sessions, settings, audio_storage=AudioStorage(settings.audio_storage_path, read_only=True))
+        worker = Worker(sessions, settings, audio_storage=AudioStorage(settings.audio_storage_path, read_only=True),
+                        speech_provider=make_speech_provider(settings))
         while True:
+            if not worker.budget_available():
+                time.sleep(1)
+                continue
             if not worker.run_once():
                 time.sleep(0.5)
     except KeyboardInterrupt:

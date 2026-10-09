@@ -1,0 +1,10 @@
+:80 {
+    @internal path /internal /internal/*
+    handle @internal {
+        respond 404
+    }
+    handle {
+        respond "Beresta is being prepared. HTTPS domain is required." 503
+    }
+    header -Server
+}

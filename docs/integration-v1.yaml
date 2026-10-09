@@ -4581,7 +4581,7 @@
             "type": "string",
             "maxLength": 64,
             "minLength": 3,
-            "pattern": "^[A-Za-zА-Яа-яЁё0-9_.-]+$",
+            "pattern": "^[A-Za-z0-9_.-]+$",
             "title": "Username"
           },
           "password": {

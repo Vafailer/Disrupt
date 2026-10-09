@@ -7,7 +7,7 @@ x-backend-environment: &backend-environment
   NOTES_DATABASE_NAME: notes
   NOTES_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
   NOTES_PROVIDER: cloudru
-  NOTES_ALLOW_LIVE_REQUESTS: "true"
+  NOTES_ALLOW_LIVE_REQUESTS: ${NOTES_ALLOW_LIVE_REQUESTS:-false}
   NOTES_CLOUDRU_MODEL: ${NOTES_CLOUDRU_MODEL:-deepseek-v4-flash}
   NOTES_CLOUDRU_BASE_URL: ${NOTES_CLOUDRU_BASE_URL:-https://shared1.multitool.works:4000/v1}
   NOTES_LIVE_CALL_LIMIT: ${NOTES_LIVE_CALL_LIMIT:-100}
@@ -73,10 +73,11 @@ services:
         condition: service_completed_successfully
 
   worker:
+    profiles: [owner-live]
     build: .
     volumes:
       - audio-originals:/app/data/audio:ro
-    restart: unless-stopped
+    restart: "no"
     command: ["python", "-m", "app.worker"]
     environment:
       <<: *backend-environment

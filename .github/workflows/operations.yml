@@ -23,3 +23,9 @@ jobs:
           APP_DOMAIN=example.invalid docker compose -f compose.staging.yaml config --quiet
           APP_DOMAIN=example.invalid CORE_VPN_IP=10.77.0.1 docker compose -f compose.staging.yaml -f deploy/compose.core-private.yaml config --quiet
           CORE_VPN_IP=10.77.0.1 docker compose -f deploy/compose.bot-vps.yaml config --quiet
+          APP_DOMAIN=example.invalid CORE_VPN_IP=10.77.0.1 docker compose -f compose.production.yaml -f deploy/compose.core-private.yaml -f deploy/compose.limits.yaml -f deploy/compose.pre-domain.yaml config --quiet
+          CORE_VPN_IP=10.77.0.1 docker compose -f deploy/compose.bot-vps.yaml -f deploy/compose.bot-prepared.yaml config --quiet
+          for script in deploy/host/*; do
+            case "$script" in *.py|*.service|*.timer|*.conf) continue;; esac
+            sh -n "$script"
+          done

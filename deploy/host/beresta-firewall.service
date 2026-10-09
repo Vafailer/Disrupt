@@ -1,0 +1,12 @@
+[Unit]
+Description=Beresta private Docker API firewall
+After=docker.service wg-quick@beresta.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beresta-firewall
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
