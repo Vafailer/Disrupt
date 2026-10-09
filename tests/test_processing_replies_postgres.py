@@ -33,7 +33,7 @@ def test_postgres_processing_reply_has_one_claim_and_authorization(monkeypatch):
                                channel="telegram", commit=False)
             job.status = "succeeded"
             db.add(Note(capture_id=job.capture_id, user_id=user.id, title="Synthetic",
-                        markdown="Synthetic reply", conclusions=[]))
+                        markdown="Synthetic reply", conclusions=[], provider="mock"))
             db.add(TelegramIdentity(user_id=user.id, bot_id=bot_id, telegram_user_id=chat_id, chat_id=chat_id))
             db.add(Outbox(job_id=job.id, user_id=user.id, bot_id=bot_id, chat_id=chat_id, generation=1))
         def claim():
