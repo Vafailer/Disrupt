@@ -465,32 +465,7 @@ $('original-details').ontoggle = () => {
   if (!$('original-details').open || !currentNote) return;
   api(`/api/v1/notes/${currentNote.id}/original-opened`,{method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID()})}).catch(e => message(e.message));
 };
-async function loadTelegramLinks() {
-  const links = await api('/api/v1/telegram/links'); $('telegram-links').replaceChildren();
-  for (const identity of links.identities) {
-    $('telegram-links').append(element('p', `Связан Telegram ID ${identity.telegram_user_id}, бот ${identity.bot_id}.`));
-  }
-  for (const link of links.pending) {
-    const button = element('button', `Подтвердить мой Telegram ID ${link.telegram_user_id}`, 'secondary');
-    button.onclick = async () => {
-      button.disabled = true;
-      try {
-        await api(`/api/v1/telegram/links/${link.link_request_id}/confirm`, {method:'POST'});
-        $('telegram-code').textContent = ''; await loadTelegramLinks(); message('Telegram связан.');
-      } catch(e) { message(e.message); button.disabled = false; }
-    };
-    $('telegram-links').append(button);
-  }
-  if (!links.pending.length && !links.identities.length) $('telegram-links').append(element('p', 'Запросов пока нет.'));
-}
-$('link-code').onclick = async () => {
-  try {
-    const link = await api('/api/v1/telegram/link-code', {method:'POST'});
-    $('telegram-code').textContent = `/start ${link.code}`;
-    await loadTelegramLinks();
-  } catch(e) { message(e.message); }
-};
-$('refresh-links').onclick = () => loadTelegramLinks().catch(e => message(e.message));
+// Telegram linking lives in telegram-link.js.
 async function openLinkedCapture() {
   const id = new URLSearchParams(location.search).get('capture');
   if (!id) return;

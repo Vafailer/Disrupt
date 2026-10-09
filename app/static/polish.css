@@ -126,6 +126,12 @@ input,select,textarea{border-color:#cdd6c9}
 .category-row button{margin-top:8px;min-height:36px;font-size:13px}
 #telegram-code:not(:empty){margin:14px 0 0;padding:12px 14px;border-radius:10px;background:#eef3e9;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;color:#24372d;overflow-wrap:anywhere;user-select:all}
 #telegram-links p{margin:10px 0 0}
+#telegram-links .telegram-linked{font-weight:600;color:#345943}
+#telegram-open-bot{margin-top:14px}
+#telegram-open-bot p{margin:8px 0 0}
+.button-link{display:inline-block;padding:11px 18px;border-radius:8px;background:#345943;color:#fff;font-size:15px;font-weight:600;text-decoration:none}
+.button-link:hover{filter:brightness(.95)}
+.button-link:focus-visible{outline:2px solid #719079;outline-offset:2px}
 #telegram-links button{margin-top:10px;min-height:40px}
 #link-code{min-height:42px;margin-top:6px}
 #feedback-form select{height:44px}
