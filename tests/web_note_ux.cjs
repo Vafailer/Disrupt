@@ -149,6 +149,17 @@ async function usageHints() {
     try { assert.equal(t.$('ai-limit-counter').hidden, true, String(remaining)); } finally { t.dom.window.close(); }
   }
 
+  // Not enough units for this recording, but some are left: the counter stays and AI is still offered.
+  t = boot({usage: daily(1), capture: {id: 'j1', capture_id: 'k1', status: 'saved', note_id: 'n1', job_id: null, ai_limit_exceeded: true}}); await settled();
+  try {
+    t.$('thought').value = 'Длинная мысль';
+    await t.$('capture-form').onsubmit({preventDefault() {}});
+    await settled();
+    assert.equal(t.$('ai-limit-note').hidden, true);
+    assert.equal(t.$('ai-limit-count').textContent, 'ИИ на сегодня: осталось 1 из 30');
+    assert.equal(ai(t).disabled, false);
+  } finally { t.dom.window.close(); }
+
   t = boot({health: {simulation: true}, usage: {simulation: true}}); await settled();
   try { assert.match(t.$('mode').textContent, /Демо без ИИ/); } finally { t.dom.window.close(); }
 

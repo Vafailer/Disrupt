@@ -129,6 +129,8 @@ async function loadProviderUsage() {
   limitResetsAt = typeof usage.limit_resets_at === 'string' ? usage.limit_resets_at : null;
   // A capture that came back without AI keeps the notice until the day changes.
   if (limitHit && limitHit.resetsAt !== limitResetsAt) limitHit = null;
+  // A long voice note can cost more than what is left. Units that remain stay usable for text.
+  if (limitHit && daily !== null && daily > 0) limitHit = null;
   const appLimit = !usage.simulation && (usage.global_remaining === 0 || usage.user_remaining === 0);
   const spent = daily === 0 || limitHit !== null;
   const exhausted = appLimit || spent;
