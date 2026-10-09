@@ -3820,11 +3820,11 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
                   "enum": [
                     "web",
                     "telegram"
-                  ]
+                  ],
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -3840,11 +3840,11 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
                   "enum": [
                     "text",
                     "audio"
-                  ]
+                  ],
+                  "type": "string"
                 },
                 {
                   "type": "null"
