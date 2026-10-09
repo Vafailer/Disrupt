@@ -25,9 +25,9 @@ module.exports=async()=>{
   assert.equal($('workspace').hidden,false);assert.equal($('category-navigation').children.length,3);
   $('category-navigation').lastChild.click();await settled();assert.equal($('library-title').textContent,'Research');
   $('notes').querySelector('button').click();await settled();
-  assert.equal($('note-heading-title').textContent,'Synthetic note');assert.equal($('view-read').hidden,false);assert.equal($('view-edit').hidden,true);
-  w.document.querySelector('[data-note-view=edit]').click();$('markdown').value='Unsaved';
-  w.document.querySelector('[data-note-view=original]').click();await settled();assert.equal($('original-details').open,true);assert.equal($('markdown').value,'Unsaved');
+  assert.equal($('note-heading-title').textContent,'Synthetic note');assert.equal($('view-tasks').hidden,false);assert.equal($('view-reminders').hidden,false);assert.equal($('markdown').hidden,true);assert.equal(w.document.querySelector('#note-card [data-note-view]'),null);
+  $('note-edit-start').click();assert.equal($('markdown').hidden,false);assert.equal($('preview').hidden,true);$('markdown').value='Unsaved';
+  w.document.querySelector('[data-note-panel=original]').click();await settled();assert.equal($('original-details').open,true);assert.equal($('view-original').hidden,false);assert.equal($('markdown').value,'Unsaved');assert.equal($('markdown').hidden,false);
   $('mobile-library-toggle').click();assert.equal($('mobile-library-toggle').getAttribute('aria-expanded'),'true');
   $('mobile-library-toggle').click();assert.equal($('workspace').classList.contains('library-open'),false);
   $('open-feedback').click();assert.equal($('feedback-dialog').open,true);
@@ -37,6 +37,6 @@ module.exports=async()=>{
   assert.equal(posts[0].headers['Idempotency-Key'],posts[1].headers['Idempotency-Key']);assert.equal(posts[0].headers['X-CSRF-Token'],'csrf');assert.equal($('feedback-description').value,'');
   assert.equal($('markdown').value,'Unsaved');
   $('feedback-description').value='Private draft';$('workspace').hidden=true;await settled();assert.equal($('feedback-description').value,'');assert.equal($('feedback-dialog').open,false);
-  console.log('Workspace checks passed: categories, read/edit/original, preserved drafts, feedback lost-response replay.');
+  console.log('Workspace checks passed: categories, inline edit, original panel, preserved drafts, feedback lost-response replay.');
  }finally{await new Promise(resolve=>w.setTimeout(resolve,10));dom.window.close();}
 };

@@ -292,3 +292,65 @@ def test_static_page_and_health(client):
     assert "default-src 'self'" in client.get("/").headers["content-security-policy"]
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/openapi.json").json()["info"]["version"] == "0.1.0"
+
+
+def make_sources(app, client):
+    texts = {"web": "Обычная запись из браузера", "tg": "Запись из бота Telegram", "voice": "Голос из бота Telegram"}
+    notes = {}
+    for name, text in texts.items():
+        job = submit(client, text, key="source-" + name).json()
+        Worker(app.state.sessions, app.state.settings).run_once()
+        notes[name] = client.get("/api/v1/jobs/" + job["id"]).json()
+    with app.state.sessions() as db:
+        for name, channel, kind in [("tg", "telegram", "text"), ("voice", "telegram", "audio")]:
+            capture = db.get(Capture, notes[name]["capture_id"])
+            capture.channel, capture.input_kind = channel, kind
+        db.commit()
+    return {name: note["note_id"] for name, note in notes.items()}
+
+
+def test_note_list_and_detail_expose_source(app, client):
+    register(client)
+    ids = make_sources(app, client)
+    rows = {row["id"]: row for row in client.get("/api/v1/notes").json()}
+    assert (rows[ids["web"]]["channel"], rows[ids["web"]]["input_kind"]) == ("web", "text")
+    assert (rows[ids["tg"]]["channel"], rows[ids["tg"]]["input_kind"]) == ("telegram", "text")
+    assert (rows[ids["voice"]]["channel"], rows[ids["voice"]]["input_kind"]) == ("telegram", "audio")
+    detail = client.get("/api/v1/notes/" + ids["tg"]).json()
+    assert detail["channel"] == "telegram" and detail["input_kind"] == "text"
+    assert client.get("/api/v1/notes/" + ids["web"]).json()["channel"] == "web"
+
+
+def listed(client, **params):
+    response = client.get("/api/v1/notes", params=params)
+    assert response.status_code == 200, response.text
+    return {row["id"] for row in response.json()}
+
+
+def test_note_list_filters_by_channel_and_kind(app, client):
+    register(client)
+    ids = make_sources(app, client)
+    assert listed(client, channel="telegram") == {ids["tg"], ids["voice"]}
+    assert listed(client, channel="web") == {ids["web"]}
+    assert listed(client, input_kind="audio") == {ids["voice"]}
+    assert listed(client, input_kind="text") == {ids["web"], ids["tg"]}
+    assert listed(client, channel="telegram", input_kind="text") == {ids["tg"]}
+    assert listed(client, channel="web", input_kind="audio") == set()
+    assert listed(client, channel="telegram", q="бота") == {ids["tg"], ids["voice"]}
+    assert listed(client, channel="telegram", q="браузера") == set()
+    assert listed(client, channel="telegram", category_id="none") == {ids["tg"], ids["voice"]}
+
+
+@pytest.mark.parametrize("params", [{"channel": "email"}, {"input_kind": "video"}, {"channel": ""}])
+def test_note_list_rejects_unknown_source(client, params):
+    register(client)
+    assert client.get("/api/v1/notes", params=params).status_code == 422
+
+
+def test_source_filters_keep_owner_isolation(app, client):
+    register(client, "owner")
+    make_sources(app, client)
+    with TestClient(app) as other:
+        register(other, "other")
+        assert other.get("/api/v1/notes", params={"channel": "telegram"}).json() == []
+        assert other.get("/api/v1/notes", params={"input_kind": "audio", "q": "бота"}).json() == []
