@@ -2,7 +2,9 @@
 const $ = id => document.getElementById(id);
 let csrf = '', currentNote = null, epoch = 0, notesOffset = 0, pendingCapture = null;
 let categories = [], searchOperation = null, notesGeneration = 0, noteBusy = false;
-let activeFilter = {q:'',category:''};
+let activeFilter = {q:'',category:'',source:''};
+const sourceQuery = {telegram:{channel:'telegram'},voice:{input_kind:'audio'},text:{input_kind:'text'}};
+const aiLimitMessage = 'Лимит ИИ на сегодня исчерпан. Запись сохранится без ИИ.';
 let currentCapture = null, selectedAudio = null, pendingAudio = null, captureBusy = false, viewGeneration = 0;
 let recorder = null, recordStream = null, recordTimer = null, recordBytes = 0, recordChunks = [], recordInvalid = false, microphonePending = false;
 const audioMaximum = 10 * 1024 * 1024;
@@ -33,6 +35,27 @@ function authMessage(text = '') {
   $('auth-message').textContent = text;
   $('auth-message').hidden = !text;
 }
+const iconPaths = {
+  telegram:'m21 3-6 18-4-8-8-4 18-6Zm-10 10 5-5',
+  mic:'M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM6 11a6 6 0 0 0 12 0M12 17v4',
+};
+function icon(name) {
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns,'svg'), path = document.createElementNS(ns,'path');
+  for (const [key,value] of Object.entries({viewBox:'0 0 24 24',width:'12',height:'12','aria-hidden':'true',focusable:'false'})) svg.setAttribute(key,value);
+  for (const [key,value] of Object.entries({d:iconPaths[name],fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round'})) path.setAttribute(key,value);
+  svg.append(path); return svg;
+}
+// Web notes written as text carry no tag. Only the Telegram channel and voice input are marked.
+function sourceTags(note) {
+  const tags = [];
+  if (note.channel === 'telegram') {
+    const tag = element('span','','tag tag-telegram'); tag.append(icon('telegram'),'Telegram'); tags.push(tag);
+  }
+  if (note.input_kind === 'audio') {
+    const tag = element('span','','tag tag-voice'); tag.append(icon('mic'),'Голос'); tags.push(tag);
+  }
+  return tags;
+}
 function element(tag, text, className) {
   const el = document.createElement(tag); el.textContent = text;
   if (className) el.className = className;
@@ -58,16 +81,21 @@ function showUser(user) {
   $('auth').hidden = true; $('account').hidden = false; $('workspace').hidden = false;
 }
 const LIMIT_SPENT = 'Лимит ИИ на сегодня исчерпан. Запись сохранена без ИИ, разобрать её можно завтра.';
+function setMode(text = '') { $('mode').textContent = text; }
+function showAiLimit(text = '', warn = false) {
+  $('ai-limit-note').textContent = text; $('ai-limit-note').hidden = !text;
+  $('ai-limit-note').classList.toggle('is-warning',warn);
+}
 async function loadProviderUsage() {
   const usage = await api('/api/v1/provider/usage');
-  if (usage.simulation) return;
-  $('mode').textContent = `Cloud.ru · ${usage.model} · обращений в приложении ${usage.global_used}/${usage.global_limit}`;
-  const exhausted = usage.global_remaining === 0 || usage.user_remaining === 0;
+  const daily = typeof usage.daily_units_remaining === 'number' ? usage.daily_units_remaining : null;
+  const appLimit = !usage.simulation && (usage.global_remaining === 0 || usage.user_remaining === 0);
+  const exhausted = appLimit || daily === 0;
+  // The banner stays empty for the real provider. It speaks only for the demo and for limits.
+  if (!usage.simulation) setMode(appLimit ? 'Лимит ИИ исчерпан. Сохранение без ИИ доступно.' : '');
   $('processing-mode').querySelector('option[value="ai"]').disabled = exhausted;
-  if (exhausted) {
-    $('processing-mode').value = 'manual';
-    $('mode').textContent += ' · Лимит ИИ исчерпан. Сохранение без ИИ доступно.';
-  }
+  if (exhausted) $('processing-mode').value = 'manual';
+  showAiLimit(daily === 0 ? aiLimitMessage : daily !== null && daily >= 1 && daily <= 3 ? `Осталось на сегодня: ${daily}` : '',daily === 0);
 }
 async function loadNotes(reset = true) {
   if (reset) { notesGeneration++; notesOffset = 0; $('notes').replaceChildren(); }
@@ -75,12 +103,14 @@ async function loadNotes(reset = true) {
   const query = new URLSearchParams({limit:'20',offset:String(notesOffset)});
   if (activeFilter.q) query.set('q',activeFilter.q);
   if (activeFilter.category) query.set('category_id',activeFilter.category);
+  for (const [key,value] of Object.entries(sourceQuery[activeFilter.source] || {})) query.set(key,value);
   const {data:list,headers} = await api(`/api/v1/notes?${query}`,{},true);
   if (generation !== notesGeneration || currentEpoch !== epoch) return;
   if (!list.length && notesOffset === 0) {
     // data-empty tells onboarding.js a truly empty library from an empty search.
-    const kind = activeFilter.q ? 'search' : activeFilter.category ? 'category' : 'library';
-    const hint = element('p',{search:'Ничего не нашли. Измените запрос или сбросьте поиск.',category:'В этой категории пока нет записей.',library:'Пока пусто. Первая запись появится здесь.'}[kind],'empty-hint');
+    const kind = activeFilter.q || activeFilter.source ? 'search' : activeFilter.category ? 'category' : 'library';
+    const searchText = activeFilter.q ? 'Ничего не нашли. Измените запрос или сбросьте поиск.' : 'С этим фильтром записей нет. Выберите «Все».';
+    const hint = element('p',{search:searchText,category:'В этой категории пока нет записей.',library:'Пока пусто. Первая запись появится здесь.'}[kind],'empty-hint');
     hint.dataset.empty = kind; $('notes').append(hint);
   }
   for (const note of list) {
@@ -90,6 +120,8 @@ async function loadNotes(reset = true) {
     const when = typeof note.updated_at === 'number' ? new Date(note.updated_at*1000).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '';
     const meta = [when, category?.name].filter(Boolean).join(' · ');
     if (meta) button.append(element('span',meta,'note-meta'));
+    const tags = sourceTags(note);
+    if (tags.length) { const row = element('span','','note-tags'); row.append(...tags); button.append(row); }
     button.onclick = () => openNote(note.id,{userAction:true,search:context}).catch(e => message(e.message));
     $('notes').append(button);
   }
@@ -138,6 +170,7 @@ function setNoteBusy(value) {
     busyControls.clear();
     $('confirm-structure').disabled = Boolean(currentNote?.structure_confirmed_at);
     setTranscriptControls();
+    document.dispatchEvent(new CustomEvent('beresta:note-idle'));
   }
   window.BerestaReminders?.setLocked(value);
 }
@@ -154,6 +187,14 @@ async function mutateNote(suffix, method, body, text, except = null) {
   } catch(e) { message(e.message); }
   finally { setNoteBusy(false); }
 }
+function renderNoteMeta(note) {
+  const when = typeof note.updated_at === 'number'
+    ? new Date(note.updated_at*1000).toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'}) : '';
+  $('note-date').textContent = when; $('note-date').hidden = !when;
+  $('note-tags').replaceChildren(...sourceTags(note));
+  $('note-mode').replaceChildren(note.provider === 'manual' ? 'Без ИИ' : note.provider === 'mock' ? 'Демо' : 'Обработано ИИ');
+  if (note.version > 1) $('note-mode').append(' ',element('span',`v${note.version}`,'note-version'));
+}
 function renderNote(note) {
   if (note.input_kind === 'audio') renderSource({...note,note_id:note.id,job:null});
   else { currentCapture = null; hideSource(); }
@@ -168,11 +209,12 @@ function renderNote(note) {
   renderItems(note);
   window.BerestaReminders?.show(note,{request:api,onBusy:setNoteBusy,
     otherDrafts:() => hasDrafts('reminder'),notify:message});
-  $('note-mode').textContent = `Версия ${note.version} · ${note.provider === 'manual' ? 'Без ИИ' : note.provider === 'mock' ? 'Демо' : 'Cloud.ru'}`;
+  renderNoteMeta(note);
   $('history').replaceChildren(); $('conclusions').replaceChildren();
   if (!note.conclusions.length) $('conclusions').append(element('p', note.provider === 'mock'
     ? 'В демо выводы есть только у примера.'
     : 'Для этой записи выводов нет.'));
+  document.dispatchEvent(new CustomEvent('beresta:note-rendered'));
   for (const c of note.conclusions) {
     const block = element('div','', 'conclusion');
     block.append(element('div', conclusionLabels[c.status], 'status'), element('p',c.text), element('p',c.source_quote,'quote'));
@@ -323,10 +365,16 @@ $('capture-form').onsubmit = async event => {
   try {
     const job = await api('/api/v1/captures/text',{method:'POST',headers:{'Idempotency-Key':pendingCapture.key},body:JSON.stringify({text,processing_mode})});
     message('Запись сохранена.');
-    if (processing_mode === 'manual' || job.ai_limit_exceeded) {
+    // The server may save without AI when the daily limit ends. Tell the person, even if the flag shape changes.
+    const downgraded = processing_mode === 'ai' && (job.ai_limit_exceeded === true || job.ai_limit_reached === true || job.processing_mode === 'manual');
+    if (downgraded) {
+      showAiLimit(aiLimitMessage,true); $('processing-mode').value = 'manual';
+      $('processing-mode').querySelector('option[value="ai"]').disabled = true;
+    }
+    if (processing_mode === 'manual' || downgraded) {
       $('thought').value = ''; pendingCapture = null;
       await loadNotes(); await openNote(job.note_id);
-      if (job.ai_limit_exceeded) message(LIMIT_SPENT);
+      if (downgraded) message(LIMIT_SPENT);
     } else {
       // The POST acknowledgement confirms storage; a later poll must never clear a new draft.
       $('thought').value = ''; pendingCapture = null; savedJob = job;
@@ -405,15 +453,26 @@ $('search-form').onsubmit = async event => {
     const operation = crypto.randomUUID();
     await api('/api/v1/search/events',{method:'POST',body:JSON.stringify({operation_id:operation})});
     searchOperation = operation;
-    activeFilter = {q:$('search-query').value.trim(),category:$('category-filter').value};
+    activeFilter = {q:$('search-query').value.trim(),category:$('category-filter').value,source:activeFilter.source};
     await loadNotes(); message();
   } catch(e) { message(e.message); } finally { button.disabled = false; }
 };
 $('clear-search').onclick = () => {
   $('search-query').value = ''; $('category-filter').value = ''; searchOperation = null;
-  activeFilter = {q:'',category:''};
+  activeFilter = {q:'',category:'',source:''}; syncSourceFilter();
   loadNotes().catch(e => message(e.message));
 };
+function syncSourceFilter() {
+  for (const button of $('source-filter').querySelectorAll('button')) {
+    button.setAttribute('aria-pressed',String(button.dataset.source === activeFilter.source));
+  }
+}
+for (const button of $('source-filter').querySelectorAll('button')) {
+  button.onclick = () => {
+    activeFilter = {...activeFilter,source:button.dataset.source}; syncSourceFilter();
+    loadNotes().catch(e => message(e.message));
+  };
+}
 $('note-category').onchange = async () => {
   await mutateNote('/category','PATCH',{category_id:$('note-category').value || null},'Категория записи сохранена.');
   $('note-category').value = currentNote.category_id || '';
@@ -427,29 +486,41 @@ function renderItems(note) {
     kind.id = `kind-${item.id}`;
     for (const [value,label] of Object.entries(itemLabels)) kind.append(new Option(label,value));
     kind.value = item.kind;
-    const kindLabel = element('label','Тип'); kindLabel.htmlFor = kind.id;
+    const kindLabel = element('label','Тип','sr-only'); kindLabel.htmlFor = kind.id;
     const text = document.createElement('textarea'); text.id = `text-${item.id}`;
     text.rows = 2; text.maxLength = 1500; text.required = true; text.value = item.text;
-    const textLabel = element('label','Текст'); textLabel.htmlFor = text.id;
+    const textLabel = element('label','Текст','sr-only'); textLabel.htmlFor = text.id;
     const status = document.createElement('select'); status.id = `status-${item.id}`;
     status.append(new Option('В работе','open'),new Option('Выполнена','completed')); status.value = item.status;
-    const statusLabel = element('label','Статус'); statusLabel.htmlFor = status.id;
+    const statusLabel = element('label','Статус','sr-only'); statusLabel.htmlFor = status.id;
+    // The checkbox is the visible control for a task status. The select stays for the saved value.
+    const done = document.createElement('input'); done.type = 'checkbox'; done.className = 'item-done';
+    done.setAttribute('aria-label','Задача выполнена');
     const updateStatus = () => {
-      status.hidden = statusLabel.hidden = kind.value !== 'task';
+      status.hidden = statusLabel.hidden = true;
       if (kind.value !== 'task') status.value = 'open';
+      done.hidden = kind.value !== 'task'; done.checked = status.value === 'completed';
+      form.classList.toggle('is-done',done.checked && !done.hidden);
     };
     kind.onchange = updateStatus; updateStatus();
-    form.append(kindLabel,kind,textLabel,text,statusLabel,status);
+    done.onchange = () => {
+      status.value = done.checked ? 'completed' : 'open';
+      if (form.requestSubmit) form.requestSubmit();
+      else form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+    };
+    form.append(done,kindLabel,kind,textLabel,text,statusLabel,status);
     if (item.due_text) form.append(element('p',`Срок из записи «${item.due_text}». Время напоминания ещё не подтверждено.`,'muted'));
     if (item.source_quote) {
       const quote = document.createElement('details');
       quote.append(element('summary','Фрагмент исходника'),element('pre',item.source_quote)); form.append(quote);
     }
-    const button = element('button','Сохранить элемент','secondary'); button.type = 'submit'; form.append(button);
+    const actions = element('div','','item-actions');
+    const button = element('button','Сохранить элемент','secondary'); button.type = 'submit'; actions.append(button);
     if (item.kind === 'task' && item.status === 'open') {
       const remind = element('button','Напомнить','quiet'); remind.type = 'button';
-      remind.onclick = () => window.BerestaReminders?.startForTask(item); form.append(remind);
+      remind.onclick = () => window.BerestaReminders?.startForTask(item); actions.append(remind);
     }
+    form.append(actions);
     form.onsubmit = async event => {
       event.preventDefault();
       await mutateNote(`/items/${item.id}`,'PATCH',{kind:kind.value,text:text.value,status:status.value},'Элемент сохранён.',item.id);
@@ -533,7 +604,7 @@ $('audio-form').onsubmit = async event => {
     // A successful response confirms durable storage even if polling later loses the network.
     clearAudio();
     if (job.ai_limit_exceeded) {
-      message(LIMIT_SPENT); $('job-status').textContent = ''; await loadNotes();
+      message(LIMIT_SPENT); showAiLimit(aiLimitMessage,true); $('job-status').textContent = ''; await loadNotes();
     } else {
       savedJob = job;
       $('job-status').textContent = 'Аудио сохранено. Статус обработки появится в последних записях.';
@@ -719,9 +790,8 @@ if (!recordingMime()) $('record-status').textContent = 'В этом браузе
 (async () => {
   try {
     const health = await api('/health');
-    $('mode').textContent = health.simulation
-      ? 'Демо без ИИ. Для примера есть готовый ответ, остальные записи просто размечаются.'
-      : 'Cloud.ru выбран. Подключение проверится после первой готовой заметки.';
+    setMode(health.simulation
+      ? 'Демо без ИИ. Для примера есть готовый ответ, остальные записи просто размечаются.' : '');
     try { showUser(await api('/api/v1/auth/me')); await loadProviderUsage(); await loadCategories(); await loadNotes(); await loadJobs(); await openLinkedCapture(); }
     catch(e) { if (!e.message.includes('Войдите') && !e.message.includes('Сессия')) message(e.message); }
   } catch(e) { $('mode').textContent='Не удалось связаться с приложением.'; message(e.message); }

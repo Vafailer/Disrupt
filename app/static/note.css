@@ -1,0 +1,101 @@
+/* Note screen. Loaded last, so it refines workspace.css and polish.css without editing them.
+   The note reads as one document: title, meta line, text, then tasks and reminders. */
+:root{--note-ink:#1f3328;--note-soft:#5f7265;--note-chip:#eef2e8;--note-chip-line:#d5dfcf}
+
+/* Source filter and tags in the library */
+.source-filter{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.source-filter button{min-height:30px;padding:0 12px;border:1px solid var(--note-chip-line);border-radius:999px;background:#fff;color:#4b6352;font-size:12.5px;font-weight:600}
+.source-filter button[aria-pressed=false]:hover:not(:disabled){background:var(--note-chip)}
+.source-filter button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.tag{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;background:#e6eef0;color:#2f5560;font-size:11.5px;font-weight:600;line-height:1;white-space:nowrap}
+.tag svg{width:12px;height:12px;flex:none}
+.tag-voice{background:#f1ece0;color:#6b5a2e}
+.note-tags{display:inline-flex;flex-wrap:wrap;gap:6px}
+.note-tags:empty{display:none}
+#notes .note-tags{display:flex;margin-top:6px}
+#notes button[aria-current=true] .tag{background:#fff}
+
+/* Limit hint next to the capture form */
+.ai-limit-note{flex:1 1 100%;margin:0;padding:8px 12px;border-radius:10px;background:#eef3e9;color:#41584a;font-size:13px}
+.ai-limit-note.is-warning{background:#f4efdf;color:#6b5a2e}
+
+/* Document */
+#note-card.note-doc{max-width:820px}
+.note-form{margin:0}
+#note-card .note-title{display:block;width:calc(100% + 20px);margin:-6px -10px 0;padding:6px 10px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--note-ink);font:inherit;font-size:clamp(26px,3vw,36px);font-weight:700;letter-spacing:-.03em;line-height:1.2;text-overflow:ellipsis}
+#note-card .note-title::placeholder{color:#9aa79d}
+#note-card .note-title:hover{background:#f3f6ee}
+#note-card .note-title:focus{background:#fff;border-color:var(--ring)}
+
+.note-meta-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:8px 0 26px;color:var(--muted);font-size:13px}
+.note-date:empty{display:none}
+#note-card .note-category select{width:auto;max-width:200px;height:28px;padding:0 24px 0 11px;border:1px solid var(--note-chip-line);border-radius:999px;background-color:var(--note-chip);background-position:calc(100% - 13px) 55%,calc(100% - 8px) 55%;background-size:5px 5px,5px 5px;color:#38523f;font-size:12.5px;font-weight:600;text-overflow:ellipsis}
+.note-mode{font-size:12.5px}
+.note-version{margin-left:2px;color:#9aa79d;font-size:11px}
+#note-card .structure-check{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0;padding:0;border:0}
+#note-card .structure-check button{width:auto;min-height:26px;padding:0 10px;border-style:dashed;border-color:#c9d5c4;border-radius:999px;color:#5a7060;font-size:12px;font-weight:600}
+#note-card .structure-check button:disabled{opacity:.6;cursor:default;border-style:solid}
+#note-card .structure-check .muted{font-size:12px}
+
+.note-body{display:flex;flex-direction:column}
+#note-edit-start{align-self:flex-end;display:inline-flex;align-items:center;gap:6px;min-height:30px;margin-bottom:4px;padding:0 10px;border:1px solid transparent;border-radius:8px;background:transparent;color:#5a7060;font-size:12.5px;font-weight:600}
+#note-edit-start:hover:not(:disabled){background:var(--note-chip);color:var(--note-ink);border-color:var(--note-chip-line)}
+#note-card .note-preview{min-height:96px;margin:0 -12px;padding:8px 12px;border-radius:12px;cursor:text;overflow-wrap:anywhere}
+#note-card .note-preview:hover{background:#f8faf4}
+#note-card .note-preview:empty::before{content:"Пока пусто. Нажмите, чтобы написать.";color:#8c998f}
+#note-card #markdown{display:block;width:calc(100% + 24px);min-height:180px;margin:0 -12px;padding:8px 12px;border:1px solid var(--ring);border-radius:12px;background:#fff;color:#2a3b30;font-size:17px;line-height:1.75;overflow:hidden;resize:none}
+.note-edit-actions{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;padding:12px 0;background:var(--paper);border-top:1px solid var(--line)}
+.note-edit-actions button{min-height:38px}
+.note-edit-hint{font-size:12px}
+
+/* Tasks and reminders stay visible under the text */
+.note-section{margin-top:36px;padding-top:24px;border-top:1px solid var(--line)}
+.note-section>h2,#reminders-heading{margin:0 0 12px;font-size:17px;letter-spacing:-.01em}
+#note-card #reminders-panel{margin-top:0}
+#reminders-panel .muted{margin:0 0 8px}
+#items>p{margin:0 0 10px}
+#items .item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px;align-items:start;margin:6px 0;padding:10px 12px;border-radius:12px;background:#fff}
+#items .item>*{grid-column:2/-1}
+#items .item>.item-done{grid-column:1;grid-row:1;width:20px;height:20px;margin:8px 0 0;padding:0;accent-color:var(--accent);cursor:pointer}
+#items .item>textarea{grid-column:2;grid-row:1;min-height:38px;padding:8px 10px;border-color:transparent;background:transparent;font-size:15px;line-height:1.5;resize:vertical}
+#items .item>textarea:hover{background:#f6f8f1}
+#items .item>textarea:focus{background:#fff}
+#items .item>select[id^=kind-]{grid-column:3;grid-row:1;width:auto;max-width:130px;height:36px;padding-top:0;padding-bottom:0;font-size:13px}
+#items .item.is-done>textarea{color:#8c998f;text-decoration:line-through}
+#items .item .muted{margin:0;font-size:12px}
+#items .item details{margin:0;padding:0;border:0}
+#items .item .item-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0}
+#items .item .item-actions button{min-height:30px;margin:0;padding:0 11px;font-size:12px}
+#item-form{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:start;margin-top:14px;padding-top:0;border-top:0}
+#item-form select{width:auto;height:40px;padding-top:0;padding-bottom:0;font-size:13px}
+#item-form textarea{min-height:40px;padding:9px 12px;font-size:15px;resize:vertical}
+#item-form button{margin:0;min-height:40px}
+
+/* Secondary panels open inline, one at a time */
+.note-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:36px;padding-top:20px;border-top:1px solid var(--line)}
+#note-toolbar button{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 13px;border:1px solid var(--note-chip-line);border-radius:999px;background:#fff;color:#38523f;font-size:13px;font-weight:600}
+#note-toolbar button:hover:not(:disabled){background:var(--note-chip);color:var(--note-ink)}
+#note-toolbar button[aria-expanded=true]{background:#e3ebdb;border-color:#b9cbb0;color:#1f3a2a}
+#note-toolbar svg{flex:none}
+.note-panel{margin-top:14px;padding:18px 20px;border:1px solid var(--line);border-radius:14px;background:#fbfcf8}
+.note-panel h2{margin:0 0 10px;font-size:17px}
+.note-panel>.muted{margin:0 0 12px}
+#original-audio-hint{margin:0}
+.workspace.has-note[data-note-view=original] #source-card{margin-top:14px}
+
+/* Phone: one column, everything wraps */
+@media(max-width:640px){
+  #note-card .note-title{font-size:25px}
+  .note-meta-line{gap:6px 10px;margin-bottom:20px}
+  #note-card .note-preview,#note-card #markdown{font-size:16px}
+  .note-edit-actions button{flex:1 1 auto}
+  .note-edit-hint{flex:1 1 100%}
+  #items .item{grid-template-columns:auto minmax(0,1fr);padding:10px}
+  #items .item>select[id^=kind-]{grid-column:2;grid-row:2;max-width:none}
+  #items .item>*{grid-column:2}
+  #item-form{grid-template-columns:1fr}
+  #item-form select{width:100%}
+  #note-toolbar button{flex:1 1 auto;justify-content:center}
+  .note-panel{padding:14px}
+}
+@media(prefers-reduced-motion:reduce){.note-preview,.note-title{transition:none}}

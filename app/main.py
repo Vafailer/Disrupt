@@ -5,6 +5,7 @@ import secrets
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -20,7 +21,7 @@ from app.db import make_database
 from app.error_logging import log_error
 from app.integration import IntegrationRejection
 from app.limits import daily_state
-from app.models import Job, LoginSession, Note, ProviderBudget, Revision, User
+from app.models import Capture, Job, LoginSession, Note, ProviderBudget, Revision, User
 from app.providers import DEMO_TEXT
 from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
@@ -421,15 +422,28 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
         offset: int = Query(0, ge=0),
         q: str | None = Query(None, max_length=200),
         category_id: str | None = Query(None, max_length=36),
+        channel: Literal["web", "telegram"] | None = Query(None),
+        input_kind: Literal["text", "audio"] | None = Query(None),
         db=Depends(database),
     ):
         session = get_login_session(request, db)
-        notes = search_notes(db, session.user_id, q=q, category_id=category_id, limit=limit, offset=offset)
+        notes = search_notes(
+            db, session.user_id, q=q, category_id=category_id, channel=channel, input_kind=input_kind,
+            limit=limit, offset=offset,
+        )
         if len(notes) > limit:
             response.headers["X-Next-Notes-Offset"] = str(offset + limit)
+        page = notes[:limit]
+        sources = {
+            row.id: (row.channel, row.input_kind)
+            for row in db.scalars(select(Capture).where(
+                Capture.user_id == session.user_id, Capture.id.in_([n.capture_id for n in page]),
+            ))
+        }
         return [
             {"id": n.id, "title": n.title, "version": n.version, "updated_at": n.updated_at,
-             "category_id": n.category_id} for n in notes[:limit]
+             "category_id": n.category_id, "channel": sources[n.capture_id][0],
+             "input_kind": sources[n.capture_id][1]} for n in page
         ]
 
     @app.get("/api/v1/notes/{note_id}", response_model=NoteResponse)
