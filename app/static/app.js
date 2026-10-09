@@ -60,6 +60,12 @@ async function loadProviderUsage() {
   const usage = await api('/api/v1/provider/usage');
   if (usage.simulation) return;
   $('mode').textContent = `Cloud.ru · ${usage.model} · обращений в приложении ${usage.global_used}/${usage.global_limit}`;
+  const exhausted = usage.global_remaining === 0 || usage.user_remaining === 0;
+  $('processing-mode').querySelector('option[value="ai"]').disabled = exhausted;
+  if (exhausted) {
+    $('processing-mode').value = 'manual';
+    $('mode').textContent += ' · Лимит ИИ исчерпан. Сохранение без ИИ доступно.';
+  }
 }
 async function loadNotes(reset = true) {
   if (reset) { notesGeneration++; notesOffset = 0; $('notes').replaceChildren(); }
@@ -231,7 +237,7 @@ async function pollJob(id, currentEpoch, {kind = 'text', generation = viewGenera
     $('job-status').textContent = job.status === 'queued'
       ? 'В очереди. Исходник сохранён. Можно продолжить работу.' : statusLabels[job.status];
     if (job.status === 'succeeded') {
-      await loadNotes(); await loadJobs();
+      await loadNotes(); await loadJobs(); await loadProviderUsage();
       if (currentEpoch!==epoch || generation!==viewGeneration) return;
       if (canShowJobResult(generation,draft)) await openNote(job.note_id,{backgroundDraft:draft});
       else message('Запись обработана. Она доступна в списке заметок.');

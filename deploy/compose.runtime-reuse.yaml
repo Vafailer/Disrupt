@@ -1,0 +1,13 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.runtime-reuse
+      args:
+        BERESTA_RUNTIME_BASE: ${BERESTA_RUNTIME_BASE:?Set verified local runtime image}
+  worker:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.runtime-reuse
+      args:
+        BERESTA_RUNTIME_BASE: ${BERESTA_RUNTIME_BASE:?Set verified local runtime image}

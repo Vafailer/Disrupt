@@ -266,6 +266,14 @@ class Worker:
             self.fail(job_id, "internal_error", exception=exc)
         return True
 
+    def budget_available(self):
+        """Keep queued originals intact when the deployment's total call cap is spent."""
+        if self.settings.provider != "cloudru":
+            return True
+        with self.sessions() as db:
+            budget = db.get(ProviderBudget, "cloudru")
+            return budget is not None and budget.reserved_calls < self.settings.live_call_limit
+
 
 def main():
     settings = Settings.from_env()
@@ -274,6 +282,9 @@ def main():
         worker = Worker(sessions, settings, audio_storage=AudioStorage(settings.audio_storage_path, read_only=True),
                         speech_provider=make_speech_provider(settings))
         while True:
+            if not worker.budget_available():
+                time.sleep(1)
+                continue
             if not worker.run_once():
                 time.sleep(0.5)
     except KeyboardInterrupt:
