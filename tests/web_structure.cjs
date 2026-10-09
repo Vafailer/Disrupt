@@ -102,7 +102,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     assert.equal($('note-card').hidden,false);
     assert.equal($('message').textContent,'Дождитесь сохранения.');
     completeItem();
-    await until(() => $('note-mode').textContent.includes('Версия 2') && !$('title').disabled);
+    await until(() => $('note-mode').textContent.includes('v2') && !$('title').disabled);
     assert.equal($('items').querySelector('textarea').value,'Уточнить время звонка');
     assert.equal($('confirm-structure').disabled,true);
 
@@ -117,7 +117,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     submit($('items').querySelector('form'));
     await until(() => $('message').textContent.includes('уже изменена') && !editor.disabled);
     assert.equal(editor.value,'Не терять эту правку');
-    assert.ok($('note-mode').textContent.includes('Версия 2'));
+    assert.ok($('note-mode').textContent.includes('v2'));
     editor.value = note.items[0].text;
 
     $('search-query').value = 'РУССКОЕ'; $('category-filter').value = note.category_id;
@@ -172,6 +172,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     }
     await require('./web_job_waiting.cjs')();
     await require('./web_workspace.cjs')();
+    await require('./web_note_ux.cjs')();
     await require('./web_onboarding.cjs')();
     console.log('Web DOM checks passed: drafts, conflicts, version, XSS, search, pagination, events and category rename.');
   } finally { dom.window.close(); }
