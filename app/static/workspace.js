@@ -62,9 +62,10 @@
   // The existing reminder action opens the Telegram settings; reveal its new dialog too.
   get('reminder-link').addEventListener('click',()=>{if(!get('telegram-dialog').open)openDialog('telegram-dialog',get('reminder-link'));});
   get('feedback-kind').onchange=()=>{get('feedback-bug-fields').hidden=get('feedback-kind').value!=='bug';};
-  let pendingFeedback=null;
+  let pendingFeedback=null,feedbackSession=0;
   new MutationObserver(()=>{
     if(!get('workspace').hidden)return;
+    feedbackSession++;
     for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();
     get('feedback-form').reset();get('feedback-bug-fields').hidden=false;get('feedback-status').textContent='';pendingFeedback=null;
   }).observe(get('workspace'),{attributes:true,attributeFilter:['hidden']});
@@ -72,15 +73,17 @@
     event.preventDefault();const button=get('feedback-submit');if(button.disabled)return;
     const payload={kind:get('feedback-kind').value,subject:get('feedback-subject').value.trim(),description:get('feedback-description').value.trim(),steps:get('feedback-kind').value==='bug'?get('feedback-steps').value.trim():'',expected:get('feedback-kind').value==='bug'?get('feedback-expected').value.trim():'',contact:get('feedback-contact').value.trim()};
     if(!payload.subject || !payload.description){get('feedback-status').textContent='Заполните тему и описание.';return;}
+    const session=feedbackSession;
     const serialized=JSON.stringify(payload);
     if(!pendingFeedback || pendingFeedback.serialized!==serialized)pendingFeedback={serialized,key:crypto.randomUUID()};
     const fields=[...get('feedback-form').querySelectorAll('input,textarea,select')];fields.forEach(field=>field.disabled=true);
     button.disabled=true;get('feedback-status').textContent='Отправляем…';
     try {
       const result=await api('/api/v1/feedback',{method:'POST',headers:{'Idempotency-Key':pendingFeedback.key},body:serialized});
+      if(session!==feedbackSession)return;
       get('feedback-form').reset();pendingFeedback=null;get('feedback-bug-fields').hidden=false;
       get('feedback-status').textContent=`Спасибо! Обращение ${result.id.slice(0,8)} передано команде.`;
-    }catch(error){get('feedback-status').textContent=`${error.message} Текст сохранён в форме. Попробуйте отправить ещё раз.`;}
+    }catch(error){if(session!==feedbackSession)return;get('feedback-status').textContent=`${error.message} Текст сохранён в форме. Попробуйте отправить ещё раз.`;}
     finally{button.disabled=false;fields.forEach(field=>field.disabled=false);}
   };
   showCapture('capture-form');showNoteView('read');categoriesNavigation();syncNote();
