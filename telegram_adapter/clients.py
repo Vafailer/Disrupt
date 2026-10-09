@@ -91,6 +91,33 @@ class CoreClient:
         except ValueError:
             raise RemoteFailure("core_invalid_response") from None
 
+    async def get(self, path, params):
+        """Read-only status call. Returns None for 404 so callers can stop quietly."""
+        try:
+            response = await self.client.get(
+                self.settings.core_url + "/internal/v1" + path,
+                params=params,
+                headers={"Authorization": "Bearer " + self.settings.service_token},
+            )
+        except httpx.HTTPError:
+            raise RemoteFailure() from None
+        if 300 <= response.status_code < 400:
+            raise RemoteFailure("core_redirect_refused", fatal=True)
+        if response.status_code == 404:
+            return None
+        if response.status_code >= 400:
+            raise RemoteFailure(
+                "core_contract_or_auth" if response.status_code < 500 else "core_unavailable",
+                fatal=response.status_code in {401, 403, 405, 422},
+            )
+        try:
+            data = response.json()
+        except ValueError:
+            raise RemoteFailure("core_invalid_response") from None
+        if not isinstance(data, dict):
+            raise RemoteFailure("core_invalid_response")
+        return data
+
     def validate_saved(self, data):
         try:
             UUID(data["capture_id"])
@@ -134,10 +161,13 @@ class TelegramClient:
             )
         return data.get("result")
 
-    async def reply(self, chat_id, text, url=None):
+    async def reply(self, chat_id, text, url=None, *, button="Открыть Beresta", reply_markup=None):
         payload = {"chat_id": chat_id, "text": text, "link_preview_options": {"is_disabled": True}}
         if url:
-            payload["reply_markup"] = {"inline_keyboard": [[{"text": "Открыть Beresta", "url": url}]]}
+            # One inline URL button; it wins over a keyboard because Telegram accepts a single reply_markup.
+            payload["reply_markup"] = {"inline_keyboard": [[{"text": button, "url": url}]]}
+        elif reply_markup is not None:
+            payload["reply_markup"] = reply_markup
         # Plain text: never interpret user/model supplied Markdown or HTML.
         return await self.call("sendMessage", payload)
 

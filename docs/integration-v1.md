@@ -103,9 +103,9 @@ update и сообщить о нарушении контракта. В комм
 | POST /internal/v1/telegram/link-request | Принимает code, bot_id, update_id, telegram_user_id, chat_id. Возвращает link_request_id и status=pending. Код используется один раз, атомарно |
 | GET /api/v1/telegram/links | Требует Cookie. Возвращает свои identities и неистёкшие pending с Telegram ID для проверки |
 | POST /api/v1/telegram/links/{id}/confirm | Требует Cookie и CSRF. Подтверждает свой pending с проверкой срока. Не сливает аккаунты и не заменяет существующую связь. Повтор безопасен |
-| POST /internal/v1/telegram/updates | Принимает bot_id, update_id, telegram_user_id, chat_id, text, processing_mode=ai/manual. Возвращает capture_id, job_id/null, status=saved, note_url. По умолчанию ai |
+| POST /internal/v1/telegram/updates | Принимает bot_id, update_id, telegram_user_id, chat_id, text, processing_mode=ai/manual. Возвращает capture_id, job_id/null, status=saved, note_url и ai_limit_exceeded. Если дневной лимит ИИ исчерпан, запись сохраняется без ИИ: job_id=null, ai_limit_exceeded=true (см. [ai-daily-limit-v1.md](ai-daily-limit-v1.md)). По умолчанию ai |
 | POST /internal/v1/telegram/actions | Принимает bot_id, update_id, telegram_user_id, callback_token. Возвращает status=completed/already_completed. Проверяет связь, владельца, бота, задачу и поколение напоминания |
-| POST /api/v1/captures/text | Старый AI-ответ сохранён. processing_mode=manual создаёт заметку и ревизию без Job. Ответ содержит capture_id, job_id=null, status=saved, note_id. Idempotency-Key учитывает режим |
+| POST /api/v1/captures/text | Старый AI-ответ сохранён. processing_mode=manual создаёт заметку и ревизию без Job. Ответ содержит capture_id, job_id=null, status=saved, note_id. Idempotency-Key учитывает режим. AI-запрос сверх дневного лимита так же сохраняется без Job, в ответе ai_limit_exceeded=true |
 | GET /api/v1/captures/{id} | Требует Cookie и проверяет владельца. Возвращает оригинал, режим, note_id и job/null, в том числе при ошибке обработки |
 | GET /admin | Требует серверную роль admin. Отдаёт static/admin.html, когда файл появится. Пока возвращает 503. Без сессии 401, обычному пользователю 403. /static/admin.* тоже закрыты |
 
@@ -297,7 +297,7 @@ NoteResponse теперь содержит items[], category_id, category_name
 
 | Метод | Запрос и результат |
 |---|---|
-| GET /api/v1/notes | Список своих заметок. q до 200 символов, category_id=UUID или none, limit 1..100, offset от 0. X-Next-Notes-Offset появляется, если есть следующая страница |
+| GET /api/v1/notes | Список своих заметок. q до 200 символов, category_id=UUID или none, channel=web/telegram, input_kind=text/audio, limit 1..100, offset от 0. Фильтры сочетаются. В каждой записи есть channel и input_kind. X-Next-Notes-Offset появляется, если есть следующая страница |
 | GET /api/v1/categories | Свои категории с id, name и version |
 | POST /api/v1/categories | name. Возвращает CategoryResponse с кодом 201. Имя обрезается по краям. Повтор имени без учёта регистра возвращает существующую категорию |
 | PATCH /api/v1/categories/{id} | name, version категории. Чужая категория даёт 404, устаревшая версия или занятое имя даёт 409 |

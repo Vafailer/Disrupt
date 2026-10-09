@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 from urllib.parse import quote_plus
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 PROGRAM_BASE_URL = "https://shared1.multitool.works:4000/v1"
 OFFICIAL_BASE_URL = "https://foundation-models.api.cloud.ru/v1"
@@ -35,6 +36,11 @@ class Settings:
     live_call_limit: int = 0
     live_user_call_limit: int = 0
     max_pending_per_user: int = 10
+    daily_unit_limit: int = 30
+    text_unit_cost: int = 1
+    audio_unit_base: int = 2
+    audio_unit_per_minute: int = 1
+    limit_timezone: str = "Europe/Moscow"
     session_seconds: int = 86400
     lease_seconds: int = 120
     delivery_lease_seconds: int = 60
@@ -52,6 +58,12 @@ class Settings:
             raise ValueError("Delivery lease must be between 30 and 300 seconds")
         if self.internal_api_token and len(self.internal_api_token) < 32:
             raise ValueError("Internal API secret must contain at least 32 characters")
+        if min(self.daily_unit_limit, self.text_unit_cost, self.audio_unit_base, self.audio_unit_per_minute) < 0:
+            raise ValueError("Daily unit limit and unit costs must not be negative")
+        try:
+            ZoneInfo(self.limit_timezone)
+        except (ZoneInfoNotFoundError, ValueError, OSError):
+            raise ValueError("NOTES_LIMIT_TIMEZONE must be a known IANA time zone") from None
         if self.provider not in {"mock", "cloudru"}:
             raise ValueError("NOTES_PROVIDER must be mock or cloudru")
         if self.lease_seconds < 90:
@@ -111,6 +123,11 @@ class Settings:
             cloudru_base_url=os.environ.get("NOTES_CLOUDRU_BASE_URL", PROGRAM_BASE_URL),
             live_call_limit=int(os.environ.get("NOTES_LIVE_CALL_LIMIT", "0")),
             live_user_call_limit=int(os.environ.get("NOTES_LIVE_USER_CALL_LIMIT", "0")),
+            daily_unit_limit=int(os.environ.get("NOTES_DAILY_UNIT_LIMIT", str(cls.daily_unit_limit))),
+            text_unit_cost=int(os.environ.get("NOTES_TEXT_UNIT_COST", str(cls.text_unit_cost))),
+            audio_unit_base=int(os.environ.get("NOTES_AUDIO_UNIT_BASE", str(cls.audio_unit_base))),
+            audio_unit_per_minute=int(os.environ.get("NOTES_AUDIO_UNIT_PER_MINUTE", str(cls.audio_unit_per_minute))),
+            limit_timezone=os.environ.get("NOTES_LIMIT_TIMEZONE", cls.limit_timezone),
             error_log_file=os.environ.get("NOTES_ERROR_LOG_FILE", "data/errors.log"),
             delivery_lease_seconds=int(os.environ.get("NOTES_DELIVERY_LEASE_SECONDS", "60")),
             audio_storage_path=os.environ.get("NOTES_AUDIO_STORAGE_PATH", cls.audio_storage_path),
