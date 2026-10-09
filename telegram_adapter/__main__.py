@@ -38,7 +38,11 @@ async def poll(settings):
             settings, bot.core, bot.telegram,
             DeliveryJournal(settings.state_file.with_suffix(".delivery.json"), settings.bot_id),
         )
-        return await serve(bot, sender)
+        await bot.setup()
+        try:
+            return await serve(bot, sender)
+        finally:
+            await bot.close()
 
 
 async def poll_loop(bot):

@@ -224,7 +224,11 @@ def test_manual_mode_and_link_request(settings):
             assert json.loads(calls[0].content)["processing_mode"] == "manual"
             assert json.loads(calls[0].content)["text"] == " исходник"
             assert calls[1].url.path.endswith("/link-request")
-            assert "подтверди" in replies[1]["text"]
+            assert "Подтверждаю" in replies[1]["text"]
+            assert replies[1]["reply_markup"]["inline_keyboard"][0][0]["url"] == (
+                "https://example.test/#telegram-confirm"
+            )
+            await bot.close()
 
     asyncio.run(scenario())
 
