@@ -14,7 +14,7 @@ async function until(condition) {
 }
 async function settle() { for (let i=0;i<20;i++) await new Promise(resolve => setImmediate(resolve)); }
 
-async function scenario({lostAck = false, audio = false} = {}) {
+async function scenario({lostAck = false, audio = false, pauseResultRead = false} = {}) {
   const root = path.join(__dirname,'../app/static');
   const dom = new JSDOM(fs.readFileSync(path.join(root,'index.html'),'utf8'),{
     url:'https://beresta.invalid/',runScripts:'outside-only',
@@ -29,7 +29,7 @@ async function scenario({lostAck = false, audio = false} = {}) {
     markdown:'Synthetic',conclusions:[],items:[],provider:'mock',version:1,category_id:null,
     structure_confirmed_at:null,created_at:1791280000,updated_at:1791280000});
   const calls = [], keys = new Set();
-  let saved = false, manual = false, releasePoll = null;
+  let saved = false, manual = false, releasePoll = null, releaseResult = null;
   function reply(data,status=200) {
     return {ok:status>=200 && status<300,status,headers:new Headers(),json:async () => structuredClone(data)};
   }
@@ -41,7 +41,18 @@ async function scenario({lostAck = false, audio = false} = {}) {
     if (url.pathname === '/api/v1/categories') return reply([]);
     if (url.pathname === '/api/v1/jobs') return reply(saved ? [job] : []);
     if (url.pathname === '/api/v1/notes') return reply(manual ? [{id:'manual-note',title:'Manual note'}] : []);
-    if (url.pathname.startsWith('/api/v1/notes/')) return reply(note(url.pathname.split('/').at(-1)));
+    if (url.pathname.startsWith('/api/v1/notes/')) {
+      const data = note(url.pathname.split('/').at(-1));
+      if (pauseResultRead) return new Promise(resolve => {releaseResult = () => resolve(reply(data));});
+      return reply(data);
+    }
+    if (url.pathname === `/api/v1/captures/${job.capture_id}`) {
+      const data = {capture_id:job.capture_id,input_kind:'audio',original_text:'',processing_mode:'ai',
+        transcript:null,transcript_version:1,transcript_origin:null,audio_seconds:1,audio_media_type:'audio/wav',
+        note_id:null,job};
+      if (pauseResultRead) return new Promise(resolve => {releaseResult = () => resolve(reply(data));});
+      return reply(data);
+    }
     if (url.pathname === '/api/v1/captures/text' || url.pathname === '/api/v1/captures/audio') {
       if (url.pathname.endsWith('/text') && JSON.parse(options.body).processing_mode === 'manual') {
         manual = true; return reply({note_id:'manual-note'},201);
@@ -80,7 +91,8 @@ async function scenario({lostAck = false, audio = false} = {}) {
   assert.equal(keys.size,1,'A lost acknowledgement must not create another operation');
   if (!audio) assert.equal($('thought').value,'','Clear only after storage acknowledgement');
   return {dom,$,w,job,calls,submit,choose,reply,finish:() => releasePoll(reply(job)),
-    failPoll:() => releasePoll(reply({detail:'Synthetic status outage'},503))};
+    failPoll:() => releasePoll(reply({detail:'Synthetic status outage'},503)),
+    resultPending:() => releaseResult !== null,finishResult:() => releaseResult()};
 }
 
 module.exports = async function checkJobWaiting() {
@@ -94,6 +106,27 @@ module.exports = async function checkJobWaiting() {
     assert.equal(s.$('note-card').hidden,true,'A finished job must not navigate over a new draft');
     assert.equal(s.calls.some(c => c.path === '/api/v1/notes/ai-note'),false);
   } finally { s?.dom.window.close(); }
+  try {
+    s = await scenario(); s.job.status = 'succeeded'; s.job.note_id = 'ready-note'; s.finish();
+    await until(() => !s.$('note-card').hidden && !s.$('title').disabled);
+    assert.equal(s.$('title').value,'Synthetic note','An untouched form may open its finished result');
+    assert.equal(s.$('thought').value,'');
+  } finally { s?.dom.window.close(); }
+  for (const audio of [false,true]) {
+    try {
+      s = await scenario({audio,pauseResultRead:true});
+      s.job.status = audio ? 'failed' : 'succeeded';
+      s.job.note_id = audio ? null : 'late-note'; s.job.error_code = audio ? 'stt_not_configured' : null;
+      s.finish(); await until(s.resultPending);
+      s.$('thought').value = 'Draft typed while the result was loading';
+      if (audio) s.choose('late-draft.wav');
+      s.finishResult(); await settle();
+      assert.equal(s.$('thought').value,'Draft typed while the result was loading');
+      assert.equal(s.$('capture-card').hidden,false,'A delayed result read must not navigate over an edited form');
+      assert.equal(s.$('note-card').hidden,true); assert.equal(s.$('source-card').hidden,true);
+      if (audio) assert.ok(s.$('audio-selected').textContent.includes('late-draft.wav'));
+    } finally { s?.dom.window.close(); }
+  }
   try {
     s = await scenario();
     s.$('processing-mode').value = 'manual'; s.$('thought').value = 'Manual while queued';
