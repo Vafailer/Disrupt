@@ -92,6 +92,7 @@ async function reload(fn){if(fn)nextResponse=fn;$('filters').dispatchEvent(new w
   nextResponse=()=>reply(null,403);$('export').click();await settled();
   assert.equal($('dashboard').hidden,true);assert.equal($('export').disabled,true);
   assert.equal(w.localStorage.length,0);
+  await require('./web_feedback_admin.cjs')();
   dom.window.close();
   console.log('Admin DOM checks passed: filters, null/zero, cohorts, pagination, CSV, role failures, XSS, stale responses.');
 })().catch(error=>{console.error(error);dom.window.close();process.exitCode=1;});

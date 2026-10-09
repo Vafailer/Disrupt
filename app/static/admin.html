@@ -1,29 +1,28 @@
 <!doctype html>
-<html lang="ru">
-<head>
+<html lang="ru"><head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Статистика · Beresta</title>
+  <title>Статистика · beresta</title>
   <link rel="stylesheet" href="/static/admin.css">
-  <script src="/static/admin.js" defer></script>
-</head>
+  <script src="/static/admin.js" defer=""></script>
+<script src="/static/admin.feedback.js" defer=""></script></head>
 <body>
   <header><a href="/" class="brand">beresta<span>Бизнес-статистика</span></a><a href="/">К заметкам</a></header>
-  <main>
-    <h1>Как используют Beresta</h1>
+  <main><nav class="admin-sections"><button id="show-statistics" type="button" aria-pressed="true">Статистика</button><button id="show-feedback" type="button" class="secondary" aria-pressed="false">Обращения</button></nav><div id="statistics-view">
+    <h1>Как используют beresta</h1>
     <p class="intro">Пользователи, целевые действия и расходы. Дни считаются по Москве. Тестовые аккаунты и фоновая активность исключаются сервером.</p>
     <form id="filters" class="panel filters">
-      <label>С даты<input id="from" name="from" type="date" required></label>
-      <label>По дату включительно<input id="to" name="to" type="date" required></label>
+      <label>С даты<input id="from" name="from" type="date" required=""></label>
+      <label>По дату включительно<input id="to" name="to" type="date" required=""></label>
       <label>Канал<select id="channel" name="channel"><option value="all">Все каналы</option><option value="web">Веб</option><option value="telegram">Telegram</option></select></label>
       <label>Источник<input id="source" name="source" maxlength="100" value="all" aria-describedby="source-help"></label>
       <button id="apply" type="submit">Показать</button>
-      <button id="export" type="button" class="secondary" disabled>Скачать CSV</button>
+      <button id="export" type="button" class="secondary" disabled="">Скачать CSV</button>
       <small id="source-help">Источник — код привлечения; all означает все источники. CSV содержит агрегаты, без личных записей и списка операций.</small>
     </form>
     <p id="status" role="status" aria-live="polite">Загружаем статистику…</p>
-    <a id="login" href="/" hidden>Перейти к входу</a>
-    <div id="dashboard" hidden aria-busy="false">
+    <a id="login" href="/" hidden="">Перейти к входу</a>
+    <div id="dashboard" hidden="" aria-busy="false">
       <p id="snapshot" class="muted"></p>
       <section aria-labelledby="users-title"><h2 id="users-title">Пользователи и активация</h2><div id="cards" class="cards"></div><p id="activation-pending" class="muted"></p></section>
       <section class="panel" aria-labelledby="daily-title"><h2 id="daily-title">По дням</h2><div id="daily" class="table-wrap" tabindex="0" role="region" aria-label="Показатели по дням"></div></section>
@@ -33,9 +32,10 @@
       </div>
       <section class="panel" aria-labelledby="costs-title"><h2 id="costs-title">Расходы и токены</h2><p class="muted">Неизвестные расходы показаны отдельно от известной части. Оценка не заменяет измеренную стоимость. LLM cost/DAU использует сумму дневных DAU за период.</p><div id="costs" class="cards compact"></div></section>
       <section class="panel" aria-labelledby="quality-title"><h2 id="quality-title">Обработка и напоминания</h2><div id="quality" class="cards compact"></div><p class="muted">Неизвестный результат отправки не означает доставку. Такая попытка не повторяется автоматически.</p></section>
-      <section class="panel" aria-labelledby="usage-title"><h2 id="usage-title">Модельные операции</h2><p class="muted">Только технические идентификаторы, без текстов, аудио, имён и контактов. На странице до 50 операций; расходы выше относятся ко всему выбранному периоду.</p><div id="usage" class="table-wrap" tabindex="0" role="region" aria-label="Расходы по операциям"></div><nav class="pagination" aria-label="Страницы операций"><button id="previous" type="button" class="secondary" disabled>Назад</button><span id="page"></span><button id="next" type="button" class="secondary" disabled>Далее</button></nav></section>
+      <section class="panel" aria-labelledby="usage-title"><h2 id="usage-title">Модельные операции</h2><p class="muted">Только технические идентификаторы, без текстов, аудио, имён и контактов. На странице до 50 операций; расходы выше относятся ко всему выбранному периоду.</p><div id="usage" class="table-wrap" tabindex="0" role="region" aria-label="Расходы по операциям"></div><nav class="pagination" aria-label="Страницы операций"><button id="previous" type="button" class="secondary" disabled="">Назад</button><span id="page"></span><button id="next" type="button" class="secondary" disabled="">Далее</button></nav></section>
     </div>
     <noscript>Для просмотра статистики включите JavaScript.</noscript>
-  </main>
-</body>
-</html>
+  </div><section id="feedback-inbox" hidden=""><h1>Обращения пользователей</h1><p class="intro">Ошибки, предложения и вопросы. Содержимое видно только администраторам.</p><form id="feedback-filters" class="panel filters"><label for="inbox-filter">Статус<select id="inbox-filter"><option value="new">Новые</option><option value="in_progress">В работе</option><option value="resolved">Решённые</option><option value="all">Все обращения</option></select></label><button type="submit">Обновить</button></form><p id="inbox-status" role="status"></p><div id="inbox-list"></div><div class="pagination"><button id="inbox-previous" type="button" class="secondary" disabled="">Назад</button><button id="inbox-next" type="button" class="secondary" disabled="">Далее</button></div></section></main>
+
+
+</body></html>

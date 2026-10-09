@@ -8,3 +8,4 @@ header{gap:16px;flex-wrap:wrap}
 #account{max-width:100%;flex-wrap:wrap}
 #username{overflow-wrap:anywhere;min-width:0}
 @media(max-width:760px){.header-actions{gap:12px;justify-content:flex-end;flex:1}.telegram-channel-link{padding:9px 12px}#account{flex-basis:100%;justify-content:flex-end}}
+.brand-label{text-transform:none;letter-spacing:.5px;font-size:13px;font-weight:600}
