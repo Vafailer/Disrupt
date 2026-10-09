@@ -10,7 +10,9 @@
   <link rel="stylesheet" href="/static/reminders.css">
   <script src="/static/reminders.js" defer=""></script>
   <script src="/static/app.js" defer=""></script>
-<link rel="stylesheet" href="/static/workspace.css"><script src="/static/workspace.js" defer=""></script></head>
+<link rel="stylesheet" href="/static/workspace.css"><script src="/static/workspace.js" defer=""></script>
+  <link rel="stylesheet" href="/static/landing.css"><link rel="stylesheet" href="/static/onboarding.css"><link rel="stylesheet" href="/static/polish.css">
+  <script src="/static/landing.js" defer=""></script><script src="/static/onboarding.js" defer=""></script></head>
 <body>
   <header>
     <a href="/" class="brand">beresta<span>Умные заметки</span></a>
@@ -26,19 +28,77 @@
   <div id="mode" class="banner">Проверяем состояние приложения…</div>
   <p id="message" role="status" aria-live="polite"></p>
   <main>
-    <section id="auth" class="card auth">
-      <p class="eyebrow brand-label">beresta</p>
-      <h1>Записывайте как есть</h1>
-      <p>Мы соберём ваши мысли в заметку. Исходный текст останется рядом.</p>
-      <form id="auth-form" novalidate="">
-        <label for="login">Имя пользователя</label><input id="login" name="username" autocomplete="username" required="" minlength="3" maxlength="64" pattern="[A-Za-z0-9_.\-]+" placeholder="username" aria-describedby="username-hint">
-        <p id="username-hint" class="field-hint">От 3 до 64 символов. Латинские буквы, цифры и символы _ . -</p>
-        <label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required="" minlength="10" maxlength="128" placeholder="Не менее 10 символов">
-        <div class="actions"><button type="submit" value="login">Войти</button><button type="submit" value="register" class="secondary">Создать аккаунт</button></div>
-        <p id="auth-message" role="alert" aria-live="assertive" hidden=""></p>
-      </form>
+    <section id="auth" class="landing" aria-labelledby="landing-title">
+      <div class="landing-top">
+        <div class="landing-hero">
+          <p class="landing-badge"><span>Бета</span>Ранняя версия, дорабатываем вместе с вами</p>
+          <h1 id="landing-title">Пишите и говорите как есть. beresta наведёт порядок</h1>
+          <p class="landing-lead">Бросьте мысли текстом или голосом. beresta соберёт из них заметку, задачи и напоминания. Исходная запись всегда остаётся у вас, а дополнения ИИ показываются отдельно.</p>
+          <div class="landing-cta">
+            <button type="button" id="landing-register" class="cta-primary">Создать аккаунт</button>
+            <button type="button" id="landing-login" class="cta-quiet">Войти</button>
+          </div>
+          <p class="landing-note">Нужны только имя пользователя и пароль. Почта не нужна.</p>
+        </div>
+        <div class="auth-card" id="auth-card">
+          <h2 id="auth-title">Войти в beresta</h2>
+          <p id="auth-lead" class="auth-lead">Продолжите с того места, где остановились.</p>
+          <form id="auth-form" novalidate="">
+            <label for="login">Имя пользователя</label><input id="login" name="username" autocomplete="username" required="" minlength="3" maxlength="64" pattern="[A-Za-z0-9_.\-]+" placeholder="username" aria-describedby="username-hint">
+            <p id="username-hint" class="field-hint">От 3 до 64 символов. Латинские буквы, цифры и символы _ . -</p>
+            <label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required="" minlength="10" maxlength="128" placeholder="Не менее 10 символов">
+            <div class="actions"><button type="submit" value="login">Войти</button><button type="submit" value="register" class="secondary">Создать аккаунт</button></div>
+            <p id="auth-message" role="alert" aria-live="assertive" hidden=""></p>
+          </form>
+        </div>
+      </div>
+      <section class="landing-section" aria-labelledby="how-title">
+        <p class="landing-kicker">Как это работает</p>
+        <h2 id="how-title">Три шага от мысли до дела</h2>
+        <ol class="steps">
+          <li><span class="step-number" aria-hidden="true">1</span><h3>Запишите</h3><p>Текстом или голосом, в вебе или в Telegram. Без оформления, как думается.</p></li>
+          <li><span class="step-number" aria-hidden="true">2</span><h3>Получите порядок</h3><p>beresta разложит запись на заметку, задачи и идеи. Структуру можно поправить.</p></li>
+          <li><span class="step-number" aria-hidden="true">3</span><h3>Вернитесь вовремя</h3><p>Напоминание придёт в Telegram в нужное время.</p></li>
+        </ol>
+        <div class="sample" role="group" aria-label="Пример: что вы пишете и что получаете">
+          <div class="sample-in">
+            <p class="sample-label">Вы пишете</p>
+            <p class="sample-text">завтра в 10 позвонить маме, купить молоко. ещё идея, показать макет команде в пятницу</p>
+          </div>
+          <span class="sample-arrow" aria-hidden="true"></span>
+          <div class="sample-out">
+            <p class="sample-label">Вы получаете</p>
+            <ul class="sample-list">
+              <li><span class="sample-tag">Задача</span>Позвонить маме</li>
+              <li><span class="sample-tag">Задача</span>Купить молоко</li>
+              <li><span class="sample-tag">Идея</span>Показать макет команде</li>
+              <li><span class="sample-tag sample-tag-time">Напоминание</span>Завтра, 10:00, в Telegram</li>
+            </ul>
+            <p class="sample-foot"><span class="sample-badge">Оригинал</span>Ваш текст сохранён рядом, без изменений</p>
+          </div>
+        </div>
+        <p class="sample-caption">Схематичный пример. Реальный результат зависит от вашей записи.</p>
+      </section>
+      <section class="landing-section" aria-labelledby="values-title">
+        <p class="landing-kicker">Принципы</p>
+        <h2 id="values-title">Вы всегда понимаете, что произошло с записью</h2>
+        <ul class="values">
+          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg></span><h3>Оригинал всегда рядом</h3><p>Исходная запись сохраняется до обработки. Открыть её можно в любой момент.</p></li>
+          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg></span><h3>ИИ не переписывает молча</h3><p>Дополнения ИИ показываются отдельно. Принять их или отклонить решаете вы.</p></li>
+          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m21 3-6 18-4-8-8-4 18-6Zm-10 10 5-5"/></svg></span><h3>Telegram для быстрой записи</h3><p>Бот <a href="https://t.me/beresta_ru_bot" target="_blank" rel="noopener noreferrer">@beresta_ru_bot<span class="sr-only"> (откроется в новой вкладке)</span></a> принимает записи и присылает напоминания.</p></li>
+          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h3>Приватность</h3><p>Ваши записи видите только вы.</p></li>
+        </ul>
+      </section>
+      <section class="landing-section landing-beta" aria-labelledby="beta-title">
+        <h2 id="beta-title">beresta в бете</h2>
+        <p>Это ранняя версия. Что-то ещё шероховато, и мы это знаем. Новости и планы публикуем в Telegram-канале, там же можно сказать, чего не хватает.</p>
+        <div class="landing-cta">
+          <a class="cta-channel" href="https://t.me/+kwnF-xaajiA3YmQy" target="_blank" rel="noopener noreferrer">Telegram-канал beresta<span class="sr-only"> (откроется в новой вкладке)</span><span aria-hidden="true"> ↗</span></a>
+          <button type="button" id="landing-register-bottom" class="cta-primary">Создать аккаунт</button>
+        </div>
+      </section>
     </section>
-    <div id="workspace" class="workspace" hidden=""><button id="mobile-library-toggle" type="button" aria-expanded="false" aria-controls="library-column">Все заметки</button><aside class="workspace-nav"><p class="eyebrow">Рабочее пространство</p><button id="new-note" class="secondary">+ Новая запись</button><h2 id="category-dialog-title">Категории</h2><div id="category-navigation" class="category-navigation"></div><button type="button" class="nav-action" id="manage-categories">Управлять категориями</button><div class="nav-bottom"><button type="button" id="open-telegram" class="nav-action">Подключить Telegram</button><button type="button" id="open-feedback" class="nav-action">Сообщить об ошибке</button></div></aside><section class="library-column" id="library-column"><div class="library-heading"><span class="eyebrow">Библиотека</span><h2 id="library-title">Все заметки</h2></div><form id="search-form"><label for="search-query" class="sr-only">Поиск</label><input id="search-query" type="search" maxlength="200" placeholder="Найти в заметках…"><label for="category-filter" hidden="">Категория</label><select id="category-filter" hidden=""><option value="">Все категории</option><option value="none">Без категории</option></select><div class="actions"><button type="submit">Найти</button><button id="clear-search" type="button" class="quiet">Сбросить</button></div></form><nav id="notes" aria-label="Заметки"></nav><button id="more-notes" class="quiet" hidden="">Показать ещё</button></section><div class="editor-column">
+    <div id="workspace" class="workspace" hidden=""><button id="mobile-library-toggle" type="button" aria-expanded="false" aria-controls="library-column">Все заметки</button><aside class="workspace-nav"><p class="eyebrow">Рабочее пространство</p><button id="new-note" class="secondary">+ Новая запись</button><h2 id="category-nav-title">Категории</h2><div id="category-navigation" class="category-navigation" role="group" aria-labelledby="category-nav-title"></div><button type="button" class="nav-action" id="manage-categories">Управлять категориями</button><div class="nav-bottom"><button type="button" id="open-telegram" class="nav-action">Подключить Telegram</button><button type="button" id="open-feedback" class="nav-action">Сообщить об ошибке</button></div></aside><section class="library-column" id="library-column"><div class="library-heading"><span class="eyebrow">Библиотека</span><h2 id="library-title">Все заметки</h2></div><form id="search-form"><label for="search-query" class="sr-only">Поиск</label><input id="search-query" type="search" maxlength="200" placeholder="Найти в заметках…"><label for="category-filter" hidden="">Категория</label><select id="category-filter" hidden=""><option value="">Все категории</option><option value="none">Без категории</option></select><div class="actions"><button type="submit">Найти</button><button id="clear-search" type="button" class="quiet">Сбросить</button></div></form><nav id="notes" aria-label="Заметки"></nav><button id="more-notes" class="quiet" hidden="">Показать ещё</button></section><div class="editor-column">
         <section id="capture-card" class="card">
           <p class="eyebrow">Новая запись</p><h1>Освободите место для мыслей</h1>
           <p>Запишите всё как есть. Исходник останется у вас.</p>
