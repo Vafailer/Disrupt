@@ -76,6 +76,9 @@ def test_process_worker_uses_configured_read_only_storage(app_factory, monkeypat
         def __init__(self, sessions, settings, **dependencies):
             registered_workers.append((sessions, settings, dependencies))
 
+        def budget_available(self):
+            return True
+
         def run_once(self):
             raise KeyboardInterrupt
 
