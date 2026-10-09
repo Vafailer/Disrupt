@@ -56,6 +56,8 @@ Restore допускает `--identity -`. Владелец может пере�
 
 После HTTPS безопасная проверка из одноразового контейнера образа бота принимает `deploy/ops/probe_core.py --public-origin https://app.berestaapp.ru`. Она проверяет сертификат, веб и health, отказ админки без сессии, внутреннюю авторизацию и публичный запрет API. Telegram и модель не вызываются, записи не создаются. Без `--public-origin` остаётся проверка старой заглушки с 503.
 
+Для окна регистрации установлен `/usr/local/sbin/beresta-registration.py` из `deploy/host/registration-window.py`. Команды `open` и `close` меняют только регистрацию и пересоздают только API без зависимостей и сборки. Перед открытием оператор задаёт таймер закрытия с абсолютным `OnCalendar` в UTC и `Persistent=true`. Установленные службы называются `beresta-close-registration.timer` и `beresta-close-registration.service`. После создания аккаунтов закрыть раньше через `beresta-registration.py close`; существующие аккаунты и сессии сохраняются.
+
 ## STT
 
 В ветке добавлен кандидат `CloudRuSpeechProvider` для multipart POST `/audio/transcriptions`. Он ограничивает вход и ответ, не повторяет запросы и не следует redirect. STT и LLM занимают отдельные долговечные слоты. Транскрипт сохраняется до LLM. Тесты используют только вымышленные ключи и `httpx.MockTransport`.
