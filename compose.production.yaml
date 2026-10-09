@@ -82,6 +82,9 @@ services:
     environment:
       <<: *backend-environment
       NOTES_CLOUDRU_API_KEY_FILE: /run/secrets/cloudru_api_key
+      NOTES_STT_ENABLED: ${NOTES_STT_ENABLED:-false}
+      NOTES_STT_PROTOCOL_CONFIRMED: ${NOTES_STT_PROTOCOL_CONFIRMED:-false}
+      NOTES_STT_MODEL: ${NOTES_STT_MODEL:-}
     secrets:
       - postgres_password
       - cloudru_api_key

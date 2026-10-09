@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, or_, select
 
 from app.analytics import record_event
-from app.models import Item, Note, Outbox, Reminder, TelegramIdentity
+from app.models import Capture, Item, Job, Note, Outbox, Reminder, TelegramIdentity
 from app.security import hash_token
 from app.services import lock_account
 
@@ -32,6 +32,20 @@ def matches_lease(row, body):
 
 
 def current_target(db, row, now):
+    if row.job_id is not None:
+        job = db.get(Job, row.job_id)
+        if job is None or job.user_id != row.user_id or job.status != "succeeded" or row.generation != 1:
+            return None
+        capture = db.get(Capture, job.capture_id)
+        note = db.scalar(select(Note).where(Note.capture_id == job.capture_id, Note.user_id == row.user_id))
+        identity = db.scalar(select(TelegramIdentity).where(
+            TelegramIdentity.user_id == row.user_id, TelegramIdentity.bot_id == row.bot_id,
+            TelegramIdentity.chat_id == row.chat_id, TelegramIdentity.notifications_enabled.is_(True),
+            TelegramIdentity.delivery_status == "available",
+        ))
+        if capture is None or capture.user_id != row.user_id or capture.channel != "telegram" or note is None:
+            return None
+        return (None, note) if identity else None
     reminder = db.get(Reminder, row.reminder_id)
     if (
         reminder is None or reminder.user_id != row.user_id or reminder.generation != row.generation
@@ -62,13 +76,22 @@ def attempt_id(row):
 
 def expire_authorization(db, row):
     row.status, row.error_code = "unknown", "delivery_lease_expired"
-    reminder = db.get(Reminder, row.reminder_id)
+    reminder = db.get(Reminder, row.reminder_id) if row.reminder_id is not None else None
     if (
         reminder is not None and reminder.user_id == row.user_id
         and reminder.generation == row.generation and reminder.status == "confirmed"
     ):
         reminder.status = "unknown"
-    record_event(db, row.user_id, "reminder_failed", attempt_id(row), "telegram", outcome="unknown")
+    event = "processing_reply_failed" if row.job_id is not None else "reminder_failed"
+    record_event(db, row.user_id, event, attempt_id(row), "telegram", outcome="unknown")
+
+
+def processing_reply_text(note):
+    text = "Заметка готова.\n\n" + note.title + "\n\n" + note.markdown
+    encoded = text.encode("utf-16-le")
+    if len(encoded) > 3500 * 2:
+        text = encoded[:3500 * 2].decode("utf-16-le", errors="ignore") + "\n\nПолный результат в Beresta."
+    return text
 
 
 def claim_deliveries(db, body, settings):
@@ -99,14 +122,34 @@ def claim_deliveries(db, body, settings):
             ),
         ).order_by(Outbox.user_id, Outbox.created_at, Outbox.id).limit(body.limit)
     ).all()
+    ready_replies = db.execute(
+        select(Outbox.id, Outbox.user_id, Outbox.created_at)
+        .join(Job, and_(Job.id == Outbox.job_id, Job.user_id == Outbox.user_id))
+        .join(Note, and_(Note.capture_id == Job.capture_id, Note.user_id == Outbox.user_id))
+        .join(TelegramIdentity, and_(
+            TelegramIdentity.user_id == Outbox.user_id, TelegramIdentity.bot_id == Outbox.bot_id,
+            TelegramIdentity.chat_id == Outbox.chat_id,
+        ))
+        .where(
+            Outbox.bot_id == body.bot_id, Job.status == "succeeded", Outbox.generation == 1,
+            TelegramIdentity.notifications_enabled.is_(True), TelegramIdentity.delivery_status == "available",
+            or_(
+                and_(Outbox.status == "pending", Outbox.authorized_at.is_(None)),
+                and_(Outbox.status == "retryable", Outbox.result_hash.is_not(None), Outbox.retry_at <= now),
+                and_(Outbox.status == "leased", Outbox.authorized_at.is_(None), Outbox.lease_until <= now),
+            ),
+        ).order_by(Outbox.user_id, Outbox.created_at, Outbox.id).limit(body.limit)
+    ).all()
     results = []
     # All account locks follow the same order, including expired attempts.
-    candidates = sorted({(row.user_id, row.created_at, row.id) for row in [*expired, *ready]})
+    candidates = sorted({(row.user_id, row.created_at, row.id) for row in [*expired, *ready, *ready_replies]})
     for _, _, delivery_id in candidates:
         row = locked_delivery(db, delivery_id)
         now = time.time()
         if row.status == "authorized" and row.lease_until <= now:
             expire_authorization(db, row)
+            continue
+        if len(results) >= body.limit:
             continue
         if not (
             row.status == "pending" and row.authorized_at is None
@@ -119,15 +162,16 @@ def claim_deliveries(db, body, settings):
             continue
         reminder, note = target
         lease = secrets.token_urlsafe(32)
-        callback = secrets.token_urlsafe(32) if reminder.item_id is not None else None
+        callback = secrets.token_urlsafe(32) if reminder is not None and reminder.item_id is not None else None
         row.status, row.lease_token_hash = "leased", hash_token(lease)
         row.lease_until = now + settings.delivery_lease_seconds
         row.authorized_at = row.result_hash = row.retry_at = row.error_code = row.telegram_message_id = None
         row.callback_token_hash = hash_token(callback) if callback else None
         results.append({
             "delivery_id": row.id, "lease_token": lease, "generation": row.generation,
-            "chat_id": row.chat_id, "text": reminder.text,
-            "note_url": settings.public_origin + "/?capture=" + note.capture_id + "&reminder=" + reminder.id, "callback_token": callback,
+            "chat_id": row.chat_id, "text": reminder.text if reminder is not None else processing_reply_text(note),
+            "note_url": settings.public_origin + "/?capture=" + note.capture_id
+                        + ("&reminder=" + reminder.id if reminder is not None else ""), "callback_token": callback,
         })
     db.flush()
     return {"items": results}
@@ -163,7 +207,7 @@ def record_delivery_result(db, delivery_id, body):
     row.status, row.result_hash = body.status, digest
     row.telegram_message_id, row.error_code = body.telegram_message_id, body.error_code
     row.retry_at = time.time() + body.retry_after_seconds if body.status == "retryable" else None
-    reminder = db.get(Reminder, row.reminder_id)
+    reminder = db.get(Reminder, row.reminder_id) if row.reminder_id is not None else None
     if (
         reminder is not None and reminder.user_id == row.user_id
         and reminder.generation == row.generation and reminder.status in {"confirmed", "unknown"}
@@ -176,8 +220,10 @@ def record_delivery_result(db, delivery_id, body):
         ))
         if identity:
             identity.delivery_status = "blocked"
+    prefix = "processing_reply" if row.job_id is not None else "reminder"
     record_event(
-        db, row.user_id, "reminder_sent" if body.status == "sent" else "reminder_failed", attempt_id(row), "telegram", outcome=body.status,
+        db, row.user_id, prefix + ("_sent" if body.status == "sent" else "_failed"),
+        attempt_id(row), "telegram", outcome=body.status,
     )
-    record_event(db, row.user_id, "reminder_result", attempt_id(row), "telegram", outcome=body.status)
+    record_event(db, row.user_id, prefix + "_result", attempt_id(row), "telegram", outcome=body.status)
     return {"status": "recorded"}

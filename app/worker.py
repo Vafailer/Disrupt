@@ -11,7 +11,18 @@ from app.audio_storage import AudioStorage
 from app.config import Settings
 from app.db import make_database
 from app.error_logging import log_error
-from app.models import Capture, Category, Item, Job, Note, ProviderBudget, TranscriptRevision, User, new_id
+from app.models import (
+    Capture,
+    Category,
+    Item,
+    Job,
+    Note,
+    Outbox,
+    ProviderBudget,
+    TranscriptRevision,
+    User,
+    new_id,
+)
 from app.providers import ProviderError, make_provider, validate_result
 from app.services import ensure_category, lock_account, save_revision
 from app.speech import CloudRuSpeechProvider, make_speech_provider
@@ -69,7 +80,7 @@ class Worker:
             active = db.execute(
                 update(Job)
                 .where(Job.id == job_id, Job.status == "running", Job.lease_until >= time.time())
-                .values(status="running")
+                .values(status="running", lease_until=time.time() + self.settings.lease_seconds)
             ).rowcount
             if not active:
                 raise ProviderError("execution_unknown")
@@ -109,6 +120,9 @@ class Worker:
                 for expired_id, user_id, capture_id in expired:
                     capture = db.get(Capture, capture_id)
                     record_event(db, user_id, "processing_failed", expired_id, capture.channel)
+                    db.execute(update(Outbox).where(
+                        Outbox.job_id == expired_id, Outbox.status.in_({"pending", "leased", "retryable"}),
+                    ).values(status="cancelled", error_code="processing_failed"))
             job_id = db.scalar(
                 select(Job.id)
                 .where(Job.status == "queued", Job.provider == self.settings.provider)
@@ -167,6 +181,9 @@ class Worker:
                 job = db.get(Job, job_id)
                 capture = db.get(Capture, job.capture_id)
                 record_event(db, job.user_id, "processing_failed", job_id, capture.channel)
+                db.execute(update(Outbox).where(
+                    Outbox.job_id == job_id, Outbox.status.in_({"pending", "leased", "retryable"}),
+                ).values(status="cancelled", error_code="processing_failed"))
             db.commit()
 
     def run_once(self):

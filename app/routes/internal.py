@@ -210,6 +210,9 @@ def build_router(database, settings):
                 channel="telegram",
                 commit=False,
             )
+            if not isinstance(result, Note):
+                db.add(Outbox(job_id=result.id, user_id=identity.user_id, bot_id=identity.bot_id,
+                              chat_id=identity.chat_id, generation=1, status="pending"))
             # A stable capture link works before the asynchronous note exists.
             return {
                 "capture_id": result.capture_id,

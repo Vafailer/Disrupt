@@ -225,9 +225,15 @@ class Inbox(Base):
 
 class Outbox(Base):
     __tablename__ = "outbox"
-    __table_args__ = (UniqueConstraint("reminder_id", "generation"),)
+    __table_args__ = (
+        UniqueConstraint("reminder_id", "generation"),
+        UniqueConstraint("job_id", name="uq_outbox_processing_job"),
+        CheckConstraint("(reminder_id IS NOT NULL AND job_id IS NULL) OR "
+                        "(reminder_id IS NULL AND job_id IS NOT NULL)", name="ck_outbox_target"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    reminder_id: Mapped[str] = mapped_column(ForeignKey("reminders.id"), index=True)
+    reminder_id: Mapped[str | None] = mapped_column(ForeignKey("reminders.id"), index=True, nullable=True)
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id"), nullable=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     bot_id: Mapped[int] = mapped_column(BigInteger)
     chat_id: Mapped[int] = mapped_column(BigInteger)
