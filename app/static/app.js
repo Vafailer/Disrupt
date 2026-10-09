@@ -69,7 +69,12 @@ async function loadNotes(reset = true) {
   if (activeFilter.category) query.set('category_id',activeFilter.category);
   const {data:list,headers} = await api(`/api/v1/notes?${query}`,{},true);
   if (generation !== notesGeneration || currentEpoch !== epoch) return;
-  if (!list.length && notesOffset === 0) $('notes').append(element('p','Записей не найдено.'));
+  if (!list.length && notesOffset === 0) {
+    // data-empty tells onboarding.js a truly empty library from an empty search.
+    const kind = activeFilter.q ? 'search' : activeFilter.category ? 'category' : 'library';
+    const hint = element('p',{search:'Ничего не нашли. Измените запрос или сбросьте поиск.',category:'В этой категории пока нет записей.',library:'Пока пусто. Первая запись появится здесь.'}[kind],'empty-hint');
+    hint.dataset.empty = kind; $('notes').append(hint);
+  }
   for (const note of list) {
     const button = element('button', note.title);
     button.dataset.noteId = note.id;
