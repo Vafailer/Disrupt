@@ -231,11 +231,11 @@ async function pollJob(id, currentEpoch, {kind = 'text', generation = viewGenera
 }
 $('auth-form').onsubmit = async event => {
   event.preventDefault();
-  const username = $('login').value.trim();
+  const username = $('login').value;
   const password = $('password').value;
   const action = event.submitter?.value || 'login';
-  if (!/^[A-Za-zА-Яа-яЁё0-9_.-]{3,64}$/u.test(username)) {
-    authMessage('Имя должно содержать от 3 до 64 символов. Можно по-русски.');
+  if (username.length < 3 || username.length > 64 || /[^A-Za-z0-9_.-]/u.test(username)) {
+    authMessage('От 3 до 64 символов. Латинские буквы, цифры и символы _ . -');
     $('login').focus(); return;
   }
   if ([...password].length < 10 || [...password].length > 128) {

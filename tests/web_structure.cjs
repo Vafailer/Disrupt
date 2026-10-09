@@ -142,6 +142,34 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     await until(() => $('note-category').selectedOptions[0].textContent === 'Проект');
     assert.equal($('note-category').value,note.category_id);
     assert.equal(calls.filter(c => c.url.pathname === '/api/v1/search/events').length,1);
+    // Authentication input stays aligned with the API, including whitespace.
+    const login = $('login');
+    assert.equal(login.placeholder,'username');
+    assert.equal(login.minLength,3); assert.equal(login.maxLength,64);
+    const link = w.document.querySelector('a[href="https://t.me/+kwnF-xaajiA3YmQy"]');
+    assert.ok(link && link.textContent.includes('Telegram'));
+    const authCalls = [];
+    w.fetch = async (url, options) => {
+      authCalls.push({url,body:JSON.parse(options.body)});
+      return reply({detail:'Synthetic auth result'},401);
+    };
+    for (const action of ['register','login']) {
+      for (const name of ['abc','User.Name_123-X','A'.repeat(64),'ab','a'.repeat(65),'Марк','MarkМ','Ёжик','abc\n',' abc','abc ','café','abc@']) {
+        const valid = ['abc','User.Name_123-X','A'.repeat(64)].includes(name);
+        login.value = name;
+        $('password').value = 'test-only-password-123';
+        // text inputs strip newlines natively; all other cases exercise HTML validation.
+        if (!name.includes('\n')) assert.equal(login.checkValidity(), !/[^A-Za-z0-9_.-]/u.test(name),name);
+        const before = authCalls.length;
+        // Set the original value to test JS validation even for programmatic submits.
+        Object.defineProperty(login,'value',{configurable:true,value:name,writable:true});
+        await $('auth-form').onsubmit({preventDefault(){},target:$('auth-form'),submitter:{value:action}});
+        delete login.value;
+        assert.equal(authCalls.length,before + Number(valid),name);
+        if (valid) assert.equal(authCalls.at(-1).body.username,name);
+        else assert.match($('auth-message').textContent,/Латинские буквы/);
+      }
+    }
     console.log('Web DOM checks passed: drafts, conflicts, version, XSS, search, pagination, events and category rename.');
   } finally { dom.window.close(); }
 })().catch(error => {console.error(error);process.exitCode = 1;});
