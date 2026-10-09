@@ -10,7 +10,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.engine import make_url
 
 from app.audio_storage import AudioStorage
@@ -326,5 +326,8 @@ def test_postgres_concurrent_captures_do_not_pass_the_limit(monkeypatch):
             assert len(limited) == 4  # The account lock serializes the check: no overshoot.
             with app.state.sessions() as db:
                 assert db.scalar(select(func.count()).select_from(Job).where(Job.user_id == owner["id"])) == 2
+                # The database is shared with other PostgreSQL tests: do not leave queued jobs for their workers.
+                db.execute(delete(Job).where(Job.user_id == owner["id"]))
+                db.commit()
     finally:
         app.state.engine.dispose()
