@@ -200,7 +200,8 @@ def _backup(args, remote=None):
         restart_error = False
         try:
             if services:
-                run(command + ["stop", "--timeout", "30", *services])
+                # A voice job can contain decoding, STT and LLM. Finish the paid attempt before snapshotting.
+                run(command + ["stop", "--timeout", "180", *services])
             stopped = states(command)
             if any(stopped.get(s, {}).get("State") == "running" for s in services):
                 raise Failure("writers_not_stopped")

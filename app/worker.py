@@ -1,5 +1,7 @@
 """Durable at-most-once dispatch. Ambiguous failures never trigger an automatic retry."""
 
+import signal
+import threading
 import time
 
 from pydantic import ValidationError
@@ -295,10 +297,14 @@ class Worker:
 def main():
     settings = Settings.from_env()
     engine, sessions = make_database(settings.database_url)
+    stopping = threading.Event()
+    def request_stop(signum, frame):
+        stopping.set()
+    previous_handlers = {sig: signal.signal(sig, request_stop) for sig in (signal.SIGTERM, signal.SIGINT)}
     try:
         worker = Worker(sessions, settings, audio_storage=AudioStorage(settings.audio_storage_path, read_only=True),
                         speech_provider=make_speech_provider(settings))
-        while True:
+        while not stopping.is_set():
             if not worker.budget_available():
                 time.sleep(1)
                 continue
@@ -307,6 +313,8 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        for sig, handler in previous_handlers.items():
+            signal.signal(sig, handler)
         engine.dispose()
 
 
