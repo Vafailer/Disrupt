@@ -184,7 +184,6 @@ class CloudRuProvider:
                         "temperature": 0.2,
                         "max_tokens": 4000,
                         "response_format": {"type": "json_object"},
-                        **({"thinking": {"type": "disabled"}} if self._model.lower().startswith("deepseek") else {}),
                         "messages": [
                             {"role": "system", "content": SYSTEM_PROMPT},
                             *(

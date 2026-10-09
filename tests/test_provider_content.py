@@ -27,12 +27,14 @@ def test_invalid_output_is_rejected_without_logging_content(content, caplog):
     assert "Explanation" not in caplog.text
 
 
-def test_deepseek_requests_final_json_without_reasoning_and_does_not_retry():
+def test_gateway_keeps_standard_parameters_and_does_not_retry():
     calls = []
 
     def transport(request):
         calls.append(request)
-        assert json.loads(request.content)["thinking"] == {"type": "disabled"}
+        body = json.loads(request.content)
+        assert "thinking" not in body
+        assert body["response_format"] == {"type": "json_object"}
         return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
             "content": "```json\n" + json.dumps(RESULT) + "\n```", "reasoning_content": "private-synthetic",
         }}]})
