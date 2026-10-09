@@ -142,6 +142,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     await until(() => $('note-category').selectedOptions[0].textContent === 'Проект');
     assert.equal($('note-category').value,note.category_id);
     assert.equal(calls.filter(c => c.url.pathname === '/api/v1/search/events').length,1);
+    await require('./web_job_waiting.cjs')();
     console.log('Web DOM checks passed: drafts, conflicts, version, XSS, search, pagination, events and category rename.');
   } finally { dom.window.close(); }
 })().catch(error => {console.error(error);process.exitCode = 1;});
