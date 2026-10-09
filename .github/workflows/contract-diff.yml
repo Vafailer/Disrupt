@@ -1,0 +1,19 @@
+name: Temporary contract diff
+on:
+  push:
+    branches: [tmp/contract-diff]
+permissions:
+  contents: read
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: |
+          PYTHONPATH=. python scripts/export_contract.py
+          git diff -U2 -- docs/integration-v1.openapi.json docs/integration-v1-examples.json > d.txt || true
+          python -c "d=open('d.txt').read()[:60000];print('::error title=contract-diff::'+d.replace('%','%25').replace('\r','').replace('\n','%0A'))"
