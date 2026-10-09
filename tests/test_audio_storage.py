@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 import subprocess
 import wave
@@ -160,3 +161,77 @@ def test_busy_decoder_is_temporary_and_does_not_publish(storage):
         _DECODE_SLOTS.release()
         _DECODE_SLOTS.release()
     assert not list(storage.root.iterdir())
+
+
+def ogg_crc(data):
+    crc = 0
+    for byte in data:
+        crc ^= byte << 24
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x04C11DB7) & 0xFFFFFFFF if crc & 0x80000000 else (crc << 1) & 0xFFFFFFFF
+    return crc
+
+
+def last_page_start(data):
+    start, pos = 0, 0
+    while pos < len(data):
+        assert data[pos:pos + 4] == b"OggS"
+        start = pos
+        count = data[pos + 26]
+        pos += 27 + count + sum(data[pos + 27:pos + 27 + count])
+    assert pos == len(data)
+    return start
+
+
+def clear_eos(data):
+    """Rewrite the last Ogg page without the EOS flag and with a valid CRC."""
+    start = last_page_start(data)
+    page = bytearray(data[start:])
+    assert page[5] & 4
+    page[5] &= ~4
+    page[22:26] = b"\0\0\0\0"
+    page[22:26] = ogg_crc(page).to_bytes(4, "little")
+    return data[:start] + bytes(page)
+
+
+def opus_ogg(tmp_path, seconds=0.5):
+    path = tmp_path / "synthetic.ogg"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "wav", "-i", "pipe:0", "-c:a", "libopus", "-f", "ogg", str(path)],
+                   input=wav(seconds), check=True)
+    return path.read_bytes()
+
+
+def test_crc_helper_matches_ffmpeg_pages(tmp_path):
+    data = opus_ogg(tmp_path)
+    start = last_page_start(data)
+    page = bytearray(data[start:])
+    stored = bytes(page[22:26])
+    page[22:26] = b"\0\0\0\0"
+    assert ogg_crc(page).to_bytes(4, "little") == stored
+
+
+def test_ogg_without_eos_flag_is_accepted(storage, tmp_path):
+    data = clear_eos(opus_ogg(tmp_path))
+    with storage.stage(io.BytesIO(data)) as staged:
+        assert storage.inspect(staged).duration_seconds == pytest.approx(0.5, abs=0.05)
+
+
+def test_ogg_cut_inside_a_page_is_still_rejected(storage, tmp_path):
+    data = opus_ogg(tmp_path)
+    for cut in (1, 10, (len(data) - last_page_start(data)) // 2):
+        with storage.stage(io.BytesIO(data[:-cut])) as staged:
+            with pytest.raises(UnsupportedAudio):
+                storage.inspect(staged)
+
+
+def test_rejection_reason_is_logged_without_private_data(storage, caplog):
+    from app.integration import IntegrationRejection
+    from app.routes.audio import audio_errors
+    payload = b"#EXTM3U\nhttp://example.test/private"
+    with caplog.at_level(logging.WARNING):
+        with storage.stage(io.BytesIO(payload)) as staged:
+            with pytest.raises(IntegrationRejection):
+                with audio_errors("telegram"):
+                    storage.inspect(staged)
+    assert "audio_rejected reason=unsupported_container channel=telegram" in caplog.text
+    assert "example.test" not in caplog.text and str(storage.root) not in caplog.text

@@ -223,6 +223,9 @@ class Bot:
                 result = await self.core.post(
                     "/telegram/voice", {**identity, "processing_mode": "ai"}, audio=audio
                 )
+            elif isinstance(message.get("audio"), dict) or isinstance(message.get("video_note"), dict):
+                await self.notify(chat_id, "Пока принимаю только голосовые сообщения. Запиши голосовое кнопкой микрофона.")
+                return
             else:
                 await self.notify(
                     chat_id, "Отправь текст или голосовое сообщение. Этот тип вложения пока недоступен."
