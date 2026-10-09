@@ -1,6 +1,7 @@
 """Cloud.ru adapter. Construction/health checks do not send requests."""
 
 import json
+import logging
 import os
 from typing import Protocol
 
@@ -128,6 +129,41 @@ class CloudRuProvider:
     def structure(self, text, *, categories=()):
         return self.structure_with_usage(text, categories=categories, on_usage=lambda _: None)
 
+    @staticmethod
+    def parse_content(content):
+        # Gateways may wrap a JSON answer or expose text blocks. Validate the same business schema.
+        if isinstance(content, list):
+            if not content or any(not isinstance(part, dict) or part.get("type") not in {"text", "output_text"}
+                                  or not isinstance(part.get("text"), str) for part in content):
+                raise ProviderError("provider_invalid_response")
+            content = "".join(part["text"] for part in content)
+        if isinstance(content, str):
+            content = content.strip()
+            if content.startswith("<think>") and "</think>" in content:
+                content = content.split("</think>", 1)[1].strip()
+            if content.startswith("```") and content.endswith("```"):
+                first, separator, rest = content.partition("\n")
+                if separator and first.lower() in {"```", "```json"}:
+                    content = rest[:-3].strip()
+            if not content:
+                logging.getLogger(__name__).warning("provider_output_invalid stage=empty_content")
+                raise ProviderError("provider_invalid_response")
+            try:
+                content = json.loads(content)
+            except ValueError:
+                logging.getLogger(__name__).warning("provider_output_invalid stage=json_syntax")
+                raise ProviderError("provider_invalid_response") from None
+        try:
+            return StructuredNote.model_validate(content)
+        except ValidationError as error:
+            # Never log inputs, exception messages, reasoning, unknown field names or response bodies.
+            safe_types = {"missing", "extra_forbidden", "string_type", "string_too_short", "string_too_long",
+                          "literal_error", "list_type", "too_long", "value_error", "model_type"}
+            types = sorted({item["type"] if item["type"] in safe_types else "other_validation"
+                            for item in error.errors(include_input=False, include_context=False, include_url=False)})
+            logging.getLogger(__name__).warning("provider_output_invalid stage=schema types=%s", ",".join(types))
+            raise ProviderError("provider_invalid_response") from None
+
     def structure_with_usage(self, text, *, categories=(), on_usage):
         from app.usage import response_tokens
 
@@ -148,6 +184,7 @@ class CloudRuProvider:
                         "temperature": 0.2,
                         "max_tokens": 4000,
                         "response_format": {"type": "json_object"},
+                        **({"thinking": {"type": "disabled"}} if self._model.lower().startswith("deepseek") else {}),
                         "messages": [
                             {"role": "system", "content": SYSTEM_PROMPT},
                             *(
@@ -194,7 +231,7 @@ class CloudRuProvider:
             choice = data["choices"][0]
             if choice.get("finish_reason") != "stop":
                 raise ProviderError("provider_incomplete_response")
-            result = StructuredNote.model_validate_json(choice["message"]["content"])
+            result = self.parse_content(choice["message"]["content"])
             return validate_result(result, text)
         except httpx.TimeoutException:
             raise ProviderError("provider_timeout_unknown") from None

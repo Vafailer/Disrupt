@@ -16,6 +16,7 @@ const errors = {
   provider_bad_request:'Cloud.ru отклонил запрос. Проверьте выбранную модель.',
   provider_auth:'Нет доступа к модели. Проверьте настройки сервера.',
   provider_model_not_found:'Модель не найдена. Проверьте её название и доступ команды.',
+  provider_invalid_response:'ИИ ответил, но формат результата не удалось принять. Исходник сохранён.',
   provider_rate_limit:'Cloud.ru ограничил запросы. Повтора не было.',
   provider_unavailable:'Cloud.ru сейчас недоступен. Запись сохранена, повтора не было.',
   provider_conflict:'Cloud.ru отклонил запрос. Повтора не было.',
