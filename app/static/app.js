@@ -48,10 +48,13 @@ function authMessage(text = '') {
 const iconPaths = {
   telegram:'m21 3-6 18-4-8-8-4 18-6Zm-10 10 5-5',
   mic:'M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM6 11a6 6 0 0 0 12 0M12 17v4',
+  bell:'M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7ZM10 20a2 2 0 0 0 4 0',
+  bulb:'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3Z',
+  dot:'M12 12h.01',
 };
-function icon(name) {
+function icon(name, size = 12) {
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns,'svg'), path = document.createElementNS(ns,'path');
-  for (const [key,value] of Object.entries({viewBox:'0 0 24 24',width:'12',height:'12','aria-hidden':'true',focusable:'false'})) svg.setAttribute(key,value);
+  for (const [key,value] of Object.entries({viewBox:'0 0 24 24',width:String(size),height:String(size),'aria-hidden':'true',focusable:'false'})) svg.setAttribute(key,value);
   for (const [key,value] of Object.entries({d:iconPaths[name],fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round'})) path.setAttribute(key,value);
   svg.append(path); return svg;
 }
@@ -243,7 +246,7 @@ function hasDrafts(except = null) {
   if (except !== 'new' && $('item-text').value.trim()) return true;
   for (const [id,editor] of itemEditors) {
     if (id === except) continue;
-    if (editor.text.value !== editor.item.text || editor.kind.value !== editor.item.kind || editor.status.value !== editor.item.status) return true;
+    if (editor.input && editor.input.value !== editor.item.text) return true;
   }
   return false;
 }
@@ -294,7 +297,10 @@ function renderNote(note) {
   $('markdown').value = note.markdown; renderMarkdown(note.markdown);
   $('original-details').open = false;
   fillCategoryOptions($('note-category'),false,note.category_id || '');
-  $('structure-status').textContent = note.structure_confirmed_at ? 'Вы проверили структуру этой записи.' : 'Проверьте текст, задачи и категорию.';
+  const checked = 'Вы проверили структуру этой записи.';
+  $('structure-status').textContent = note.structure_confirmed_at ? checked : '';
+  $('confirm-structure').title = note.structure_confirmed_at ? checked : 'Проверьте текст, задачи и категорию.';
+  $('confirm-structure').classList.toggle('is-confirmed',Boolean(note.structure_confirmed_at));
   $('confirm-structure').disabled = Boolean(note.structure_confirmed_at);
   renderItems(note);
   window.BerestaReminders?.show(note,{request:api,onBusy:setNoteBusy,
@@ -590,59 +596,106 @@ $('note-category').onchange = async () => {
   $('note-category').value = currentNote.category_id || '';
 };
 $('confirm-structure').onclick = () => mutateNote('/confirm-structure','POST',{},'Структура подтверждена.');
+// Tasks and ideas are a checklist. A row is plain text until it is clicked, then it edits in place.
+function saveItem(item, patch, row, restore) {
+  const next = {kind:item.kind,text:item.text,status:item.status,...patch};
+  if (next.kind !== 'task') next.status = 'open';
+  return mutateNote(`/items/${item.id}`,'PATCH',next,'Элемент сохранён.',item.id).then(() => {
+    // A refused or failed save re-renders nothing. Put the control back to what is stored.
+    if (row.isConnected) restore();
+  });
+}
+function growField(field) {
+  field.style.height = 'auto';
+  if (field.scrollHeight) field.style.height = `${field.scrollHeight}px`;
+}
+function updateItemsCount(note) {
+  const tasks = note.items.filter(item => item.kind === 'task'), done = tasks.filter(item => item.status === 'completed').length;
+  $('items-count').textContent = tasks.length ? `${done} из ${tasks.length} выполнено` : '';
+}
 function renderItems(note) {
   itemEditors.clear(); $('items').replaceChildren(); $('item-text').value = '';
-  if (!note.items.length) $('items').append(element('p','Можно добавить задачу или идею вручную.'));
-  for (const item of note.items) {
-    const form = element('form','','item'), kind = document.createElement('select');
-    kind.id = `kind-${item.id}`;
+  updateItemsCount(note);
+  if (!note.items.length) $('items').append(element('p','Пока пусто. Добавьте задачу или идею ниже.','muted items-empty'));
+  const ordered = [...note.items].sort((a,b) => (a.status === 'completed') - (b.status === 'completed'));
+  for (const item of ordered) {
+    const row = element('div','','item'), entry = {item,input:null};
+    row.dataset.itemId = item.id;
+    const task = item.kind === 'task', completed = task && item.status === 'completed';
+    row.classList.toggle('is-done',completed); row.classList.toggle('is-idea',!task);
+    let lead;
+    if (task) {
+      lead = document.createElement('input'); lead.type = 'checkbox'; lead.className = 'item-done'; lead.checked = completed;
+      lead.setAttribute('aria-label','Задача выполнена');
+      lead.onchange = () => saveItem(item,{status:lead.checked ? 'completed' : 'open'},row,() => { lead.checked = completed; });
+    } else {
+      lead = element('span','','item-mark'); lead.setAttribute('aria-hidden','true');
+      lead.append(icon(item.kind === 'idea' ? 'bulb' : 'dot',item.kind === 'idea' ? 15 : 18));
+    }
+    const text = element('button',item.text,'item-text'); text.type = 'button';
+    text.title = 'Нажмите, чтобы изменить';
+    const main = element('div','','item-main'); main.append(text);
+    if (item.due_text) main.append(element('span',`Срок из записи: «${item.due_text}»`,'item-note muted'));
+    if (item.source_quote) {
+      const quote = document.createElement('details'); quote.className = 'item-quote';
+      quote.append(element('summary','Фрагмент исходника'),element('pre',item.source_quote)); main.append(quote);
+    }
+    const tools = element('div','','item-tools');
+    if (task && item.status === 'open') {
+      const remind = element('button','','item-remind'); remind.type = 'button';
+      remind.setAttribute('aria-label','Напомнить'); remind.title = 'Напомнить'; remind.append(icon('bell',15));
+      remind.onclick = () => window.BerestaReminders?.startForTask(item); tools.append(remind);
+    }
+    const kind = document.createElement('select'); kind.id = `kind-${item.id}`; kind.className = 'item-kind';
+    kind.setAttribute('aria-label','Тип');
     for (const [value,label] of Object.entries(itemLabels)) kind.append(new Option(label,value));
     kind.value = item.kind;
-    const kindLabel = element('label','Тип','sr-only'); kindLabel.htmlFor = kind.id;
-    const text = document.createElement('textarea'); text.id = `text-${item.id}`;
-    text.rows = 2; text.maxLength = 1500; text.required = true; text.value = item.text;
-    const textLabel = element('label','Текст','sr-only'); textLabel.htmlFor = text.id;
-    const status = document.createElement('select'); status.id = `status-${item.id}`;
-    status.append(new Option('В работе','open'),new Option('Выполнена','completed')); status.value = item.status;
-    const statusLabel = element('label','Статус','sr-only'); statusLabel.htmlFor = status.id;
-    // The checkbox is the visible control for a task status. The select stays for the saved value.
-    const done = document.createElement('input'); done.type = 'checkbox'; done.className = 'item-done';
-    done.setAttribute('aria-label','Задача выполнена');
-    const updateStatus = () => {
-      status.hidden = statusLabel.hidden = true;
-      if (kind.value !== 'task') status.value = 'open';
-      done.hidden = kind.value !== 'task'; done.checked = status.value === 'completed';
-      form.classList.toggle('is-done',done.checked && !done.hidden);
+    kind.onchange = () => saveItem(item,{kind:kind.value},row,() => { kind.value = item.kind; });
+    tools.append(kind);
+    const startEdit = () => {
+      if (entry.input || noteBusy) return;
+      const input = document.createElement('textarea'); input.className = 'item-edit'; input.rows = 1;
+      input.maxLength = 1500; input.value = item.text; input.id = `text-${item.id}`;
+      input.setAttribute('aria-label','Текст');
+      let finished = false;
+      const close = () => { entry.input = null; input.replaceWith(text); };
+      const commit = () => {
+        if (finished) return; finished = true;
+        const value = input.value.trim();
+        if (!value || value === item.text) { close(); if (!value) message('Текст не может быть пустым.'); return; }
+        input.value = value;
+        // If the save did not go through, the editor stays open with the typed text.
+        saveItem(item,{text:value},row,() => { finished = false; if (entry.input === input) input.focus(); });
+      };
+      input.addEventListener('keydown',event => {
+        if (event.isComposing) return;
+        if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); commit(); }
+        else if (event.key === 'Escape') { event.preventDefault(); finished = true; close(); text.focus(); }
+      });
+      input.addEventListener('input',() => growField(input));
+      input.addEventListener('blur',commit);
+      entry.input = input; text.replaceWith(input); growField(input); input.focus();
+      input.setSelectionRange?.(input.value.length,input.value.length);
     };
-    kind.onchange = updateStatus; updateStatus();
-    done.onchange = () => {
-      status.value = done.checked ? 'completed' : 'open';
-      if (form.requestSubmit) form.requestSubmit();
-      else form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
-    };
-    form.append(done,kindLabel,kind,textLabel,text,statusLabel,status);
-    if (item.due_text) form.append(element('p',`Срок из записи «${item.due_text}». Время напоминания ещё не подтверждено.`,'muted'));
-    if (item.source_quote) {
-      const quote = document.createElement('details');
-      quote.append(element('summary','Фрагмент исходника'),element('pre',item.source_quote)); form.append(quote);
-    }
-    const actions = element('div','','item-actions');
-    const button = element('button','Сохранить элемент','secondary'); button.type = 'submit'; actions.append(button);
-    if (item.kind === 'task' && item.status === 'open') {
-      const remind = element('button','Напомнить','quiet'); remind.type = 'button';
-      remind.onclick = () => window.BerestaReminders?.startForTask(item); actions.append(remind);
-    }
-    form.append(actions);
-    form.onsubmit = async event => {
-      event.preventDefault();
-      await mutateNote(`/items/${item.id}`,'PATCH',{kind:kind.value,text:text.value,status:status.value},'Элемент сохранён.',item.id);
-    };
-    itemEditors.set(item.id,{item,text,kind,status}); $('items').append(form);
+    text.onclick = startEdit;
+    row.append(lead,main,tools);
+    itemEditors.set(item.id,entry); $('items').append(row);
   }
 }
+function syncItemKind() {
+  const kind = $('item-kind').value;
+  for (const button of $('item-kind-toggle').querySelectorAll('button')) button.setAttribute('aria-pressed',String(button.dataset.kind === kind));
+  $('item-text').placeholder = kind === 'idea' ? '+ Добавить идею' : '+ Добавить задачу';
+}
+for (const button of $('item-kind-toggle').querySelectorAll('button')) {
+  button.onclick = () => { $('item-kind').value = button.dataset.kind; syncItemKind(); $('item-text').focus(); };
+}
+syncItemKind();
 $('item-form').onsubmit = async event => {
   event.preventDefault();
-  await mutateNote('/items','POST',{kind:$('item-kind').value,text:$('item-text').value},'Элемент добавлен.','new');
+  const text = $('item-text').value.trim();
+  if (!text) return;
+  await mutateNote('/items','POST',{kind:$('item-kind').value,text},'Элемент добавлен.','new');
 };
 $('original-details').ontoggle = () => {
   if (!$('original-details').open || !currentNote) return;
