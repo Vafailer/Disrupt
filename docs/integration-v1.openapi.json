@@ -3569,6 +3569,298 @@
         "x-implementation-status": "implemented"
       }
     },
+    "/api/v1/assistant/ask": {
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Ask Question",
+        "operationId": "ask_question_api_v1_assistant_ask_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantAsk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/assistant/recommendations": {
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Create Recommendations",
+        "operationId": "create_recommendations_api_v1_assistant_recommendations_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/assistant/digest": {
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Create Digest",
+        "operationId": "create_digest_api_v1_assistant_digest_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantDigest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/assistant/requests": {
+      "get": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "List Requests",
+        "operationId": "list_requests_api_v1_assistant_requests_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/assistant/requests/{request_id}": {
+      "get": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Read Request",
+        "operationId": "read_request_api_v1_assistant_requests__request_id__get",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/assistant/settings": {
+      "get": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Read Settings",
+        "operationId": "read_settings_api_v1_assistant_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      },
+      "patch": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Update Settings",
+        "operationId": "update_settings_api_v1_assistant_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantSettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -4324,6 +4616,63 @@
           "generated_at"
         ],
         "title": "AdminSummary"
+      },
+      "AssistantAsk": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Question"
+          },
+          "days": {
+            "type": "integer",
+            "enum": [
+              7,
+              30,
+              90,
+              365
+            ],
+            "title": "Days",
+            "default": 90
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "AssistantAsk"
+      },
+      "AssistantDigest": {
+        "properties": {
+          "days": {
+            "type": "integer",
+            "enum": [
+              7,
+              30
+            ],
+            "title": "Days",
+            "default": 7
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AssistantDigest"
+      },
+      "AssistantSettingsPatch": {
+        "properties": {
+          "recommendations_enabled": {
+            "type": "boolean",
+            "title": "Recommendations Enabled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "recommendations_enabled"
+        ],
+        "title": "AssistantSettingsPatch"
       },
       "AudioJobResponse": {
         "additionalProperties": false,
@@ -5543,8 +5892,7 @@
               {
                 "type": "null"
               }
-            ],
-            "default": null
+            ]
           }
         },
         "additionalProperties": false,
