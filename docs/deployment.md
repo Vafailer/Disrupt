@@ -35,6 +35,13 @@ read -rsp "PostgreSQL password: " DB_PASSWORD; printf '%s' "$DB_PASSWORD" > secr
 chmod 600 secrets/*.txt
 ```
 
+Третий файл нужен для шифрования данных. Создайте его один раз и не перезаписывайте. Потеря этого ключа делает тексты и записи нечитаемыми, поэтому сразу сохраните копию вне сервера. Подробности в [encryption-v1.md](encryption-v1.md).
+
+```sh
+umask 077
+openssl rand -base64 32 > secrets/data_key.txt
+```
+
 `secrets/` и `.env.production` исключены из Git. Не пересылайте эти файлы участникам команды и не вставляйте их содержимое в issue, pull request или чат.
 
 ## Запуск
