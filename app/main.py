@@ -282,6 +282,8 @@ def create_app(
     app.include_router(brain_router(database, settings))
     app.include_router(assistant_router(database, settings))
     app.include_router(auth_flows_router(database, settings))
+    from app.routes.email_auth import build_router as email_auth_router
+    app.include_router(email_auth_router(database, settings))
 
     @app.get("/health")
     def health(db=Depends(database)):
@@ -300,6 +302,8 @@ def create_app(
         check_origin(request)
         if not settings.allow_registration:
             raise HTTPException(403, "Регистрация закрыта")
+        if settings.email_registration_enabled:
+            raise HTTPException(403, "Создайте аккаунт через почту или Telegram")
         require_consent(body.accept_policy, body.policy_version)
         ip = request.client.host if request.client else "unknown"
         throttle(db, "register:" + ip)

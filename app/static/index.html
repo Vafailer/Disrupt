@@ -11,6 +11,8 @@
   <script src="/static/reminders.js" defer=""></script>
   <script src="/static/app.js" defer=""></script>
   <script src="/static/telegram-link.js" defer=""></script>
+  <script src="/static/email-auth.js" defer=""></script>
+  <link rel="stylesheet" href="/static/email-auth.css">
   <link rel="stylesheet" href="/static/auth-extra.css"><script src="/static/auth-extra.js" defer=""></script>
 <link rel="stylesheet" href="/static/workspace.css"><script src="/static/workspace.js" defer=""></script>
   <link rel="stylesheet" href="/static/landing.css"><link rel="stylesheet" href="/static/onboarding.css"><link rel="stylesheet" href="/static/polish.css"><link rel="stylesheet" href="/static/note.css"><link rel="stylesheet" href="/static/app-polish.css">
@@ -55,7 +57,7 @@
             <label class="consent" for="accept-policy"><input id="accept-policy" type="checkbox" data-policy-version="2026-10-10"><span>Я принимаю <a href="/privacy" target="_blank" rel="noopener noreferrer">политику конфиденциальности<span class="sr-only"> (откроется в новой вкладке)</span></a></span></label>
             <p id="consent-hint" class="field-hint">Нужно при регистрации и при входе через Telegram.</p>
             <div class="actions"><button type="submit" value="login">Войти</button><button type="submit" value="register" class="secondary">Создать аккаунт</button></div>
-            <p class="auth-extra"><button type="button" id="forgot-password" class="text-link">Забыли пароль?</button></p>
+            <p class="auth-extra"><button type="button" id="forgot-password" class="text-link">Забыли пароль?</button><button type="button" id="email-login" class="text-link" hidden>Войти по почте</button></p>
             <div class="auth-alt">
               <p class="auth-or" aria-hidden="true"><span>или</span></p>
               <button type="button" id="tg-login" class="telegram-login">Войти через Telegram</button>
@@ -245,6 +247,24 @@
         </section>
       </div></div>
   </main>
+  <dialog id="email-auth-dialog" class="auth-dialog" aria-labelledby="email-auth-title">
+    <h2 id="email-auth-title">Регистрация по почте</h2>
+    <form id="email-auth-form">
+      <label for="email-auth-address">Почта</label><input id="email-auth-address" type="email" maxlength="254" autocomplete="email" required>
+      <label for="email-auth-password">Пароль</label><input id="email-auth-password" type="password" minlength="10" maxlength="128" autocomplete="new-password" required>
+      <label id="email-auth-consent-label" class="consent" for="email-auth-consent"><input id="email-auth-consent" type="checkbox"><span>Я принимаю <a href="/privacy" target="_blank" rel="noopener noreferrer">политику конфиденциальности</a></span></label>
+      <button id="email-auth-send" type="submit">Получить код</button>
+      <button id="email-auth-recover" type="button" class="quiet" hidden>Восстановить пароль по почте</button>
+    </form>
+    <form id="email-auth-code-form" hidden>
+      <p>Если адрес доступен для регистрации, на него отправлен код. Он действует 10 минут. Если аккаунт уже есть, войдите или восстановите пароль.</p>
+      <label for="email-auth-code">Код из письма</label><input id="email-auth-code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required>
+      <button id="email-auth-confirm" type="submit">Подтвердить и войти</button>
+      <button id="email-auth-retry" type="button" class="quiet">Запросить новый код</button>
+    </form>
+    <p id="email-auth-message" role="status" aria-live="polite"></p>
+    <button id="email-auth-close" type="button" class="quiet">Закрыть</button>
+  </dialog>
   <div id="pop-scrim" class="pop-scrim" hidden></div>
 
 

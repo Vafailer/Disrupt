@@ -65,6 +65,20 @@ class EmailBody(StrictModel):
         return value
 
 
+class EmailCredentials(EmailBody):
+    password: str = Field(min_length=10, max_length=128)
+
+
+class EmailRegistrationStart(EmailCredentials):
+    accept_policy: bool = False
+    policy_version: str | None = Field(default=None, max_length=32)
+
+
+class EmailRegistrationConfirm(StrictModel):
+    registration_id: str = Field(min_length=36, max_length=36)
+    code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+
+
 class TextCapture(StrictModel):
     text: str = Field(min_length=1, max_length=12000)
     processing_mode: Literal["ai", "manual"] = "ai"

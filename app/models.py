@@ -316,6 +316,21 @@ class EmailVerification(Base):
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
 
 
+class EmailRegistrationPending(Base):
+    __tablename__ = "email_registration_pending"
+    __table_args__ = (CheckConstraint("attempts >= 0 AND attempts <= 5", name="ck_email_registration_attempts"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    email: Mapped[str] = mapped_column(String(254), index=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    binding_hash: Mapped[str] = mapped_column(String(64))
+    code_hash: Mapped[str] = mapped_column(String(64))
+    policy_version: Mapped[str] = mapped_column(String(32))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    expires_at: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    used_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
 class ProductEvent(Base):
     __tablename__ = "product_events"
     __table_args__ = (UniqueConstraint("user_id", "name", "operation_id"),)

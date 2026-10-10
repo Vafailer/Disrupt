@@ -14,6 +14,7 @@ x-backend-environment: &backend-environment
   NOTES_AUTO_WORKER: "false"
   # Шифрование текстов и аудио на диске. Ключ лежит в Docker secret. См. docs/encryption-v1.md.
   NOTES_DATA_ENCRYPTION: required
+  NOTES_EMAIL_REGISTRATION_ENABLED: ${NOTES_EMAIL_REGISTRATION_ENABLED:-false}
   NOTES_DATA_KEY_FILE: /run/secrets/data_key
   NOTES_DATA_OLD_KEY_FILES: ${NOTES_DATA_OLD_KEY_FILES:-}
   NOTES_PUBLIC_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
