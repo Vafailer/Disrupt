@@ -46,7 +46,7 @@
     section.setAttribute('aria-labelledby', 'onboarding-title');
     const head = node('div', 'onboarding-head'), titles = node('div');
     const title = node('h2', '', 'Добро пожаловать в beresta'); title.id = 'onboarding-title';
-    titles.append(node('p', 'eyebrow', 'Первые шаги'), title, node('p', 'onboarding-lead', 'Пока записей нет. Вот с чего начать.'));
+    titles.append(title, node('p', 'onboarding-lead', 'Пока записей нет. Вот с чего начать.'));
     const hide = button('Скрыть', 'quiet', () => { writeDismissed(); render(); });
     hide.id = 'onboarding-dismiss'; hide.setAttribute('aria-label', 'Скрыть первые шаги');
     head.append(titles, hide);
@@ -61,7 +61,7 @@
     panel.querySelector('#onboarding-steps').replaceChildren(
       step(hasJob, 'Сделайте первую запись', hasJob ? 'Запись сохранена. Заметка появится в библиотеке, когда обработка закончится.' : 'Напишите как есть, без оформления. Или возьмите готовый пример.', hasJob ? [] : [first, example]),
       step(telegramLinked, 'Подключите Telegram', telegramLinked ? 'Telegram подключён. Записывать и получать напоминания можно через @beresta_ru_bot.' : 'Бот @beresta_ru_bot принимает записи и присылает напоминания.', [telegram]),
-      step(false, 'Посмотрите исходник и задачи', 'Откройте готовую заметку. Вкладка «Исходник» хранит вашу запись без изменений, «Задачи и идеи» собирает дела, «Дополнения ИИ» показывает догадки отдельно.', [], 'Этот шаг станет доступен после первой заметки.'),
+      step(false, 'Посмотрите исходник и задачи', 'Откройте готовую заметку. Кнопка «Исходник» хранит вашу запись без изменений, «Задачи и идеи» собирает дела, «Дополнения ИИ» показывает догадки отдельно.', [], 'Этот шаг станет доступен после первой заметки.'),
     );
   }
   function render() {

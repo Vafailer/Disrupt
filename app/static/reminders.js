@@ -306,7 +306,7 @@
     const body = pendingCreate?.body || {scheduled_at:choice.scheduled_at,timezone:fields().timezone,text:fields().text,
       ...(editing ? {generation:editing.generation} : {item_id:fields().item_id})};
     const view = generation, id = note.id, edit = editing;
-    if (!edit && !pendingCreate) pendingCreate = {body,key:crypto.randomUUID()};
+    if (!edit && !pendingCreate) pendingCreate = {body,key:window.berestaId()};
     setWork(true); say();
     try {
       const row = await bridge.request(edit ? `/api/v1/reminders/${encodeURIComponent(edit.id)}`

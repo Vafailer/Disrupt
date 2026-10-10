@@ -1,4 +1,15 @@
 'use strict';
+// v4 UUID. Older Safari and non-secure pages (plain http) have no crypto.randomUUID.
+window.berestaId = () => {
+  const c = window.crypto;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (c && typeof c.getRandomValues === 'function') c.getRandomValues(bytes);
+  else for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map(b => b.toString(16).padStart(2,'0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+};
 const $ = id => document.getElementById(id);
 let csrf = '', currentNote = null, epoch = 0, notesOffset = 0, pendingCapture = null;
 let categories = [], searchOperation = null, notesGeneration = 0, noteBusy = false;
@@ -55,6 +66,17 @@ function sourceTags(note) {
   }
   return tags;
 }
+// Library rows show the source as small icons at the end of the meta line.
+function sourceMarks(note) {
+  const marks = [];
+  if (note.channel === 'telegram') marks.push(['telegram','Из Telegram']);
+  if (note.input_kind === 'audio') marks.push(['mic','Голос']);
+  return marks.map(([name,label]) => {
+    const mark = element('span','',`note-mark note-mark-${name === 'mic' ? 'voice' : 'telegram'}`);
+    mark.setAttribute('role','img'); mark.setAttribute('aria-label',label); mark.title = label;
+    mark.append(icon(name)); return mark;
+  });
+}
 function element(tag, text, className) {
   const el = document.createElement(tag); el.textContent = text;
   if (className) el.className = className;
@@ -101,6 +123,18 @@ function limitTick() {
   stopLimitTimer(); limitHit = null;
   loadProviderUsage().catch(() => {});
 }
+// The switch is the visible control. The hidden #processing-mode select keeps the value and the limit logic.
+function syncModeSwitch() {
+  const select = $('processing-mode'), toggle = $('ai-switch'), ai = select.querySelector('option[value="ai"]');
+  toggle.checked = select.value === 'ai' && !ai.disabled;
+  toggle.disabled = select.disabled || ai.disabled;
+  $('ai-switch-label').classList.toggle('is-disabled',toggle.disabled);
+}
+$('ai-switch').onchange = () => {
+  const select = $('processing-mode');
+  select.value = $('ai-switch').checked && !select.querySelector('option[value="ai"]').disabled ? 'ai' : 'manual';
+  syncModeSwitch();
+};
 function showAiLimit({counter = '', title = '', warn = false, spent = false, appLimit = false} = {}) {
   const note = $('ai-limit-note'), line = $('ai-limit-counter');
   line.hidden = !counter; $('ai-limit-count').textContent = counter;
@@ -114,6 +148,7 @@ function showAiLimit({counter = '', title = '', warn = false, spent = false, app
     renderLimitWait();
     if (limitTimer === null && !$('workspace').hidden) limitTimer = setInterval(limitTick,LIMIT_TICK_MS);
   } else { stopLimitTimer(); $('ai-limit-wait').textContent = ''; }
+  syncModeSwitch();
 }
 function markLimitHit() {
   limitHit = {resetsAt: limitResetsAt};
@@ -169,14 +204,14 @@ async function loadNotes(reset = true) {
     hint.dataset.empty = kind; $('notes').append(hint);
   }
   for (const note of list) {
-    const button = element('button', note.title);
+    const button = element('button','');
     button.dataset.noteId = note.id;
+    button.append(element('span',note.title,'note-row-title'));
     const category = categories.find(c => c.id === note.category_id);
     const when = typeof note.updated_at === 'number' ? new Date(note.updated_at*1000).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '';
-    const meta = [when, category?.name].filter(Boolean).join(' · ');
-    if (meta) button.append(element('span',meta,'note-meta'));
-    const tags = sourceTags(note);
-    if (tags.length) { const row = element('span','','note-tags'); row.append(...tags); button.append(row); }
+    const meta = element('span',[when, category?.name].filter(Boolean).join(' · '),'note-meta');
+    for (const mark of sourceMarks(note)) meta.append(mark);
+    if (meta.childNodes.length) button.append(meta);
     button.onclick = () => openNote(note.id,{userAction:true,search:context}).catch(e => message(e.message));
     $('notes').append(button);
   }
@@ -298,7 +333,7 @@ async function openNote(id, {userAction = false, search = null, reminder = null,
     if (backgroundDraft !== undefined && !jobDraftUnchanged(backgroundDraft)) return;
     renderNote(note); setNoteBusy(true); message();
     if (userAction) await api(`/api/v1/notes/${id}/opened`,{
-      method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID(),search_operation_id:search,reminder_id:reminder}),
+      method:'POST',body:JSON.stringify({operation_id:window.berestaId(),search_operation_id:search,reminder_id:reminder}),
     });
   } finally { setNoteBusy(false); }
 }
@@ -412,7 +447,7 @@ $('capture-form').onsubmit = async event => {
   if (!text.trim()) return message('Напишите что-нибудь.');
   // Keep the same key after a network error: retrying must not create another paid job.
   if (!pendingCapture || pendingCapture.text !== text || pendingCapture.processing_mode !== processing_mode) {
-    pendingCapture = {text,processing_mode,key:crypto.randomUUID()};
+    pendingCapture = {text,processing_mode,key:window.berestaId()};
   }
   const generation = ++viewGeneration;
   let savedJob = null;
@@ -439,6 +474,13 @@ $('capture-form').onsubmit = async event => {
   }
   if (savedJob) watchSavedJob(savedJob,generation);
 };
+$('thought').addEventListener('keydown',event => {
+  if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.isComposing) return;
+  event.preventDefault();
+  if ($('capture-submit').disabled) return;
+  if ($('capture-form').requestSubmit) $('capture-form').requestSubmit($('capture-submit'));
+  else $('capture-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+});
 $('edit-form').onsubmit = async event => {
   event.preventDefault();
   await mutateNote('','PATCH',{title:$('title').value,markdown:$('markdown').value},'Правки сохранены.','note');
@@ -451,6 +493,7 @@ $('new-note').onclick = () => {
   viewGeneration++; currentNote=null; currentCapture=null; hideSource();
   window.BerestaReminders?.hide();
   $('note-card').hidden=true; $('capture-card').hidden=false; message();
+  if (!$('thought').disabled) $('thought').focus();
   loadJobs().catch(e=>message(e.message));
 };
 $('more-notes').onclick = () => loadNotes(false).catch(e=>message(e.message));
@@ -501,21 +544,36 @@ $('category-form').onsubmit = async event => {
     $('category-name').value = ''; await loadCategories(); message('Категория добавлена.');
   } catch(e) { message(e.message); } finally { button.disabled = false; }
 };
+let searchSeq = 0, searchTimer = null;
+window.searchDebounceMs = 300;
 $('search-form').onsubmit = async event => {
-  event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true;
+  event.preventDefault(); clearTimeout(searchTimer);
+  // Typing sends many searches. Only the newest one may change the list.
+  const seq = ++searchSeq;
   try {
-    const operation = crypto.randomUUID();
+    const operation = window.berestaId();
     await api('/api/v1/search/events',{method:'POST',body:JSON.stringify({operation_id:operation})});
+    if (seq !== searchSeq) return;
     searchOperation = operation;
     activeFilter = {q:$('search-query').value.trim(),category:$('category-filter').value,source:activeFilter.source};
-    await loadNotes(); message();
-  } catch(e) { message(e.message); } finally { button.disabled = false; }
+    syncSearchClear();
+    await loadNotes(); if (seq === searchSeq) message();
+  } catch(e) { if (seq === searchSeq) message(e.message); }
 };
+function syncSearchClear() { $('clear-search').hidden = !$('search-query').value && !activeFilter.q; }
+$('search-query').addEventListener('input',() => {
+  syncSearchClear(); clearTimeout(searchTimer);
+  if ($('search-query').value.trim() === activeFilter.q) return;
+  searchTimer = setTimeout(() => $('search-form').requestSubmit(),window.searchDebounceMs);
+});
 $('clear-search').onclick = () => {
+  clearTimeout(searchTimer); searchSeq++;
   $('search-query').value = ''; $('category-filter').value = ''; searchOperation = null;
-  activeFilter = {q:'',category:'',source:''}; syncSourceFilter();
+  activeFilter = {q:'',category:'',source:''}; syncSourceFilter(); syncSearchClear();
   loadNotes().catch(e => message(e.message));
+  $('search-query').focus();
 };
+syncSearchClear();
 function syncSourceFilter() {
   for (const button of $('source-filter').querySelectorAll('button')) {
     button.setAttribute('aria-pressed',String(button.dataset.source === activeFilter.source));
@@ -588,7 +646,7 @@ $('item-form').onsubmit = async event => {
 };
 $('original-details').ontoggle = () => {
   if (!$('original-details').open || !currentNote) return;
-  api(`/api/v1/notes/${currentNote.id}/original-opened`,{method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID()})}).catch(e => message(e.message));
+  api(`/api/v1/notes/${currentNote.id}/original-opened`,{method:'POST',body:JSON.stringify({operation_id:window.berestaId()})}).catch(e => message(e.message));
 };
 // Telegram linking lives in telegram-link.js.
 async function openLinkedCapture() {
@@ -615,6 +673,7 @@ function setAudioControls() {
 function setCaptureBusy(value) {
   captureBusy = value;
   for (const id of ['capture-submit','thought','example','processing-mode']) $(id).disabled = value;
+  syncModeSwitch();
   setAudioControls();
 }
 function clearAudio() {
@@ -646,7 +705,7 @@ $('audio-clear').onclick = () => { if (!captureBusy && !recorder) clearAudio(); 
 $('audio-form').onsubmit = async event => {
   event.preventDefault();
   if (!selectedAudio || captureBusy || recorder || microphonePending) return;
-  if (!pendingAudio || pendingAudio.file !== selectedAudio) pendingAudio = {file:selectedAudio,key:crypto.randomUUID()};
+  if (!pendingAudio || pendingAudio.file !== selectedAudio) pendingAudio = {file:selectedAudio,key:window.berestaId()};
   const form = new FormData();
   form.append('audio',pendingAudio.file); form.append('processing_mode','ai');
   const generation = ++viewGeneration, draft = $('thought').value;
@@ -770,7 +829,7 @@ async function openCapture(id, {userAction = false, backgroundDraft} = {}) {
     if (currentNote?.capture_id !== id) { currentNote = null; $('note-card').hidden = true; window.BerestaReminders?.hide(); }
     $('capture-card').hidden = true; renderSource(capture);
     if (userAction) await api(`/api/v1/captures/${encodeURIComponent(id)}/original-opened`,{
-      method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID()}),
+      method:'POST',body:JSON.stringify({operation_id:window.berestaId()}),
     });
   } finally { setNoteBusy(false); }
 }

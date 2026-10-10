@@ -101,7 +101,7 @@
     }
   }
   for(const button of get('capture-tabs').querySelectorAll('button'))button.onclick=()=>showCapture(button.dataset.captureView);
-  get('new-note').addEventListener('click',()=>{if(!get('capture-card').hidden)showCapture('capture-form');});
+  get('new-note').addEventListener('click',()=>{if(get('capture-card').hidden)return;showCapture('capture-form');if(!get('thought').disabled)get('thought').focus();});
   function categoriesNavigation() {
     const list=get('category-navigation');list.replaceChildren();
     for(const option of get('category-filter').options) {
@@ -140,7 +140,7 @@
     if(!payload.subject || !payload.description){get('feedback-status').textContent='Заполните тему и описание.';return;}
     const session=feedbackSession;
     const serialized=JSON.stringify(payload);
-    if(!pendingFeedback || pendingFeedback.serialized!==serialized)pendingFeedback={serialized,key:crypto.randomUUID()};
+    if(!pendingFeedback || pendingFeedback.serialized!==serialized)pendingFeedback={serialized,key:window.berestaId()};
     const fields=[...get('feedback-form').querySelectorAll('input,textarea,select')];fields.forEach(field=>field.disabled=true);
     button.disabled=true;get('feedback-status').textContent='Отправляем…';
     try {
