@@ -6,12 +6,13 @@ from datetime import datetime, timedelta
 from datetime import time as day_start
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 
-from app.models import Capture
+from app.models import AssistantRequest, Capture
 
 # Stored in the capture_saved event, so a replay of the same request knows it was saved without AI.
 LIMIT_OUTCOME = "ai_limit"
+ASSISTANT_UNIT_COST = 1
 
 
 def capture_cost(settings, input_kind, audio_seconds=None):
@@ -32,8 +33,20 @@ def day_window(settings, now=None):
     )
 
 
+def assistant_units_used(db, settings, user_id, now=None):
+    """Units of assistant requests created today. A failure before the provider call started is free."""
+    start, end = day_window(settings, now)
+    return db.scalar(
+        select(func.coalesce(func.sum(AssistantRequest.units), 0)).where(
+            AssistantRequest.user_id == user_id,
+            AssistantRequest.created_at >= start.timestamp(), AssistantRequest.created_at < end.timestamp(),
+            ~and_(AssistantRequest.status == "failed", AssistantRequest.started_at.is_(None)),
+        )
+    )
+
+
 def units_used(db, settings, user_id, now=None):
-    """Units of the user's AI captures created today. Manual captures are free."""
+    """Units of today's AI captures and assistant requests. Manual captures are free."""
     start, end = day_window(settings, now)
     today = (
         Capture.user_id == user_id, Capture.processing_mode == "ai",
@@ -41,7 +54,10 @@ def units_used(db, settings, user_id, now=None):
     )
     texts = db.scalar(select(func.count()).select_from(Capture).where(*today, Capture.input_kind != "audio"))
     audio = db.scalars(select(Capture.audio_seconds).where(*today, Capture.input_kind == "audio")).all()
-    return texts * capture_cost(settings, "text") + sum(capture_cost(settings, "audio", s) for s in audio)
+    return (
+        texts * capture_cost(settings, "text") + sum(capture_cost(settings, "audio", s) for s in audio)
+        + assistant_units_used(db, settings, user_id, now)
+    )
 
 
 def within_daily_limit(db, settings, user_id, cost, now=None):
