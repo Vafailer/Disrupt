@@ -30,7 +30,8 @@ OPEN = "/api/v1/assistant"
 def add_note(app, user_id, title, markdown, items=(), age_days=1):
     created = time.time() - age_days * 86400
     with app.state.sessions() as db:
-        capture = Capture(id=new_id(), user_id=user_id, original_text=markdown, idempotency_key=new_id())
+        capture = Capture(id=new_id(), user_id=user_id, original_text=markdown, idempotency_key=new_id(),
+                          processing_mode="manual", created_at=created)
         db.add(capture)
         db.flush()
         note = Note(
