@@ -28,6 +28,7 @@ def test_cloudru_contract_uses_fake_transport_only():
         requests.append(request)
         assert str(request.url) == CloudRuProvider.endpoint
         assert request.headers["Authorization"] == "Bearer fake-test-key"
+        assert request.extensions["timeout"] == {"connect": 10, "read": 90, "write": 10, "pool": 10}
         body = json.loads(request.content)
         assert body["model"] == "test-model"
         assert body["messages"][1] == {"role": "user", "content": "Мысль"}

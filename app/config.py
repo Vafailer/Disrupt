@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 PROGRAM_BASE_URL = "https://shared1.multitool.works:4000/v1"
 OFFICIAL_BASE_URL = "https://foundation-models.api.cloud.ru/v1"
 ALLOWED_MODEL_BASE_URLS = {PROGRAM_BASE_URL, OFFICIAL_BASE_URL}
+LLM_READ_TIMEOUT_SECONDS = 90
 
 
 def read_secret_file(path: str, *, maximum: int = 16384) -> str:
@@ -66,7 +67,7 @@ class Settings:
             raise ValueError("NOTES_LIMIT_TIMEZONE must be a known IANA time zone") from None
         if self.provider not in {"mock", "cloudru"}:
             raise ValueError("NOTES_PROVIDER must be mock or cloudru")
-        if self.lease_seconds < 90:
+        if self.lease_seconds < LLM_READ_TIMEOUT_SECONDS + 30:
             raise ValueError("Worker lease must exceed the provider timeout")
         if self.provider == "cloudru" and (
             not self.cloudru_model

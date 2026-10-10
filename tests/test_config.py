@@ -5,6 +5,12 @@ import pytest
 from app.config import Settings
 
 
+def test_worker_lease_leaves_time_to_save_a_slow_model_response():
+    assert Settings(lease_seconds=120).lease_seconds == 120
+    with pytest.raises(ValueError, match="Worker lease"):
+        Settings(lease_seconds=119)
+
+
 def test_database_password_file_builds_postgresql_url(tmp_path, monkeypatch):
     secret = tmp_path / "postgres-password"
     secret.write_text("p@ss:/word\n", encoding="utf-8")
