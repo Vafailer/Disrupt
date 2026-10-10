@@ -217,10 +217,8 @@
   function run() {
     if (running) return running;
     running = (async () => {
-      try {
-        while (pending()) { if (!(await sendOnce())) break; }
-      } finally { running = null; }
-    })();
+      while (pending()) { if (!(await sendOnce())) break; }
+    })().finally(() => { running = null; });
     return running;
   }
   async function flush() {
