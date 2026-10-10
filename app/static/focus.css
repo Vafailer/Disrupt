@@ -1,0 +1,121 @@
+/* Focus mode. The note is one field for typing, everything else sits behind a row of icon buttons.
+   Loaded last, so it refines note.css and app-polish.css without editing them. */
+:root{--tool-ink:#4f6a58;--tool-hover:#eef2e8;--tool-open:#e3ebdb;--tool-line:#c9d8c1}
+
+/* Top row: quiet save status on the left, icon buttons on the right */
+.note-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px;margin:-6px 0 14px}
+#capture-card .note-top{margin:0 0 18px}
+#capture-card .note-top h1{margin:0}
+.note-save-status{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-width:0;margin:0;font-size:12.5px;line-height:1.4;color:#7f8f84}
+.note-save-status[data-state=failed],.note-save-status[data-state=invalid]{color:#946313}
+.note-save-status[data-state=conflict]{color:#9c3b2c}
+.note-save-status .note-reload{min-height:28px;padding:0 10px;font-size:12.5px}
+
+/* Icon buttons */
+.tools{display:flex;flex:none;align-items:center;gap:2px}
+.tool{position:relative}
+.tool[hidden],.tool-pop[hidden],.tool-badge[hidden],.tool-dot[hidden],.pop-scrim[hidden]{display:none}
+.tools .tool-btn.quiet{position:relative;display:grid;place-items:center;width:38px;height:38px;min-height:0;padding:0;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--tool-ink)}
+.tools .tool-btn.quiet:hover:not(:disabled){background:var(--tool-hover);border-color:transparent;color:var(--note-ink)}
+.tools .tool-btn.quiet[aria-expanded=true]{background:var(--tool-open);border-color:var(--tool-line);color:#1f3a2a}
+.tool-btn svg{display:block;width:20px;height:20px}
+.tool-badge{position:absolute;top:1px;right:-1px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--accent);color:#fff;font-size:10.5px;font-weight:700;line-height:16px;text-align:center;pointer-events:none;box-shadow:0 0 0 2px var(--paper)}
+.tool-dot{position:absolute;top:5px;right:5px;width:8px;height:8px;border-radius:50%;background:#d29a2a;pointer-events:none;box-shadow:0 0 0 2px var(--paper)}
+.tool-badge:not([hidden])~.tool-dot{right:auto;left:5px}
+
+/* Tooltip, from data-tip. Shows on hover and on keyboard focus */
+@media(hover:hover){
+  .tool-btn::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;z-index:70;padding:5px 9px;border-radius:7px;background:#24372d;color:#fff;font-size:12px;font-weight:600;line-height:1.3;white-space:nowrap;opacity:0;pointer-events:none;transform:translate(-50%,-2px);transition:opacity .12s,transform .12s}
+  .tool-btn:hover::after{opacity:1;transform:translate(-50%,0);transition-delay:.35s}
+  .tool-btn:focus-visible::after{opacity:1;transform:translate(-50%,0)}
+  .tools>.tool:last-child .tool-btn::after{left:auto;right:0;transform:translate(0,-2px)}
+  .tools>.tool:last-child .tool-btn:hover::after,.tools>.tool:last-child .tool-btn:focus-visible::after{transform:none}
+  .tool-btn[aria-expanded=true]::after{display:none}
+}
+
+/* Popover, hangs from its button */
+.tool-pop{position:absolute;top:calc(100% + 10px);right:0;z-index:50;display:flex;flex-direction:column;width:min(440px,calc(100vw - 32px));max-height:min(72vh,680px);border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 22px 50px -18px #1f332838,0 2px 8px #1f33280f;outline:0}
+.tool-pop.is-left{left:0;right:auto}
+#pop-props,#pop-history,#pop-insights,#pop-original,#pop-import,#pop-voice{width:min(400px,calc(100vw - 32px))}
+#pop-tasks,#pop-reminders{width:min(480px,calc(100vw - 32px))}
+.pop-head{display:flex;flex:none;align-items:center;justify-content:space-between;gap:8px;padding:10px 10px 4px 18px}
+.pop-title{font-size:13px;font-weight:700;letter-spacing:.02em;color:#5a7060}
+.tool-pop .pop-close.quiet{display:grid;place-items:center;width:32px;height:32px;min-height:0;padding:0;border:0;border-radius:9px;background:transparent;color:#6b7d70;font-size:22px;line-height:1}
+.tool-pop .pop-close.quiet:hover:not(:disabled){background:var(--tool-hover);color:var(--note-ink)}
+.pop-body{padding:4px 18px 18px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.pop-scrim{display:none}
+
+/* The old sections lose their page chrome inside a popover */
+.tool-pop .note-section,.tool-pop .note-panel{margin:0;padding:0;border:0;border-radius:0;background:none}
+.tool-pop .note-section>h2,.tool-pop .section-head h2,.tool-pop #reminders-heading,.tool-pop #related-heading,.tool-pop .note-panel>h2{display:none}
+.tool-pop .section-head{margin:0 0 8px}
+.tool-pop .reminders-head{justify-content:flex-end;margin-bottom:6px}
+.tool-pop #reminders-panel{margin:0}
+.tool-pop #reminder-form{padding:14px}
+.tool-pop #original-details>summary{cursor:pointer}
+.tool-pop .br-related{margin:0;padding:0}
+.workspace.has-note .tool-pop #source-card:not([hidden]){display:block}
+.tool-pop #source-card{margin:14px 0 0;padding:0!important;border:0!important;border-radius:0!important;background:none!important;box-shadow:none}
+.tool-pop #source-card>h2{margin:0 0 8px;font-size:15px}
+.tool-pop pre{max-width:100%;overflow-x:auto}
+
+/* A task row keeps its small tools out of the text column */
+.tool-pop #items .item{grid-template-columns:24px minmax(0,1fr)}
+.tool-pop #items .item-tools{position:absolute;top:4px;right:6px;padding-left:6px;border-radius:8px;background:#f3f6ee}
+@media(hover:none),(max-width:640px){
+  .tool-pop #items .item-tools{position:static;grid-column:2;margin-top:2px;padding:0;background:none}
+}
+
+/* Properties */
+.props{display:grid;gap:12px}
+.prop{display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:8px;font-size:13.5px}
+.prop-label{font-size:12.5px;color:var(--muted)}
+.prop .note-category select{width:100%;max-width:none}
+.prop .note-tags:empty::before{content:"Записано в вебе";color:var(--muted);font-size:13px}
+.prop-confirm{display:block;margin-top:2px;padding-top:12px;border-top:1px solid var(--line)}
+.props .structure-check{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.props .structure-check button{min-height:34px;padding:0 12px;border:1px solid #c9d5c4;border-radius:10px}
+.props .structure-check button.is-confirmed,.props .structure-check button:disabled{border-color:transparent}
+
+/* Title: the font shrinks until it fits two lines, then it is cut with an ellipsis */
+.note-heading{position:relative}
+#note-card .note-title{display:block;width:100%;margin:0;padding:4px 0 0;border:0;border-radius:0;background:transparent;color:var(--note-ink);font-size:36px;font-weight:700;letter-spacing:-.03em;line-height:1.2;text-overflow:clip}
+#note-card .note-title:hover,#note-card .note-title:focus{border:0;background:transparent;box-shadow:none}
+.note-title-display{display:none;margin:4px 0 0;padding:0;color:var(--note-ink);font-size:36px;font-weight:700;letter-spacing:-.03em;line-height:1.2;overflow-wrap:anywhere}
+.note-heading.is-clamped:not(:focus-within) .note-title-display{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
+.note-heading.is-clamped:not(:focus-within) #title{position:absolute;inset:0;opacity:0;height:100%!important}
+.note-heading.is-clamped:focus-within #title{overflow-y:auto}
+
+/* Text: a plain page */
+.note-body{display:block;margin-top:6px}
+#note-card #markdown{display:block;width:100%;min-height:max(320px,56vh);margin:0;padding:8px 0 40px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#2a3b30;font:inherit;font-size:18px;line-height:1.8;resize:none;overflow:hidden;overflow-wrap:anywhere}
+#note-card #markdown:focus,#note-card #markdown:hover{border:0;background:transparent;box-shadow:none}
+#note-card #markdown::placeholder{color:#9aa79d}
+
+/* Import */
+#capture-import .actions{margin-top:12px}
+#import-status{margin:10px 0 0;font-size:13px}
+#import-status.is-error{color:#9c3b2c}
+.tool-pop #capture-audio>.muted,.tool-pop #capture-import>.muted{margin-top:0}
+
+/* Phone: icons in a sticky row at the bottom, popovers become sheets */
+@media(max-width:640px){
+  #note-card .note-top{margin:0 0 6px;min-height:24px}
+  #note-card{padding-bottom:84px}
+  #note-tools{position:fixed;left:0;right:0;bottom:0;z-index:40;justify-content:space-around;gap:0;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:#fffefaf5;box-shadow:0 -8px 22px -16px #1f332850}
+  #note-tools .tool{display:flex;flex:1 1 0;justify-content:center;min-width:0}
+  #note-tools .tools .tool-btn.quiet,#note-tools .tool-btn.quiet{width:100%;max-width:56px;height:46px}
+  .tool-btn::after{display:none}
+  .tool-pop,#pop-props,#pop-history,#pop-insights,#pop-original,#pop-import,#pop-voice{position:fixed;top:auto;right:0;bottom:0;left:0;z-index:60;width:auto!important;max-height:80vh;max-height:80dvh;border-width:1px 0 0;border-radius:20px 20px 0 0;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -18px 40px -16px #1f33284d}
+  .tool-pop::before{content:"";flex:none;align-self:center;width:38px;height:4px;margin:8px 0 0;border-radius:4px;background:#d3dccf}
+  .pop-head{padding-top:6px}
+  .pop-body{padding-bottom:22px}
+  .pop-scrim{position:fixed;inset:0;z-index:30;display:block;background:#14211a59}
+  .pop-scrim[hidden]{display:none}
+  .prop{grid-template-columns:84px minmax(0,1fr)}
+  .tool-badge{right:calc(50% - 20px)}
+  #note-card #markdown{font-size:16.5px;min-height:max(260px,50vh)}
+  #note-card .note-title,.note-title-display{font-size:26px}
+  #capture-card .tools .tool-btn.quiet{width:42px;height:42px}
+}
+@media(prefers-reduced-motion:reduce){.tool-btn::after{transition:none}}

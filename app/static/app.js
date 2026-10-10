@@ -271,6 +271,8 @@ function setNoteBusy(value) {
 }
 async function mutateNote(suffix, method, body, text, except = null) {
   if (noteBusy) return;
+  // Typed text goes first, so the version below is the one the autosave just stored.
+  if (window.BerestaFocus?.pending()) { await window.BerestaFocus.flush(); if (noteBusy || !currentNote) return; }
   if (hasDrafts(except)) return message('Сначала сохраните остальные правки.');
   const id = currentNote.id, currentEpoch = epoch;
   setNoteBusy(true);
@@ -290,6 +292,13 @@ function renderNoteMeta(note) {
   $('note-mode').replaceChildren(note.provider === 'manual' ? 'Без ИИ' : note.provider === 'mock' ? 'Демо' : 'Обработано ИИ');
   if (note.version > 1) $('note-mode').append(' ',element('span',`v${note.version}`,'note-version'));
 }
+function renderStructure(note) {
+  const checked = 'Вы проверили структуру этой записи.';
+  $('structure-status').textContent = note.structure_confirmed_at ? checked : '';
+  $('confirm-structure').title = note.structure_confirmed_at ? checked : 'Проверьте текст, задачи и категорию.';
+  $('confirm-structure').classList.toggle('is-confirmed',Boolean(note.structure_confirmed_at));
+  $('confirm-structure').disabled = Boolean(note.structure_confirmed_at);
+}
 function renderNote(note) {
   if (note.input_kind === 'audio') renderSource({...note,note_id:note.id,job:null});
   else { currentCapture = null; hideSource(); }
@@ -299,11 +308,7 @@ function renderNote(note) {
   $('markdown').value = note.markdown; renderMarkdown(note.markdown);
   $('original-details').open = false;
   fillCategoryOptions($('note-category'),false,note.category_id || '');
-  const checked = 'Вы проверили структуру этой записи.';
-  $('structure-status').textContent = note.structure_confirmed_at ? checked : '';
-  $('confirm-structure').title = note.structure_confirmed_at ? checked : 'Проверьте текст, задачи и категорию.';
-  $('confirm-structure').classList.toggle('is-confirmed',Boolean(note.structure_confirmed_at));
-  $('confirm-structure').disabled = Boolean(note.structure_confirmed_at);
+  renderStructure(note);
   renderItems(note);
   window.BerestaReminders?.show(note,{request:api,onBusy:setNoteBusy,
     otherDrafts:() => hasDrafts('reminder'),notify:message});
@@ -330,6 +335,7 @@ function renderNote(note) {
 async function openNote(id, {userAction = false, search = null, reminder = null, backgroundDraft} = {}) {
   if (noteBusy) return message('Дождитесь сохранения.');
   if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
+  if (window.BerestaFocus?.pending()) { await window.BerestaFocus.flush(); if (noteBusy) return message('Дождитесь сохранения.'); }
   if (hasDrafts() && !confirm('Есть несохранённые правки. Открыть другую заметку?')) return;
   const generation = ++viewGeneration;
   const currentEpoch = epoch;
@@ -437,6 +443,7 @@ $('auth-form').onsubmit = async event => {
   } finally { buttons.forEach(b => b.disabled=false); }
 };
 $('logout').onclick = async () => {
+  if (window.BerestaFocus?.pending()) await window.BerestaFocus.flush();
   if (noteBusy || captureBusy || recorder || microphonePending) return message('Дождитесь завершения записи или сохранения.');
   if (dirty() && !confirm('Выйти без сохранения правок?')) return;
   try { await api('/api/v1/auth/logout',{method:'POST'}); epoch++; location.reload(); }
@@ -489,22 +496,28 @@ $('thought').addEventListener('keydown',event => {
   if ($('capture-form').requestSubmit) $('capture-form').requestSubmit($('capture-submit'));
   else $('capture-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
 });
-$('edit-form').onsubmit = async event => {
-  event.preventDefault();
-  await mutateNote('','PATCH',{title:$('title').value,markdown:$('markdown').value},'Правки сохранены.','note');
-};
-$('markdown').oninput = () => renderMarkdown($('markdown').value);
+// Text and title save themselves (focus.js). The form only keeps Enter from reloading the page.
+$('edit-form').onsubmit = event => { event.preventDefault(); window.BerestaFocus?.flush(); };
 // Closes the open note or source before another view takes the column. False when something blocks it.
-function leaveNote(question = 'Есть несохранённые правки. Перейти к новой записи?') {
+// With autosave pending, `retry` runs once the save has finished and this check starts over.
+let leaveFlushed = false;
+function leaveNote(question = 'Есть несохранённые правки. Перейти к новой записи?', retry = null) {
   if (noteBusy) { message('Дождитесь сохранения.'); return false; }
   if (recorder || microphonePending) { message('Сначала завершите запись голоса.'); return false; }
+  if (!leaveFlushed && retry && window.BerestaFocus?.pending()) {
+    window.BerestaFocus.flush().then(() => {
+      leaveFlushed = true;
+      try { retry(); } finally { leaveFlushed = false; }
+    });
+    return false;
+  }
   if (hasDrafts() && !confirm(question)) return false;
   viewGeneration++; currentNote=null; currentCapture=null; hideSource();
   window.BerestaReminders?.hide();
   $('note-card').hidden=true; return true;
 }
 $('new-note').onclick = () => {
-  if (!leaveNote()) return;
+  if (!leaveNote(undefined,() => $('new-note').click())) return;
   $('capture-card').hidden=false; message();
   if (!$('thought').disabled) $('thought').focus();
   loadJobs().catch(e=>message(e.message));
@@ -879,6 +892,7 @@ function renderSource(capture) {
 async function openCapture(id, {userAction = false, backgroundDraft} = {}) {
   if (noteBusy) return message('Дождитесь сохранения.');
   if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
+  if (window.BerestaFocus?.pending()) { await window.BerestaFocus.flush(); if (noteBusy) return message('Дождитесь сохранения.'); }
   if (hasDrafts() && !confirm('Есть несохранённые правки. Открыть исходник?')) return;
   const generation = ++viewGeneration, currentEpoch = epoch;
   setNoteBusy(true);

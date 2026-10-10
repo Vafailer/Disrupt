@@ -178,6 +178,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     await require('./web_job_waiting.cjs')();
     await require('./web_workspace.cjs')();
     await require('./web_note_ux.cjs')();
+    await require('./web_focus.cjs')();
     await require('./web_onboarding.cjs')();
     await require('./web_brain.cjs')();
     console.log('Web DOM checks passed: drafts, conflicts, version, XSS, search, pagination, events and category rename.');

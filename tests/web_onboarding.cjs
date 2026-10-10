@@ -43,7 +43,7 @@ async function firstRun({storage='ok',notes=[],preset=false}={}){
   if(url.pathname==='/api/v1/telegram/links')return reply({pending:[],identities:[]});
   throw new Error('Unexpected '+url.pathname);
  };
- w.eval(read('app.js')+'\n'+read('workspace.js')+'\n'+read('onboarding.js'));await settled();
+ w.eval(read('app.js')+'\n'+read('workspace.js')+'\n'+read('onboarding.js')+'\n'+read('focus.js'));await settled();
  return {dom,w,$};
 }
 module.exports=async()=>{

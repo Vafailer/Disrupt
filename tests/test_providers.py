@@ -295,3 +295,10 @@ def test_mock_worker_does_not_consume_cloud_queue(app, client):
 def test_real_transport_is_blocked_by_test_suite():
     with pytest.raises(AssertionError, match="network"):
         httpx.get(PROGRAM_BASE_URL + "/models")
+
+
+def test_prompts_forbid_third_person_about_the_author():
+    # The note is the author's own words; the model must not narrate "the user decided".
+    from app.providers import ASSISTANT_RULES, SYSTEM_PROMPT
+    assert "пользователь решил" in SYSTEM_PROMPT and "третьем лице" in SYSTEM_PROMPT
+    assert "третьем лице" in ASSISTANT_RULES and "на «вы»" in ASSISTANT_RULES

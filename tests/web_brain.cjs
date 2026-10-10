@@ -115,7 +115,7 @@ function boot({url = 'https://beresta.invalid/', usage = {}, settings = true, da
     }
     throw new Error(`Unexpected ${method} ${p}`);
   };
-  w.eval(read('reminders.js') + '\n' + read('app.js') + '\n' + read('workspace.js') + '\n' + read('brain.js'));
+  w.eval(read('reminders.js') + '\n' + read('app.js') + '\n' + read('workspace.js') + '\n' + read('brain.js') + '\n' + read('focus.js'));
   return {dom, w, $, state};
 }
 const posts = (state, suffix) => state.calls.filter(c => c.method === 'POST' && c.url.pathname.endsWith(suffix));

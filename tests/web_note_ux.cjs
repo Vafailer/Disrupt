@@ -61,7 +61,7 @@ function boot({health = {simulation: false}, usage = cloudUsage, list = () => su
   const setTimer = w.setInterval.bind(w), clearTimer = w.clearInterval.bind(w);
   w.setInterval = (fn, ms) => { const id = setTimer(fn, ms); state.timers.add(id); state.ticks.push(fn); return id; };
   w.clearInterval = id => { state.timers.delete(id); clearTimer(id); };
-  w.eval(read('app.js') + '\n' + read('workspace.js'));
+  w.eval(read('app.js') + '\n' + read('workspace.js') + '\n' + read('focus.js'));
   return {dom, w, $: id => w.document.getElementById(id), state};
 }
 const key = (w, target, init) => target.dispatchEvent(new w.KeyboardEvent('keydown', {bubbles: true, cancelable: true, ...init}));
@@ -256,74 +256,50 @@ async function noteScreen() {
     assert.equal($('item-form').closest('#view-tasks') !== null, true);
     assert.equal($('reminders-panel').closest('#view-reminders') !== null, true);
     assert.equal($('confirm-structure').disabled, false);
-    assert.equal($('preview').hidden, false); assert.equal($('markdown').hidden, true); assert.equal($('note-edit-actions').hidden, true);
+    // The text is a plain field, always open for typing. The old edit step and its buttons are gone.
+    assert.equal($('markdown').hidden, false); assert.equal($('preview').hidden, true);
+    assert.equal($('markdown').placeholder, 'Пишите…'); assert.equal($('markdown').value, '## План\nПозвонить');
+    for (const id of ['note-edit-start', 'note-save', 'note-edit-cancel', 'note-edit-actions']) assert.equal($(id), null, id);
+    w.noteAutosaveMs = 5;
+    const wait = ms => new Promise(resolve => w.setTimeout(resolve, ms));
+    const patches = () => t.state.calls.filter(c => c.method === 'PATCH' && c.url.pathname === '/api/v1/notes/n1');
+    const input = field => field.dispatchEvent(new w.Event('input', {bubbles: true}));
 
-    // Click on the text opens the editor in place.
-    $('preview').click();
-    assert.equal($('markdown').hidden, false); assert.equal($('preview').hidden, true); assert.equal($('note-edit-actions').hidden, false);
-    assert.equal(w.document.activeElement, $('markdown'));
-    $('markdown').value = 'Черновик'; $('markdown').dispatchEvent(new w.Event('input', {bubbles: true}));
-    // Esc asks before it drops changes.
-    w.confirm = () => false; key(w, $('markdown'), {key: 'Escape'});
-    assert.equal($('markdown').hidden, false); assert.equal($('markdown').value, 'Черновик');
-    w.confirm = () => true; key(w, $('markdown'), {key: 'Escape'});
-    assert.equal($('markdown').hidden, true); assert.equal($('preview').hidden, false);
-    assert.equal($('markdown').value, '## План\nПозвонить'); assert.equal($('note-edit-actions').hidden, true);
+    // Typing saves by itself, once, with the version check.
+    $('markdown').value = 'Новый текст'; input($('markdown'));
+    assert.equal(patches().length, 0); assert.equal($('note-save-text').textContent, 'Сохраняется…');
+    await wait(40); await settled();
+    assert.equal(patches().length, 1);
+    assert.deepEqual([patches()[0].body.version, patches()[0].body.markdown, patches()[0].body.title], [3, 'Новый текст', 'Из Telegram']);
+    assert.equal($('note-save-text').textContent, 'Сохранено'); assert.match($('note-mode').textContent, /v4/);
+    assert.equal($('markdown').value, 'Новый текст'); assert.equal($('markdown').disabled, false); assert.equal($('title').disabled, false);
 
-    // The button opens it too. Cancel works without a prompt when nothing changed.
-    w.confirm = () => { throw new Error('no prompt expected'); };
-    $('note-edit-start').click(); assert.equal($('markdown').hidden, false);
-    $('note-edit-cancel').click(); assert.equal($('markdown').hidden, true);
-    w.confirm = () => true;
-
-    // Ctrl+Enter saves with the version check.
-    $('note-edit-start').click(); $('markdown').value = 'Новый текст';
-    key(w, $('markdown'), {key: 'Enter', ctrlKey: true}); await settled();
-    const save = t.state.calls.filter(c => c.method === 'PATCH').at(-1);
-    assert.deepEqual([save.body.version, save.body.markdown, save.body.title], [3, 'Новый текст', 'Из Telegram']);
-    assert.equal($('markdown').hidden, true); assert.equal($('preview').textContent, 'Новый текст');
-    assert.match($('note-mode').textContent, /v4/);
-    assert.equal($('title').disabled, false);
-
-    // A new title shows the save buttons without opening the text editor, and Save sends it.
-    $('title').value = 'Новое имя'; $('title').dispatchEvent(new w.Event('input', {bubbles: true}));
-    assert.equal($('note-edit-actions').hidden, false); assert.equal($('markdown').hidden, true);
-    $('note-save').click(); await settled();
-    assert.deepEqual(t.state.calls.filter(c => c.method === 'PATCH').at(-1).body.title, 'Новое имя');
-    assert.equal($('note-edit-actions').hidden, true);
+    // The title saves the same way.
+    $('title').value = 'Новое имя'; input($('title'));
+    await wait(40); await settled();
+    assert.deepEqual([patches()[1].body.title, patches()[1].body.version], ['Новое имя', 4]);
     assert.equal($('note-heading-title').textContent, 'Новое имя');
+    assert.equal($('notes').querySelector('button[data-note-id=n1] .note-row-title').textContent, 'Новое имя');
 
-    // Unsaved text blocks switching to another note until the person agrees.
-    $('note-edit-start').click(); $('markdown').value = 'Не терять';
-    w.confirm = () => false;
-    const readsBefore = t.state.calls.filter(c => c.url.pathname === '/api/v1/notes/n2').length;
+    // Leaving a note with typed text saves it first and asks nothing.
+    $('markdown').value = 'Не терять'; input($('markdown'));
+    w.confirm = () => { throw new Error('no prompt expected'); };
+    const before = t.state.calls.length;
     [...$('notes').querySelectorAll('button')][1].click(); await settled();
-    assert.equal(t.state.calls.filter(c => c.url.pathname === '/api/v1/notes/n2').length, readsBefore);
-    assert.equal($('markdown').value, 'Не терять'); assert.equal($('markdown').hidden, false);
+    const after = t.state.calls.slice(before);
+    const savedAt = after.findIndex(c => c.method === 'PATCH'), readAt = after.findIndex(c => c.url.pathname === '/api/v1/notes/n2');
+    assert.ok(savedAt >= 0 && readAt > savedAt, 'saved before the next note is read');
+    assert.equal(after[savedAt].body.markdown, 'Не терять');
+    assert.equal($('title').value, 'Другая');
     w.confirm = () => true;
-    [...$('notes').querySelectorAll('button')][1].click(); await settled();
-    assert.equal($('title').value, 'Другая'); assert.equal($('markdown').hidden, true);
 
-    // Secondary panels: one open at a time, toggled by buttons.
-    const panel = name => w.document.querySelector(`[data-note-panel=${name}]`);
-    assert.equal(w.document.querySelectorAll('#note-toolbar button').length, 3);
-    for (const name of ['original', 'insights', 'history']) {
-      assert.equal(panel(name).getAttribute('aria-expanded'), 'false'); assert.equal($(`view-${name}`).hidden, true);
-      assert.equal(panel(name).getAttribute('aria-controls'), `view-${name}`);
-    }
-    panel('history').click();
-    assert.equal($('view-history').hidden, false); assert.equal(panel('history').getAttribute('aria-expanded'), 'true');
-    panel('original').click(); await settled();
-    assert.equal($('view-original').hidden, false); assert.equal($('view-history').hidden, true);
-    assert.equal(panel('history').getAttribute('aria-expanded'), 'false');
-    assert.equal($('original-details').open, true);
-    assert.equal($('workspace').dataset.noteView, 'original');
-    panel('original').click();
-    assert.equal($('view-original').hidden, true); assert.equal($('workspace').dataset.noteView, 'read');
-    panel('insights').click(); assert.equal($('view-insights').hidden, false);
-    // Opening another note closes the panel.
+    // One panel of icon buttons. A popover closes when another note opens.
+    assert.equal(w.document.querySelectorAll('#note-tools .tool-btn').length, 7);
+    assert.equal(w.document.querySelector('[data-note-panel]'), null); assert.equal($('note-toolbar'), null);
+    $('tool-insights').click();
+    assert.equal($('pop-insights').hidden, false); assert.equal($('tool-insights').getAttribute('aria-expanded'), 'true');
     [...$('notes').querySelectorAll('button')][0].click(); await settled();
-    assert.equal($('view-insights').hidden, true);
+    assert.equal($('pop-insights').hidden, true);
 
     $('confirm-structure').click(); await settled();
     assert.equal($('confirm-structure').disabled, true);
@@ -373,7 +349,8 @@ async function liveSearchAndCapture() {
     assert.equal(c.$('processing-mode').value, 'manual');
     c.$('ai-switch').checked = true; c.$('ai-switch').dispatchEvent(new c.w.Event('change', {bubbles: true}));
     assert.equal(c.$('processing-mode').value, 'ai');
-    assert.equal(c.w.document.querySelector('[data-capture-view=capture-jobs]').textContent, 'История');
+    assert.equal(c.w.document.querySelector('#capture-tabs'), null, 'tabs are gone');
+    assert.equal(c.$('tool-jobs').getAttribute('aria-label'), 'История');
     assert.equal(c.$('capture-submit').textContent, 'Сохранить');
     // New record focuses the text field.
     c.$('new-note').click(); await settled();
@@ -442,7 +419,7 @@ async function checklist() {
     assert.match($('confirm-structure').textContent, /Структура верна/);
     assert.equal($('structure-status').textContent, '');
     assert.equal($('confirm-structure').closest('#note-meta') !== null, true);
-    assert.equal($('note-edit-start').closest('#note-meta') !== null, true);
+    assert.equal($('note-category').closest('#note-meta') !== null, true);
     assert.ok(!$('note-card').textContent.includes('Проверьте текст, задачи и категорию.'));
 
     // The checkbox saves at once.
@@ -536,6 +513,6 @@ module.exports = async () => {
   await noteScreen();
   await checklist();
   await phoneMenu();
-  console.log('Note UX checks passed: quiet banner, AI limit hints, source tags and filters, inline editing, panels, checklist, phone menu.');
+  console.log('Note UX checks passed: quiet banner, AI limit hints, source tags and filters, autosave, icon panel, checklist, phone menu.');
 };
 if (require.main === module) module.exports().catch(error => { console.error(error); process.exitCode = 1; });
