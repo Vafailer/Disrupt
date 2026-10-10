@@ -74,6 +74,10 @@ class Settings:
     internal_api_token: str = field(default="", repr=False)
     admin_allowed_networks: str = DEFAULT_ADMIN_NETWORKS
     admin_cookie_secure: bool = True
+    # Шифрование содержимого на диске. Подробности в docs/encryption-v1.md. Файлы ключей читает app.crypto.
+    data_encryption: str = "off"
+    data_key_file: str = ""
+    data_old_key_files: str = ""
 
     telegram_bot_username: str = "beresta_ru_bot"
     # Mail stays off until the owner configures an SMTP account. See docs/auth-telegram-v1.md.
@@ -89,6 +93,8 @@ class Settings:
 
     def __post_init__(self):
         parse_networks(self.admin_allowed_networks)
+        if self.data_encryption not in {"off", "required"}:
+            raise ValueError("NOTES_DATA_ENCRYPTION must be off or required")
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{4,31}", self.telegram_bot_username):
             raise ValueError("NOTES_TELEGRAM_BOT_USERNAME must be a Telegram bot username without @")
         if self.mail_transport not in {"smtp_bz", "smtp"}:
@@ -167,6 +173,9 @@ class Settings:
             secure_cookies=flag("NOTES_SECURE_COOKIES", False),
             admin_allowed_networks=os.environ.get("NOTES_ADMIN_ALLOWED_NETWORKS", DEFAULT_ADMIN_NETWORKS),
             admin_cookie_secure=flag("NOTES_ADMIN_COOKIE_SECURE", True),
+            data_encryption=os.environ.get("NOTES_DATA_ENCRYPTION", cls.data_encryption),
+            data_key_file=os.environ.get("NOTES_DATA_KEY_FILE", ""),
+            data_old_key_files=os.environ.get("NOTES_DATA_OLD_KEY_FILES", ""),
             public_origin=os.environ.get("NOTES_PUBLIC_ORIGIN", cls.public_origin).rstrip("/"),
             allow_registration=flag("NOTES_ALLOW_REGISTRATION", True),
             allow_live_requests=flag("NOTES_ALLOW_LIVE_REQUESTS", False),

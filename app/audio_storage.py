@@ -1,6 +1,7 @@
 """Private immutable originals. No database, provider, or network access."""
 
 import hashlib
+import io
 import json
 import logging
 import os
@@ -15,6 +16,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
+
+from app import crypto
 
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
 MAX_AUDIO_SECONDS = 180
@@ -63,6 +66,11 @@ def _key(capture_id):
     except (ValueError, TypeError, AttributeError):
         raise AudioStorageUnavailable("invalid_audio_key") from None
     return capture_id + ".audio"
+
+
+def audio_aad(key):
+    """Файл нельзя подложить под другую запись: имя файла входит в AAD."""
+    return "audio:" + key
 
 
 def _run(command, limit, *, collect=False, timeout=25):
@@ -270,19 +278,39 @@ class AudioStorage:
         if info is not staged.inspected:
             raise AudioStorageUnavailable("audio_not_inspected")
         key = _key(capture_id)
+        sealed = None
         try:
-            with staged.path.open("rb") as source:
+            if crypto.writes_encrypted():
+                # На диск попадает только шифртекст. Открытый временный файл удаляет stage().
+                sealed = self._seal(staged.path, key)
+            source_path = sealed or staged.path
+            with source_path.open("rb") as source:
                 os.fsync(source.fileno())
             # Hard link is atomic and refuses overwriting an existing original.
-            os.link(staged.path, self.root / key, follow_symlinks=False)
+            os.link(source_path, self.root / key, follow_symlinks=False)
             directory = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             try:
                 os.fsync(directory)
             finally:
                 os.close(directory)
-        except OSError:
+        except (OSError, crypto.EncryptionError):
             raise AudioStorageUnavailable("storage_unavailable") from None
+        finally:
+            if sealed is not None:
+                sealed.unlink(missing_ok=True)
         return StoredAudio(key, info)
+
+    def _seal(self, path, key):
+        data = path.read_bytes()
+        fd, name = tempfile.mkstemp(prefix=".sealed-", dir=self.root)
+        target = Path(name)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(crypto.encrypt_bytes(data, audio_aad(key)))
+        except BaseException:
+            target.unlink(missing_ok=True)
+            raise
+        return target
 
     @contextmanager
     def open_original(self, key):
@@ -293,6 +321,15 @@ class AudioStorage:
             with os.fdopen(fd, "rb") as source:
                 if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
                     raise AudioStorageUnavailable("invalid_audio_file")
-                yield source
+                if source.read(len(crypto.AUDIO_MAGIC)) != crypto.AUDIO_MAGIC:
+                    source.seek(0)  # Старый файл без шифрования читается как есть.
+                    yield source
+                else:
+                    source.seek(0)
+                    try:
+                        plain = crypto.decrypt_bytes(source.read(MAX_AUDIO_BYTES + 4096), audio_aad(key))
+                    except crypto.EncryptionError:
+                        raise AudioStorageUnavailable("audio_decrypt_failed") from None
+                    yield io.BytesIO(plain)
         except OSError:
             raise AudioStorageUnavailable("storage_unavailable") from None

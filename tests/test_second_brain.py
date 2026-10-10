@@ -366,7 +366,8 @@ def test_processing_reply_has_no_hint_without_a_deadline_or_with_a_reminder(remi
     assert message(client, update_id=301).status_code == 200
     assert Worker(app.state.sessions, app.state.settings, provider=MockProvider()).run_once()
     with app.state.sessions() as db:
-        item = db.scalar(select(Item).where(Item.kind == "task", Item.due_text == "завтра"))
+        # due_text is encrypted, so it is compared after reading, not in SQL.
+        item = next(row for row in db.scalars(select(Item).where(Item.kind == "task")) if row.due_text == "завтра")
         target = {"note": item.note_id, "item": item.id}
     assert add_reminder(client, target, key="telegram-hint").status_code == 201
     confirmed = claim(client).json()["items"]

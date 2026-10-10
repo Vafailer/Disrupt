@@ -18,6 +18,10 @@ x-backend-environment: &backend-environment
   NOTES_AUDIO_UNIT_PER_MINUTE: ${NOTES_AUDIO_UNIT_PER_MINUTE:-1}
   NOTES_LIMIT_TIMEZONE: ${NOTES_LIMIT_TIMEZONE:-Europe/Moscow}
   NOTES_AUTO_WORKER: "false"
+  # Шифрование текстов и аудио на диске. Ключ лежит в Docker secret. См. docs/encryption-v1.md.
+  NOTES_DATA_ENCRYPTION: required
+  NOTES_DATA_KEY_FILE: /run/secrets/data_key
+  NOTES_DATA_OLD_KEY_FILES: ${NOTES_DATA_OLD_KEY_FILES:-}
   NOTES_PUBLIC_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
   NOTES_SECURE_COOKIES: "true"
   # Admin: private network only. Set NOTES_ADMIN_COOKIE_SECURE=false in .env.production when the admin
@@ -86,6 +90,7 @@ services:
     secrets:
       - postgres_password
       - analytics_pseudonym_key
+      - data_key
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -105,6 +110,7 @@ services:
       NOTES_STT_MODEL: ${NOTES_STT_MODEL:-}
     secrets:
       - postgres_password
+      - data_key
       - cloudru_api_key
     depends_on:
       migrate:
@@ -120,6 +126,7 @@ services:
       NOTES_ALLOW_LIVE_REQUESTS: "false"
     secrets:
       - postgres_password
+      - data_key
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -141,6 +148,8 @@ services:
       - api
 
 secrets:
+  data_key:
+    file: ./secrets/data_key.txt
   analytics_pseudonym_key:
     file: ./secrets/analytics_pseudonym_key.txt
   postgres_password:

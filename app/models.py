@@ -13,7 +13,6 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
-    Text,
     UniqueConstraint,
     false,
     true,
@@ -21,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.encrypted_types import EncryptedJSON, EncryptedText
 
 
 def new_id():
@@ -73,7 +73,7 @@ class Capture(Base):
     __table_args__ = (UniqueConstraint("user_id", "idempotency_key"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    original_text: Mapped[str] = mapped_column(Text)
+    original_text: Mapped[str] = mapped_column(EncryptedText("captures.original_text"))
     idempotency_key: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
     channel: Mapped[str] = mapped_column(String(16), default="web", server_default="web")
@@ -84,7 +84,7 @@ class Capture(Base):
     audio_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     audio_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     audio_media_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    transcript: Mapped[str | None] = mapped_column(EncryptedText("captures.transcript"), nullable=True)
     transcript_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
@@ -97,7 +97,7 @@ class TranscriptRevision(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     capture_id: Mapped[str] = mapped_column(ForeignKey("captures.id"), index=True)
     version: Mapped[int] = mapped_column(Integer)
-    text: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(EncryptedText("transcript_revisions.text"))
     origin: Mapped[str] = mapped_column(String(16))
     created_at: Mapped[float | None] = mapped_column(Float, nullable=True)
 
@@ -120,9 +120,9 @@ class Note(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     capture_id: Mapped[str] = mapped_column(ForeignKey("captures.id"), unique=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    title: Mapped[str] = mapped_column(String(200))
-    markdown: Mapped[str] = mapped_column(Text)
-    conclusions: Mapped[list] = mapped_column(JSON)
+    title: Mapped[str] = mapped_column(EncryptedText("notes.title"))
+    markdown: Mapped[str] = mapped_column(EncryptedText("notes.markdown"))
+    conclusions: Mapped[list] = mapped_column(EncryptedJSON("notes.conclusions"))
     version: Mapped[int] = mapped_column(Integer, default=1)
     provider: Mapped[str] = mapped_column(String(16))
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
@@ -137,7 +137,7 @@ class Revision(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     note_id: Mapped[str] = mapped_column(ForeignKey("notes.id"), index=True)
     version: Mapped[int] = mapped_column(Integer)
-    snapshot: Mapped[dict] = mapped_column(JSON)
+    snapshot: Mapped[dict] = mapped_column(EncryptedJSON("revisions.snapshot"))
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
 
 
@@ -194,13 +194,13 @@ class Item(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     note_id: Mapped[str] = mapped_column(ForeignKey("notes.id"), index=True)
     kind: Mapped[str] = mapped_column(String(16))
-    text: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(EncryptedText("items.text"))
     status: Mapped[str] = mapped_column(String(16), default="open")
     version: Mapped[int] = mapped_column(Integer, default=1)
     due_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     category_id: Mapped[str | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
-    source_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
-    due_text: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    source_quote: Mapped[str | None] = mapped_column(EncryptedText("items.source_quote"), nullable=True)
+    due_text: Mapped[str | None] = mapped_column(EncryptedText("items.due_text"), nullable=True)
     position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
@@ -216,7 +216,7 @@ class Reminder(Base):
     item_id: Mapped[str | None] = mapped_column(ForeignKey("items.id"), nullable=True)
     scheduled_at: Mapped[float] = mapped_column(Float, index=True)
     timezone: Mapped[str] = mapped_column(String(64))
-    text: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(EncryptedText("reminders.text"))
     status: Mapped[str] = mapped_column(String(16), default="confirmed", index=True)
     generation: Mapped[int] = mapped_column(Integer, default=1)
     confirmed_at: Mapped[float] = mapped_column(Float, default=time.time)
@@ -232,7 +232,7 @@ class Inbox(Base):
     update_id: Mapped[int] = mapped_column(BigInteger)
     payload_hash: Mapped[str] = mapped_column(String(64))
     operation: Mapped[str] = mapped_column(String(32))
-    response: Mapped[dict] = mapped_column(JSON)
+    response: Mapped[dict] = mapped_column(EncryptedJSON("inbox.response"))
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
 
 
@@ -267,7 +267,7 @@ class Outbox(Base):
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
     # Account messages (for example a password reset link). The text is erased once the attempt is final.
     message_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    message_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    message_text: Mapped[str | None] = mapped_column(EncryptedText("outbox.message_text"), nullable=True)
 
 
 class TelegramLogin(Base):
@@ -373,10 +373,10 @@ class AssistantRequest(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")
-    question: Mapped[str | None] = mapped_column(Text, nullable=True)
+    question: Mapped[str | None] = mapped_column(EncryptedText("assistant_requests.question"), nullable=True)
     days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     input_note_ids: Mapped[list] = mapped_column(JSON)
-    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    result: Mapped[dict | None] = mapped_column(EncryptedJSON("assistant_requests.result"), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(100))
     request_hash: Mapped[str] = mapped_column(String(64))

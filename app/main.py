@@ -14,6 +14,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app import crypto
 from app.admin_auth import AdminNetworkGate
 from app.analytics import record_event
 from app.audio_storage import AudioStorage
@@ -136,6 +137,8 @@ def create_app(
     settings: Settings | None = None, provider=None, *, audio_storage=None, speech_provider=None, mailer=None,
 ):
     settings = settings or Settings.from_env()
+    # Без верного ключа в режиме required приложение не стартует.
+    crypto.configure_from_settings(settings)
     if audio_storage is None:
         audio_storage = AudioStorage(
             settings.audio_storage_path,

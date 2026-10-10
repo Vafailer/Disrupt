@@ -6,6 +6,7 @@ import time
 
 from sqlalchemy import select
 
+from app import crypto
 from app.audio_storage import AudioStorage
 from app.config import Settings, read_secret_file
 from app.db import make_database
@@ -22,6 +23,7 @@ def main():
     parser.add_argument("--allow-live-probe", action="store_true", required=True)
     args = parser.parse_args()
     settings = Settings.from_env()
+    crypto.configure_from_settings(settings)
     if settings.provider != "cloudru" or not settings.allow_live_requests:
         raise SystemExit("Live owner permission required")
     engine, sessions = make_database(settings.database_url)
