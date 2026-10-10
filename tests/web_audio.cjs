@@ -46,6 +46,7 @@ const job = {
 };
 capture.job = job;
 const calls = [], history = [];
+const transcriptJob = {...job,id:randomUUID(),capture_id:randomUUID(),error_code:'provider_unavailable'};
 let lostUpload = true, uploaded = false, conflictEdit = false, pauseEdit = false, finishEdit = null;
 function reply(data,status=200) {
   return {ok:status >= 200 && status < 300,status,headers:new Headers(),json:async () => structuredClone(data)};
@@ -68,6 +69,8 @@ w.fetch = async (url,options={}) => {
     uploaded = true; return reply(job,202);
   }
   if (url === `/api/v1/jobs/${job.id}`) return reply(job);
+  if (url === '/api/v1/captures/text') return reply(transcriptJob,202);
+  if (url === `/api/v1/jobs/${transcriptJob.id}`) return reply(transcriptJob);
   if (url === `/api/v1/captures/${capture.capture_id}`) return reply(capture);
   if (url === `/api/v1/captures/${capture.capture_id}/transcript`) {
     assert.equal(body.version,capture.transcript_version);
@@ -129,6 +132,7 @@ function choose(file) {
     $('new-note').click(); assert.equal($('message').textContent,'Дождитесь сохранения.');
     finishEdit(); await until(() => $('transcript-label').textContent.includes('версия 2') && !$('transcript-text').disabled);
     assert.equal($('transcript-text').value,'Ручная расшифровка');
+    assert.match($('transcript-message').textContent,/Расшифровка сохранена/);
     assert.equal($('source-original').hidden,true);
 
     pauseEdit = false; conflictEdit = true; $('transcript-text').value = 'Не терять конфликтующую правку';
@@ -150,6 +154,41 @@ function choose(file) {
     assert.equal($('transcript-history').querySelector('script'),null);
     assert.ok($('transcript-history').textContent.includes('Дата неизвестна'));
     assert.equal(calls.filter(c => c.url === '/api/v1/captures/audio').length,2,'Editing must not call capture/AI again');
+
+    // Preparing a note saves the latest transcript but waits for an explicit capture submit.
+    const editsBefore = calls.filter(c => c.method === 'PATCH').length;
+    $('transcript-create-note').click(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.filter(c => c.method === 'PATCH').length,editsBefore,'Keep another draft when replacement is declined');
+    assert.equal($('thought').value,'Не терять текст во время загрузки аудио');
+    w.confirm = () => true;
+    pauseEdit = true; finishEdit = null;
+    $('transcript-text').value = 'Текст для новой заметки';
+    $('transcript-create-note').click(); await until(() => finishEdit !== null);
+    $('thought').value = 'Новый черновик во время сохранения';
+    finishEdit(); await until(() => !$('transcript-save').disabled);
+    assert.equal($('thought').value,'Новый черновик во время сохранения');
+    assert.equal($('source-card').hidden,false);
+    assert.match($('transcript-message').textContent,/Текст новой записи изменился/);
+
+    pauseEdit = false; conflictEdit = true;
+    $('transcript-create-note').click(); await until(() => !$('transcript-conflict').hidden && !$('transcript-save').disabled);
+    assert.equal($('source-card').hidden,false,'Version conflict must not prepare or dispatch another job');
+    assert.equal(calls.filter(c => c.url === '/api/v1/captures/text').length,0);
+    $('transcript-compare').click(); await until(() => !$('transcript-use-version').hidden && !$('transcript-compare').disabled);
+    $('transcript-use-version').click();
+    $('transcript-text').value = 'Исправленный текст для новой заметки';
+    $('transcript-create-note').click();
+    await until(() => !$('capture-card').hidden && $('thought').value === 'Исправленный текст для новой заметки');
+    assert.equal($('source-card').hidden,true);
+    assert.equal($('processing-mode').value,'ai');
+    assert.equal(calls.filter(c => c.url === '/api/v1/captures/text').length,0,'Preparation must not spend an AI slot');
+    submit('capture-form');
+    await until(() => $('message').textContent.includes('Cloud.ru сейчас недоступен'));
+    const textCalls = calls.filter(c => c.url === '/api/v1/captures/text');
+    assert.equal(textCalls.length,1);
+    assert.deepEqual(textCalls[0].body,{text:'Исправленный текст для новой заметки',processing_mode:'ai'});
+    assert.ok(textCalls[0].options.headers['Idempotency-Key']);
+    assert.equal(calls.filter(c => c.url === '/api/v1/captures/audio').length,2,'No second upload or STT');
 
     w.confirm = () => true; $('new-note').click();
     $('record-start').click(); await until(() => activeRecorder?.state === 'recording');
@@ -183,6 +222,7 @@ function choose(file) {
     await until(() => !$('source-card').hidden);
     assert.equal($('transcript-save').disabled,true);
     assert.equal($('transcript-text').disabled,true);
+    assert.equal($('transcript-create-note').disabled,true);
     console.log('Audio DOM checks passed: multipart, lost-response replay, text preservation, transcript conflicts/history, safe DOM, recording and microphone cleanup.');
   } finally { dom.window.close(); }
 })().catch(error => {console.error(error);process.exitCode = 1;});

@@ -8,7 +8,13 @@ from typing import Protocol
 import httpx
 from pydantic import ValidationError
 
-from app.config import ALLOWED_MODEL_BASE_URLS, PROGRAM_BASE_URL, Settings, read_secret_file
+from app.config import (
+    ALLOWED_MODEL_BASE_URLS,
+    LLM_READ_TIMEOUT_SECONDS,
+    PROGRAM_BASE_URL,
+    Settings,
+    read_secret_file,
+)
 from app.schemas import ProposedItem, StructuredNote
 
 SYSTEM_PROMPT = """Ты помогаешь структурировать мысли пользователя на русском языке.
@@ -170,7 +176,7 @@ class CloudRuProvider:
         try:
             # No SDK retries, redirects, discovery, telemetry, or alternate endpoints.
             with httpx.Client(
-                timeout=httpx.Timeout(45, connect=10),
+                timeout=httpx.Timeout(LLM_READ_TIMEOUT_SECONDS, connect=10, write=10, pool=10),
                 follow_redirects=False,
                 trust_env=False,
                 transport=self._transport,
