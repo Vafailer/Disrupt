@@ -26,6 +26,7 @@ from app.providers import DEMO_TEXT
 from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
 from app.routes.admin import build_router as admin_router
+from app.routes.assistant import build_router as assistant_router
 from app.routes.audio import build_router as audio_router
 from app.routes.brain import build_router as brain_router
 from app.routes.feedback import build_router as feedback_router
@@ -265,6 +266,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     app.include_router(audio_router(database, settings, audio_storage, create_audio_capture))
     app.include_router(transcripts_router(database))
     app.include_router(brain_router(database, settings))
+    app.include_router(assistant_router(database, settings))
 
     @app.get("/health")
     def health(db=Depends(database)):

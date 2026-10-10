@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from sqlalchemy import select, update
 
 from app.analytics import record_event
+from app.assistant import run_assistant_once
 from app.audio_contracts import AUDIO_MEDIA_TYPES, AudioReader, SpeechProvider
 from app.audio_storage import AudioStorage
 from app.config import Settings
@@ -191,7 +192,7 @@ class Worker:
     def run_once(self):
         job_id = self.claim()
         if job_id is None:
-            return False
+            return run_assistant_once(self)  # Capture jobs always go first.
         try:
             original = self.original_for_job(job_id)
             with self.sessions() as db:
