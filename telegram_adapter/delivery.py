@@ -10,6 +10,9 @@ from uuid import UUID
 
 from .clients import RemoteFailure
 
+# Telegram accepts up to 4096 UTF-16 units; the core already trims processing replies to fit.
+TELEGRAM_TEXT_UNITS = 4096
+
 
 def validate_result(delivery_id, body):
     try:
@@ -103,7 +106,7 @@ class DeliverySender:
                 raise ValueError()
             if type(item["chat_id"]) is not int or not 0 < item["chat_id"] < 2**63:
                 raise ValueError()
-            if not isinstance(item["text"], str) or not 1 <= len(item["text"]) <= 1000 or "\x00" in item["text"]:
+            if not isinstance(item["text"], str) or not 1 <= len(item["text"].encode("utf-16-le")) // 2 <= TELEGRAM_TEXT_UNITS or "\x00" in item["text"]:
                 raise ValueError()
             callback = item["callback_token"]
             if callback is not None and not re.fullmatch(r"[A-Za-z0-9_-]{43}", callback):

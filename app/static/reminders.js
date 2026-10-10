@@ -170,17 +170,26 @@
     $('reminder-target').value = value;
     $('reminder-target-wrap').hidden = !tasks && !value;
   }
-  function startForm(row = null, item = null) {
+  // `proposal` is {local_time, timezone, focusTime} from a suggested reminder. The person still confirms it.
+  function startForm(row = null, item = null, proposal = null) {
     if (busy || locked || !note) return;
     if (dirty() && !confirm('Есть несохранённое напоминание. Закрыть его и открыть другое?')) return;
     clearForm(); editing = row ? {...row} : null;
     targets(row?.item_id || item?.id || '');
     $('reminder-form-title').textContent = row ? 'Изменить напоминание' : 'Новое напоминание';
     $('reminder-text').value = row?.text || item?.text || note.title;
-    $('reminder-zone').value = row?.timezone || defaultZone(); drawZone(); drawChips();
+    const proposedZone = proposal && validZone(proposal.timezone) ? proposal.timezone : '';
+    $('reminder-zone').value = row?.timezone || proposedZone || defaultZone(); drawZone(); drawChips();
     if (row) { setLocal(wallTime(row.scheduled_at,row.timezone)); setPick('custom'); }
+    else if (proposedZone && proposal.local_time) { setLocal(proposal.local_time); setPick('custom'); }
     $('reminder-form').hidden = false; baseline = fingerprint(); controls();
-    if (row) checkTime(); else $('reminder-chips').querySelector('button:not([hidden])').focus();
+    if (proposedZone && proposal.local_time && !row) {
+      checkTime().then(() => {
+        if (proposal.focusTime) $('reminder-time').focus();
+        else if (!$('reminder-confirm').disabled) $('reminder-confirm').focus();
+      });
+      $('reminder-form').scrollIntoView?.({block:'nearest'});
+    } else if (row) checkTime(); else $('reminder-chips').querySelector('button:not([hidden])').focus();
   }
   function rowTime(row) {
     try {
@@ -398,5 +407,5 @@
   };
   $('reminder-link').onclick = () => { $('telegram-settings').open = true; $('link-code').focus(); };
   window.addEventListener('pagehide',hide);
-  window.BerestaReminders = {show,hide,dirty,setLocked,startForTask:item => startForm(null,item)};
+  window.BerestaReminders = {show,hide,dirty,setLocked,startForTask:(item,proposal) => startForm(null,item,proposal)};
 })();

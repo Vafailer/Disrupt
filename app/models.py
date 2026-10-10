@@ -16,6 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     false,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,6 +39,9 @@ class User(Base):
     source: Mapped[str] = mapped_column(String(100), default="unknown", server_default="unknown")
     created_at: Mapped[float | None] = mapped_column(Float, nullable=True, default=time.time)
     first_login_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    assistant_recommendations_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(),
+    )
 
 
 class LoginSession(Base):
@@ -288,6 +292,37 @@ class ProviderUsage(Base):
     cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
     estimated_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
     occurred_at: Mapped[float] = mapped_column(Float, default=time.time, index=True)
+
+
+class AssistantRequest(Base):
+    """One AI assistant action (ask, recommend, digest). The worker leases it like a job."""
+
+    __tablename__ = "assistant_requests"
+    __table_args__ = (
+        CheckConstraint("kind IN ('ask', 'recommend', 'digest')", name="ck_assistant_requests_kind"),
+        CheckConstraint(
+            "status IN ('queued', 'running', 'succeeded', 'failed')", name="ck_assistant_requests_status",
+        ),
+        UniqueConstraint("user_id", "idempotency_key", name="uq_assistant_requests_user_key"),
+        Index("ix_assistant_requests_user_created", "user_id", "created_at"),
+        Index("ix_assistant_requests_status", "status"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    kind: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    question: Mapped[str | None] = mapped_column(Text, nullable=True)
+    days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    input_note_ids: Mapped[list] = mapped_column(JSON)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(100))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    units: Mapped[int] = mapped_column(Integer, default=1)
+    lease_until: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    started_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    finished_at: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 # Register the independent feedback table for Alembic metadata.

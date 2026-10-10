@@ -316,3 +316,17 @@ def test_delivery_continues_while_long_poll_waits_and_fatal_error_stops_both():
         assert await asyncio.wait_for(serve(SlowBot(), Sender()), 1) == 1
         assert delivered.is_set() and cancelled.is_set()
     asyncio.run(scenario())
+
+
+def test_long_processing_reply_is_accepted_up_to_telegram_limit(tmp_path):
+    # Processing replies may reach Telegram's 4096 UTF-16 units; a longer claim must not stop the bot loop.
+    settings = settings_for(tmp_path)
+    core = CoreClient(httpx.AsyncClient(), settings)
+    sender = DeliverySender(settings, core, None, journal_for(settings))
+    item = {
+        "delivery_id": "00000000-0000-4000-8000-000000000001", "generation": 1, "lease_token": "a" * 43,
+        "chat_id": 42, "callback_token": None, "note_url": settings.web_url + "/?capture=x",
+    }
+    sender.validate_claim({**item, "text": "Длинный ответ. " * 250})
+    with pytest.raises(RemoteFailure):
+        sender.validate_claim({**item, "text": "я" * 4097})

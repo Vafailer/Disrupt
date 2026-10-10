@@ -13,7 +13,8 @@
   <script src="/static/telegram-link.js" defer=""></script>
 <link rel="stylesheet" href="/static/workspace.css"><script src="/static/workspace.js" defer=""></script>
   <link rel="stylesheet" href="/static/landing.css"><link rel="stylesheet" href="/static/onboarding.css"><link rel="stylesheet" href="/static/polish.css"><link rel="stylesheet" href="/static/note.css"><link rel="stylesheet" href="/static/app-polish.css">
-  <script src="/static/landing.js" defer=""></script><script src="/static/onboarding.js" defer=""></script></head>
+  <script src="/static/landing.js" defer=""></script><script src="/static/onboarding.js" defer=""></script>
+  <link rel="stylesheet" href="/static/brain.css"><script src="/static/brain.js" defer=""></script></head>
 <body>
   <header>
     <a href="/" class="brand">beresta<span>Умные заметки</span></a>
@@ -99,7 +100,7 @@
         </div>
       </section>
     </section>
-    <div id="workspace" class="workspace" hidden=""><button id="mobile-library-toggle" type="button" aria-expanded="false" aria-controls="library-column">Все заметки</button><aside class="workspace-nav"><button id="new-note" class="secondary">+ Новая запись</button><h2 id="category-nav-title">Категории</h2><div class="nav-row"><div id="category-navigation" class="category-navigation" role="group" aria-labelledby="category-nav-title"></div><button type="button" id="nav-more" class="nav-more" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu" aria-label="Ещё" title="Ещё"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M5 12h.01M12 12h.01M19 12h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button><div id="nav-menu" class="nav-menu"><button type="button" class="nav-action" id="manage-categories">Управлять категориями</button><div class="nav-bottom"><button type="button" id="open-telegram" class="nav-action">Подключить Telegram</button><button type="button" id="open-feedback" class="nav-action">Сообщить об ошибке</button></div></div></div></aside><section class="library-column" id="library-column"><div class="library-heading"><h2 id="library-title">Все заметки</h2></div><form id="search-form" role="search"><label for="search-query" class="sr-only">Поиск по заметкам</label><div class="search-field"><svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Zm5.5-2 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><input id="search-query" type="search" maxlength="200" placeholder="Поиск по заметкам" autocomplete="off"><button id="clear-search" type="button" class="search-clear" aria-label="Очистить поиск" title="Очистить поиск" hidden>×</button></div><label for="category-filter" hidden="">Категория</label><select id="category-filter" hidden=""><option value="">Все категории</option><option value="none">Без категории</option></select><button type="submit" class="sr-only">Найти</button></form><div id="source-filter" class="source-filter" role="group" aria-label="Источник записи"><button type="button" data-source="" aria-pressed="true">Все</button><button type="button" data-source="telegram" aria-pressed="false">Telegram</button><button type="button" data-source="voice" aria-pressed="false">Голос</button><button type="button" data-source="text" aria-pressed="false">Текст</button></div><nav id="notes" aria-label="Заметки"></nav><button id="more-notes" class="quiet" hidden="">Показать ещё</button></section><div class="editor-column">
+    <div id="workspace" class="workspace" hidden=""><button id="mobile-library-toggle" type="button" aria-expanded="false" aria-controls="library-column">Все заметки</button><aside class="workspace-nav"><button id="new-note" class="secondary">+ Новая запись</button><div class="nav-views" role="group" aria-label="Разделы"><button type="button" id="nav-overview" class="category-button" data-brain-view="overview" aria-pressed="false">Обзор</button><button type="button" id="nav-assistant" class="category-button" data-brain-view="assistant" aria-pressed="false">Помощник</button></div><h2 id="category-nav-title">Категории</h2><div class="nav-row"><div id="category-navigation" class="category-navigation" role="group" aria-labelledby="category-nav-title"></div><button type="button" id="nav-more" class="nav-more" aria-haspopup="true" aria-expanded="false" aria-controls="nav-menu" aria-label="Ещё" title="Ещё"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M5 12h.01M12 12h.01M19 12h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button><div id="nav-menu" class="nav-menu"><button type="button" class="nav-action" id="manage-categories">Управлять категориями</button><div class="nav-bottom"><button type="button" id="open-telegram" class="nav-action">Подключить Telegram</button><button type="button" id="open-feedback" class="nav-action">Сообщить об ошибке</button></div></div></div></aside><section class="library-column" id="library-column"><div class="library-heading"><h2 id="library-title">Все заметки</h2></div><form id="search-form" role="search"><label for="search-query" class="sr-only">Поиск по заметкам</label><div class="search-field"><svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Zm5.5-2 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><input id="search-query" type="search" maxlength="200" placeholder="Поиск по заметкам" autocomplete="off"><button id="clear-search" type="button" class="search-clear" aria-label="Очистить поиск" title="Очистить поиск" hidden>×</button></div><label for="category-filter" hidden="">Категория</label><select id="category-filter" hidden=""><option value="">Все категории</option><option value="none">Без категории</option></select><button type="submit" class="sr-only">Найти</button></form><div id="source-filter" class="source-filter" role="group" aria-label="Источник записи"><button type="button" data-source="" aria-pressed="true">Все</button><button type="button" data-source="telegram" aria-pressed="false">Telegram</button><button type="button" data-source="voice" aria-pressed="false">Голос</button><button type="button" data-source="text" aria-pressed="false">Текст</button></div><nav id="notes" aria-label="Заметки"></nav><button id="more-notes" class="quiet" hidden="">Показать ещё</button></section><div class="editor-column">
         <section id="capture-card" class="card">
           <h1>Новая запись</h1>
           <div class="view-switch" id="capture-tabs"><button type="button" data-capture-view="capture-form">Текст</button><button type="button" data-capture-view="capture-audio">Голос</button><button type="button" data-capture-view="capture-jobs">История</button></div><form id="capture-form" class="capture-view"><label for="thought" class="sr-only">Ваши мысли</label><textarea id="thought" rows="9" maxlength="12000" required="" placeholder="Идея, задача, план на завтра…"></textarea><div class="capture-options"><label class="switch" id="ai-switch-label" for="ai-switch"><input id="ai-switch" type="checkbox" role="switch" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-text">Разобрать с ИИ</span></label><select id="processing-mode" hidden aria-hidden="true" tabindex="-1"><option value="ai">Структурировать с ИИ</option><option value="manual">Сохранить без ИИ</option></select><p id="ai-limit-counter" class="muted ai-limit-counter" hidden=""><span id="ai-limit-count"></span><span id="ai-limit-cost" class="ai-limit-cost"></span></p></div>
@@ -114,6 +115,57 @@
             </form></section>
           <p id="job-status" aria-live="polite"></p>
           <section id="capture-jobs" class="capture-view"><div id="jobs"></div></section>
+        </section>
+        <section id="overview-card" class="card brain-view" hidden aria-labelledby="overview-title">
+          <div class="br-head"><h1 id="overview-title">Обзор</h1>
+            <div id="overview-period" class="br-seg" role="group" aria-label="Период"><button type="button" data-days="7" aria-pressed="false">7 дней</button><button type="button" data-days="30" aria-pressed="true">30 дней</button><button type="button" data-days="90" aria-pressed="false">90 дней</button></div>
+          </div>
+          <p id="overview-status" class="muted" role="status" aria-live="polite"></p>
+          <div id="overview-body"></div>
+        </section>
+        <section id="assistant-card" class="card brain-view" hidden aria-labelledby="assistant-title">
+          <h1 id="assistant-title">Помощник</h1>
+          <p class="br-lead">Отвечает по вашим заметкам и ничего не выдумывает. Сами заметки он не меняет.</p>
+          <section class="br-block" aria-labelledby="ask-title">
+            <h2 id="ask-title">Спросить свои заметки</h2>
+            <form id="ask-form">
+              <label for="ask-question" class="sr-only">Ваш вопрос</label>
+              <textarea id="ask-question" rows="3" maxlength="1000" placeholder="Например: что я обещал Марку на этой неделе?"></textarea>
+              <div class="br-row">
+                <label for="ask-period">Искать за</label>
+                <select id="ask-period"><option value="7">неделю</option><option value="30">месяц</option><option value="90" selected>3 месяца</option><option value="365">год</option></select>
+                <button id="ask-submit" type="submit">Спросить</button>
+              </div>
+              <p id="ask-cost" class="br-cost muted"></p>
+            </form>
+            <p id="ask-status" class="br-status" role="status" aria-live="polite"></p>
+            <div id="ask-result" class="br-result"></div>
+          </section>
+          <section class="br-block" aria-labelledby="rec-title">
+            <div class="br-block-head"><h2 id="rec-title">Рекомендации</h2>
+              <label class="switch" id="rec-switch-label" for="rec-switch"><input id="rec-switch" type="checkbox" role="switch" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-text">Рекомендации ИИ</span></label>
+            </div>
+            <p id="rec-disabled" class="br-off" hidden>Рекомендации выключены. Включите переключатель выше, и помощник предложит следующие шаги по вашим заметкам.</p>
+            <div id="rec-on">
+              <p class="muted br-hint">Смотрит заметки за 30 дней, открытые задачи и идеи. Предлагает до пяти шагов.</p>
+              <div class="actions"><button id="rec-run" type="button">Получить рекомендации</button></div>
+              <p id="rec-cost" class="br-cost muted"></p>
+              <p id="rec-status" class="br-status" role="status" aria-live="polite"></p>
+              <div id="rec-result" class="br-result"></div>
+            </div>
+          </section>
+          <section class="br-block" aria-labelledby="digest-title">
+            <h2 id="digest-title">Сводка за неделю</h2>
+            <p class="muted br-hint">Главное из заметок за 7 дней, открытые задачи и темы.</p>
+            <div class="actions"><button id="digest-run" type="button">Собрать сводку</button></div>
+            <p id="digest-cost" class="br-cost muted"></p>
+            <p id="digest-status" class="br-status" role="status" aria-live="polite"></p>
+            <div id="digest-result" class="br-result"></div>
+          </section>
+          <section class="br-block" aria-labelledby="history-title">
+            <h2 id="history-title">Недавние запросы</h2>
+            <div id="assistant-history" class="br-history"></div>
+          </section>
         </section>
         <section id="note-card" class="card note-doc" hidden="">
 <form id="edit-form" class="note-form">
@@ -162,7 +214,7 @@
                 <div id="reminder-conflict" hidden=""><p>Напоминание уже изменилось. Ваши поля сохранены. Сравните их с текущим вариантом.</p><button id="reminder-compare" type="button" class="quiet">Показать текущий вариант</button><pre id="reminder-remote" hidden=""></pre><button id="reminder-use-version" type="button" class="secondary" hidden="">Продолжить с этой версии</button></div>
               </form>
             </fieldset>
-          </section></section><div id="note-toolbar" class="note-toolbar" role="group" aria-label="Дополнительные разделы заметки">
+          </section></section><section id="view-related" class="note-section" aria-labelledby="related-heading" hidden><h2 id="related-heading">Связанные заметки</h2><ul id="related-list" class="br-related"></ul></section><div id="note-toolbar" class="note-toolbar" role="group" aria-label="Дополнительные разделы заметки">
 <button type="button" data-note-panel="original" aria-expanded="false" aria-controls="view-original"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M7 3h7l5 5v13H7V3Zm7 0v5h5M10 13h6M10 17h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Исходник</span></button>
 <button type="button" data-note-panel="insights" aria-expanded="false" aria-controls="view-insights"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="m12 3 1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3Zm6 11 .8 2.2 2.2.8-2.2.8L18 20l-.8-2.2-2.2-.8 2.2-.8L18 14Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Дополнения ИИ</span></button>
 <button type="button" data-note-panel="history" aria-expanded="false" aria-controls="view-history"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M12 7v5l3 2M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Версии</span></button>

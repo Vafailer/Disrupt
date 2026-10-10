@@ -96,7 +96,7 @@ async function api(path, options = {}, withHeaders = false) {
   if (!response.ok) {
     const error = new Error(typeof data.detail === 'string' ? data.detail : response.status === 422
       ? 'Проверьте заполненные поля.' : 'Не удалось выполнить запрос');
-    error.status = response.status; throw error;
+    error.status = response.status; error.data = data; throw error;
   }
   return withHeaders ? {data,headers:response.headers} : data;
 }
@@ -220,8 +220,10 @@ async function loadNotes(reset = true) {
   }
   notesOffset += list.length; $('more-notes').hidden = !headers.has('X-Next-Notes-Offset');
 }
-function renderMarkdown(text) {
-  const preview = $('preview'); preview.replaceChildren();
+function renderMarkdown(text) { renderMarkdownInto($('preview'),text); }
+// Also used by brain.js for assistant answers.
+function renderMarkdownInto(preview, text) {
+  preview.replaceChildren();
   // Deliberately small renderer: text nodes only, no raw HTML or executable links.
   let list = null;
   for (const line of text.split('\n')) {
@@ -492,13 +494,18 @@ $('edit-form').onsubmit = async event => {
   await mutateNote('','PATCH',{title:$('title').value,markdown:$('markdown').value},'Правки сохранены.','note');
 };
 $('markdown').oninput = () => renderMarkdown($('markdown').value);
-$('new-note').onclick = () => {
-  if (noteBusy) return message('Дождитесь сохранения.');
-  if (recorder || microphonePending) return message('Сначала завершите запись голоса.');
-  if (hasDrafts() && !confirm('Есть несохранённые правки. Перейти к новой записи?')) return;
+// Closes the open note or source before another view takes the column. False when something blocks it.
+function leaveNote(question = 'Есть несохранённые правки. Перейти к новой записи?') {
+  if (noteBusy) { message('Дождитесь сохранения.'); return false; }
+  if (recorder || microphonePending) { message('Сначала завершите запись голоса.'); return false; }
+  if (hasDrafts() && !confirm(question)) return false;
   viewGeneration++; currentNote=null; currentCapture=null; hideSource();
   window.BerestaReminders?.hide();
-  $('note-card').hidden=true; $('capture-card').hidden=false; message();
+  $('note-card').hidden=true; return true;
+}
+$('new-note').onclick = () => {
+  if (!leaveNote()) return;
+  $('capture-card').hidden=false; message();
   if (!$('thought').disabled) $('thought').focus();
   loadJobs().catch(e=>message(e.message));
 };
