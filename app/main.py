@@ -27,6 +27,7 @@ from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
 from app.routes.admin import build_router as admin_router
 from app.routes.audio import build_router as audio_router
+from app.routes.brain import build_router as brain_router
 from app.routes.feedback import build_router as feedback_router
 from app.routes.internal import build_router as internal_router
 from app.routes.reminders import build_router as reminders_router
@@ -263,6 +264,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     app.include_router(reminders_router(database))
     app.include_router(audio_router(database, settings, audio_storage, create_audio_capture))
     app.include_router(transcripts_router(database))
+    app.include_router(brain_router(database, settings))
 
     @app.get("/health")
     def health(db=Depends(database)):
@@ -449,7 +451,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     @app.get("/api/v1/notes/{note_id}", response_model=NoteResponse)
     def read_note(note_id: str, request: Request, db=Depends(database)):
         session = get_login_session(request, db)
-        return note_view(db, owned_note(db, note_id, session.user_id))
+        return note_view(db, owned_note(db, note_id, session.user_id), settings)
 
     @app.get("/api/v1/notes/{note_id}/revisions")
     def revisions(note_id: str, request: Request, db=Depends(database)):
@@ -465,7 +467,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
         session = get_login_session(request, db, write=True)
         note = owned_note(db, note_id, session.user_id)
         edit_note(db, note, body.version, title=body.title, markdown=body.markdown)
-        return note_view(db, note)
+        return note_view(db, note, settings)
 
     @app.patch("/api/v1/notes/{note_id}/conclusions/{conclusion_id}", response_model=NoteResponse)
     def update_conclusion(
@@ -479,7 +481,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
             raise HTTPException(404, "Вывод не найден")
         conclusion["status"] = body.status
         edit_note(db, note, body.version, conclusions=conclusions)
-        return note_view(db, note)
+        return note_view(db, note, settings)
 
     app.mount("/static", ProtectedStaticFiles(directory=STATIC, sessions=sessions), name="static")
 

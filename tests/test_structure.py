@@ -49,7 +49,9 @@ def test_model_items_category_and_unconfirmed_time(app, client):
     task = note["items"][1]
     assert task["due_text"] == "завтра"
     assert task["due_at"] is None and task["status"] == "open"
-    assert client.get(f"/api/v1/notes/{note['id']}/revisions").json()[0]["items"] == note["items"]
+    stored = client.get(f"/api/v1/notes/{note['id']}/revisions").json()[0]["items"]
+    # The proposal is computed on read and never stored in a revision.
+    assert stored == [{k: v for k, v in i.items() if k != "proposed_reminder"} for i in note["items"]]
     assert len(client.get("/api/v1/categories").json()) == 1
     with app.state.sessions() as db:
         assert db.scalar(select(func.count()).select_from(Reminder)) == 0
