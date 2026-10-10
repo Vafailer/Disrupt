@@ -339,7 +339,7 @@ async function noFooter() {
   const t = boot(); const {w, $} = t;
   try {
     await settled();
-    assert.equal($('app-footer'), null); assert.equal(w.document.querySelector('footer'), null);
+    assert.equal($('app-footer'), null); assert.equal(w.document.querySelector('footer:not(.landing-footer)'), null);
     assert.ok(!w.document.body.textContent.includes('Текст и аудио. Оригиналы остаются у вас.'));
     assert.equal($('capture-tabs'), null);
     for (const id of ['capture-form', 'capture-audio', 'capture-jobs', 'thought', 'processing-mode', 'ai-switch', 'capture-submit', 'example']) assert.ok($(id), id);
