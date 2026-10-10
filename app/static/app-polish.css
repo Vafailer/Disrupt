@@ -1,8 +1,7 @@
 /* Quieter workspace. Loaded last, so it refines polish.css and note.css without editing them. */
 
-/* Noise: no small uppercase labels and no footer once signed in */
+/* Noise: no small uppercase labels */
 .workspace-nav h2#category-nav-title{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-body:has(#workspace:not([hidden])) #app-footer{display:none}
 .category-navigation{margin-top:14px}
 
 /* Search: one field with an icon and an inline clear button */

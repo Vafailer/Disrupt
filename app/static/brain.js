@@ -102,7 +102,7 @@
   }
   function show(name) {
     if (current === name) { refresh(name); return true; }
-    if (typeof leaveNote === 'function' && !leaveNote('Есть несохранённые правки. Перейти в раздел?')) return false;
+    if (typeof leaveNote === 'function' && !leaveNote('Есть несохранённые правки. Перейти в раздел?',() => navigate(name))) return false;
     $('capture-card').hidden = true;
     for (const view of VIEWS) $(`${view}-card`).hidden = view !== name;
     if (current && current !== name) stopAll();

@@ -1,92 +1,11 @@
 'use strict';
 (() => {
   const get = id => document.getElementById(id);
-  const panelButtons = [...document.querySelectorAll('[data-note-panel]')];
-  let lastNote = null, editing = false;
-  const card = get('note-card'), body = get('markdown');
-  // Only one secondary panel is open at a time. An empty name closes them all.
-  function showPanel(name) {
-    for (const button of panelButtons) {
-      const open = button.dataset.notePanel === name;
-      button.setAttribute('aria-expanded',String(open));
-      get(`view-${button.dataset.notePanel}`).hidden = !open;
-    }
-    get('workspace').dataset.noteView = name || 'read';
-    if (name === 'original' && !get('original-details').hidden) get('original-details').open = true;
-  }
-  for (const button of panelButtons) {
-    button.onclick = () => {
-      const name = button.dataset.notePanel, open = button.getAttribute('aria-expanded') === 'true';
-      showPanel(open ? '' : name);
-      if (!open) get(`view-${name}`).scrollIntoView?.({block:'nearest',behavior:'smooth'});
-    };
-  }
-  function grow() {
-    body.style.height = 'auto';
-    if (body.scrollHeight) body.style.height = `${body.scrollHeight}px`;
-  }
-  // The title is a textarea so a long one wraps. It never holds a line break.
-  function growTitle() {
-    const title = get('title');
-    if (/\n/.test(title.value)) title.value = title.value.replace(/\s*\n\s*/g,' ');
-    title.style.height = 'auto';
-    if (title.scrollHeight) title.style.height = `${title.scrollHeight}px`;
-  }
-  window.addEventListener('resize',growTitle);
-  function titleChanged() { return Boolean(currentNote) && get('title').value !== currentNote.title; }
-  function syncEditActions() { get('note-edit-actions').hidden = !(editing || titleChanged()); }
-  // The editor replaces the rendered text in place. Fields and the save handler are the old edit form's.
-  function setEditing(on, focus = true) {
-    editing = on; card.classList.toggle('is-editing',on);
-    get('preview').hidden = on; body.hidden = !on; get('note-edit-start').hidden = on;
-    syncEditActions();
-    if (on) {
-      grow();
-      if (focus) { body.focus(); body.setSelectionRange?.(body.value.length,body.value.length); }
-    }
-  }
-  function cancelEditing() {
-    if (!currentNote) return;
-    const changed = titleChanged() || body.value !== currentNote.markdown;
-    if (changed && !confirm('Отменить несохранённые правки?')) return;
-    get('title').value = currentNote.title; body.value = currentNote.markdown; renderMarkdown(currentNote.markdown);
-    get('note-heading-title').textContent = currentNote.title || 'Без названия';
-    const wasEditing = editing;
-    setEditing(false);
-    if (wasEditing) get('note-edit-start').focus();
-  }
-  get('note-edit-start').onclick = () => { if (currentNote && !noteBusy) setEditing(true); };
-  get('preview').addEventListener('click',event => {
-    if (editing || !currentNote || noteBusy || event.target.closest('a')) return;
-    if (window.getSelection?.().toString()) return;
-    setEditing(true);
-  });
-  body.addEventListener('input',grow);
-  get('title').addEventListener('input',() => { growTitle(); syncEditActions(); });
-  get('note-edit-cancel').onclick = cancelEditing;
-  get('edit-form').addEventListener('keydown',event => {
-    if (event.target !== get('title') && event.target !== body) return;
-    if (event.key === 'Escape' && (editing || titleChanged())) { event.preventDefault(); cancelEditing(); }
-    else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      if (editing || titleChanged()) get('edit-form').requestSubmit?.(get('note-save'));
-    } else if (event.key === 'Enter' && event.target === get('title')) {
-      event.preventDefault(); if (!noteBusy) setEditing(true);
-    }
-  });
-  // app.js renders again after a save or a note switch, so the editor closes with fresh text.
-  let refocus = false;
-  document.addEventListener('beresta:note-rendered',() => { refocus = editing; setEditing(false,false); growTitle(); });
-  // Controls are locked while saving, so focus returns to "Изменить" only once they are free again.
-  document.addEventListener('beresta:note-idle',() => {
-    if (!refocus) return;
-    refocus = false;
-    if (!document.activeElement || document.activeElement === document.body) get('note-edit-start').focus();
-  });
+  let lastNote = null;
   function syncNote() {
     const title = get('title').value || 'Без названия';
     if(get('note-heading-title').textContent !== title)get('note-heading-title').textContent = title;
-    if (currentNote?.id !== lastNote) {lastNote = currentNote?.id; showPanel('');get('workspace').classList.remove('library-open');get('mobile-library-toggle').setAttribute('aria-expanded','false');}
+    if (currentNote?.id !== lastNote) {lastNote = currentNote?.id; window.BerestaFocus?.closeAll();get('workspace').classList.remove('library-open');get('mobile-library-toggle').setAttribute('aria-expanded','false');}
     get('workspace').classList.toggle('has-note',!get('note-card').hidden);
     get('workspace').classList.toggle('has-source',!get('source-card').hidden);
     // This observer watches the note card subtree: write the attribute only when it changes,
@@ -102,14 +21,7 @@
   new MutationObserver(syncNote).observe(get('source-card'),{attributes:true,attributeFilter:['hidden']});
   new MutationObserver(syncNote).observe(get('notes'),{childList:true});
   get('mobile-library-toggle').onclick=()=>{const open=get('workspace').classList.toggle('library-open');get('mobile-library-toggle').setAttribute('aria-expanded',String(open));};
-  function showCapture(view) {
-    for (const button of get('capture-tabs').querySelectorAll('button')) {
-      const active = button.dataset.captureView === view;
-      button.setAttribute('aria-pressed',String(active));get(button.dataset.captureView).hidden=!active;
-    }
-  }
-  for(const button of get('capture-tabs').querySelectorAll('button'))button.onclick=()=>showCapture(button.dataset.captureView);
-  get('new-note').addEventListener('click',()=>{if(get('capture-card').hidden)return;showCapture('capture-form');if(!get('thought').disabled)get('thought').focus();});
+  get('new-note').addEventListener('click',()=>{if(get('capture-card').hidden)return;window.BerestaFocus?.closeAll();if(!get('thought').disabled)get('thought').focus();});
   function categoriesNavigation() {
     const list=get('category-navigation');list.replaceChildren();
     for(const option of get('category-filter').options) {
@@ -172,5 +84,5 @@
   document.addEventListener('keydown',event => {
     if (event.key === 'Escape' && navMenu.classList.contains('is-open')) { setNavMenu(false); navMore.focus(); }
   });
-  showCapture('capture-form');showPanel('');setEditing(false,false);categoriesNavigation();syncNote();
+  categoriesNavigation();syncNote();
 })();

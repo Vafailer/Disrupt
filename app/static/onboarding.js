@@ -26,7 +26,6 @@
     const el = node('button', className, label); el.type = 'button'; el.addEventListener('click', onclick); return el;
   }
   function focusThought() {
-    get('capture-tabs').querySelector('[data-capture-view=capture-form]')?.click();
     const field = get('thought'); field.focus();
     field.scrollIntoView?.({block: 'center', behavior: 'smooth'});
   }
