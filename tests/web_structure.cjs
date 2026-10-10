@@ -182,7 +182,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
         if (valid) assert.equal(authCalls.at(-1).body.username,name);
         if (valid && action === 'register') assert.deepEqual([authCalls.at(-1).body.accept_policy,authCalls.at(-1).body.policy_version],[true,'2026-10-10']);
         if (valid && action === 'login') assert.equal('accept_policy' in authCalls.at(-1).body,false);
-        else assert.match($('auth-message').textContent,/Латинские буквы/);
+        if (!valid) assert.match($('auth-message').textContent,/Латинские буквы/);
       }
     }
     await require('./web_job_waiting.cjs')();
