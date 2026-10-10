@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from app import totp
 from app.admin_models import AdminAccount
+from app.security import verify_password
 from scripts import admin_enroll_receiver as receiver
 
 PASSWORD = "synthetic-enrollment-password-1"
@@ -49,6 +50,23 @@ def test_existing_export_is_not_overwritten(app, monkeypatch, tmp_path):
     assert target.read_text() == "synthetic previous bundle"
     with app.state.sessions() as db:
         assert db.scalar(select(AdminAccount)) is None
+
+
+def test_generated_password_is_saved_only_in_private_bundle(app, monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(receiver, "EXPORT_DIRECTORY", tmp_path)
+    monkeypatch.setattr(receiver.sys, "argv", ["receiver", "create", "owner", "--generate-password"])
+    assert receiver.main() == 0
+    bundle = (tmp_path / "owner.txt").read_text()
+    password = bundle.split("Password:\n", 1)[1].split("\n", 1)[0]
+    assert len(password) == 32
+    with app.state.sessions() as db:
+        admin = db.scalar(select(AdminAccount))
+        assert verify_password(password, admin.password_hash)
+        assert admin.totp_secret in bundle
+    output = capsys.readouterr()
+    assert password not in output.out + output.err
+    assert admin.totp_secret not in output.out + output.err
+    assert (tmp_path / "owner.txt").stat().st_mode & 0o777 == 0o600
 
 
 def test_failed_creation_removes_only_empty_reservation(app, monkeypatch, tmp_path):
