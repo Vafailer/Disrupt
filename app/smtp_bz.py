@@ -32,7 +32,7 @@ class SmtpBzMailer:
         self.sender = validate_address(sender)
         self.sender_name = sender_name
         self._transport = transport
-        if encoding not in {"multipart", "urlencoded"}:
+        if encoding not in {"multipart", "urlencoded", "json"}:
             raise SmtpBzError("mail_invalid_configuration")
         self.encoding = encoding
 
@@ -44,7 +44,7 @@ class SmtpBzMailer:
             if len(raw) >= 4096:
                 break
         text = raw.decode("utf-8", errors="ignore").casefold()
-        if any(word in text for word in ("content-type", "multipart", "form-data", "encoding")):
+        if any(word in text for word in ("content-type", "multipart", "form-data", "encoding", "json")):
             return "request_format"
         for field in ("from", "to", "html", "subject", "domain", "authorization", "api_key"):
             if re.search(r"\b" + field + r"\b", text):
@@ -72,6 +72,8 @@ class SmtpBzMailer:
                 content = {"files": {name: (None, value) for name, value in fields.items()}}
                 if self.encoding == "urlencoded":
                     content = {"data": fields}
+                elif self.encoding == "json":
+                    content = {"json": fields}
                 with client.stream(
                     "POST", ENDPOINT, headers={"Authorization": self._api_key, "Accept": "application/json"},
                     **content,

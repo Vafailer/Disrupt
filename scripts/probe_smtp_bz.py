@@ -17,21 +17,27 @@ def main():
     parser.add_argument("--to", required=True)
     parser.add_argument("--allow-send", action="store_true")
     parser.add_argument("--retry-rejected", action="store_true")
+    parser.add_argument("--retry-json-rejected", action="store_true")
     args = parser.parse_args()
     if not args.allow_send:
         raise SystemExit("Explicit --allow-send is required")
     validate_address(args.to)
     mailer = SmtpBzMailer(
         read_secret_file("/run/secrets/smtp_bz_api_key", maximum=8192), "no-reply@berestaapp.ru",
-        encoding="urlencoded" if args.retry_rejected else "multipart",
+        encoding="json" if args.retry_json_rejected else "urlencoded" if args.retry_rejected else "multipart",
     )
     directory = Path("/audit")
     target = directory / "first-smtp-bz-delivery.json"
-    if args.retry_rejected:
+    if args.retry_rejected or args.retry_json_rejected:
         previous = json.loads(target.read_text(encoding="utf-8"))
         if previous.get("status") != "failed_or_unknown" or previous.get("http_status") != 400:
             raise SystemExit("Retry allowed only after a documented HTTP 400 rejection")
         target = directory / "urlencoded-smtp-bz-delivery.json"
+        if args.retry_json_rejected:
+            previous = json.loads(target.read_text(encoding="utf-8"))
+            if previous.get("status") != "failed_or_unknown" or previous.get("http_status") != 400:
+                raise SystemExit("JSON probe allowed only after both documented HTTP 400 rejections")
+            target = directory / "json-smtp-bz-delivery.json"
     # This receipt exists before dispatch. Re-running cannot send a second email after a lost reply.
     try:
         fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

@@ -1,3 +1,4 @@
+import json
 from email import policy
 from email.parser import BytesParser
 from urllib.parse import parse_qs
@@ -8,7 +9,7 @@ import pytest
 from app.smtp_bz import ENDPOINT, SmtpBzError, SmtpBzMailer
 
 
-@pytest.mark.parametrize("encoding", ["multipart", "urlencoded"])
+@pytest.mark.parametrize("encoding", ["multipart", "urlencoded", "json"])
 def test_https_contract_multipart_and_escaped_html(encoding):
     calls = []
 
@@ -22,9 +23,12 @@ def test_https_contract_multipart_and_escaped_html(encoding):
             )
             fields = {part.get_param("name", header="content-disposition"): part.get_payload(decode=True).decode()
                       for part in message.iter_parts()}
-        else:
+        elif encoding == "urlencoded":
             assert request.headers["Content-Type"] == "application/x-www-form-urlencoded"
             fields = {name: values[0] for name, values in parse_qs(request.content.decode()).items()}
+        else:
+            assert request.headers["Content-Type"] == "application/json"
+            fields = json.loads(request.content)
         assert fields["from"] == "sender@example.test"
         assert fields["to"] == "owner@example.test"
         assert fields["subject"] == "Проверка"
