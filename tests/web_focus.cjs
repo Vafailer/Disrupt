@@ -191,8 +191,8 @@ async function titleFit() {
     assert.deepEqual({...result}, {size: 36, clamped: false}, 'a short title keeps the full size');
     // Phones use a smaller range.
     Object.defineProperty(w, 'innerWidth', {value: 400, configurable: true});
-    assert.deepEqual(w.BerestaFocus.fitTitle(() => 3), {size: 18, clamped: true});
-    assert.deepEqual(w.BerestaFocus.fitTitle(() => 1), {size: 26, clamped: false});
+    assert.deepEqual({...w.BerestaFocus.fitTitle(() => 3)}, {size: 18, clamped: true});
+    assert.deepEqual({...w.BerestaFocus.fitTitle(() => 1)}, {size: 26, clamped: false});
     // Typing fits again and mirrors the text for the clamped view.
     $('title').value = 'Очень длинный заголовок'; $('title').dispatchEvent(new w.Event('input', {bubbles: true}));
     assert.equal($('title-display').textContent, 'Очень длинный заголовок');
