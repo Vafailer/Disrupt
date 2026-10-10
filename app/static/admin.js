@@ -111,17 +111,18 @@
     $('snapshot').textContent = `${slice.from} — ${slice.to} · ${slice.channel === 'all' ? 'Все каналы' : slice.channel} · Источник ${slice.source} · Сформировано ${stamp}`;
     $('page').textContent = data.usage.length ? `Операции ${currentOffset + 1}–${currentOffset + data.usage.length}` : 'Нет операций';
   }
-  const errorMessage = error => ({401:'Сессия завершилась. Войди в приложение заново.',403:'Доступ только для администратора.',404:'API статистики ещё не подключён. Данные не загружены.',503:'Статистика временно недоступна. Попробуй позже.',filters:'Проверь даты: начало периода не должно быть позже окончания.'})[error.status || error.message] || 'Не удалось загрузить данные. Повтори запрос.';
+  const errorMessage = error => ({401:'Сессия завершилась. Войдите снова.',403:'Доступ запрещён.',404:'API статистики недоступен. Данные не загружены.',503:'Статистика временно недоступна. Попробуйте позже.',filters:'Проверьте даты: начало периода не должно быть позже окончания.'})[error.status || error.message] || 'Не удалось загрузить данные. Повторите запрос.';
+  const expire = error => { if (error.status === 401 && window.adminSession) window.adminSession.expired(); };
   async function load(targetOffset = 0, history = [], slice) {
     const serial = ++generation;
     if (controller) controller.abort();
     controller = new AbortController();
     const active = controller, timer = setTimeout(() => active.abort(), 15000);
-    clear(); $('login').hidden = true; $('apply').disabled = true; $('dashboard').setAttribute('aria-busy','true'); status('Загружаем статистику…');
+    clear(); $('apply').disabled = true; $('dashboard').setAttribute('aria-busy','true'); status('Загружаем статистику…');
     try {
       slice = slice || filters();
       const params = new URLSearchParams({...slice, usage_limit:'50',usage_offset:String(targetOffset)});
-      const response = await fetch('/api/admin/summary?' + params, {credentials:'same-origin',cache:'no-store',redirect:'error',signal:active.signal,headers:{Accept:'application/json'}});
+      const response = await fetch('/admin-api/v1/summary?' + params, {credentials:'same-origin',cache:'no-store',redirect:'error',signal:active.signal,headers:{Accept:'application/json'}});
       if (!response.ok) throw {status:response.status};
       const data = await response.json();
       if (serial !== generation) return;
@@ -133,7 +134,7 @@
       status('Данные загружены.');
     } catch (error) {
       if (serial !== generation) return;
-      clear(); status(errorMessage(error), true); $('login').hidden = error.status !== 401;
+      clear(); status(errorMessage(error), true); expire(error);
     } finally {
       clearTimeout(timer);
       if (serial === generation) { $('apply').disabled = false; $('dashboard').setAttribute('aria-busy','false'); }
@@ -151,7 +152,7 @@
     exporting = true; $('export').disabled = true;
     const serial = generation, slice = {...applied}, abort = new AbortController(), timer = setTimeout(() => abort.abort(), 15000);
     try {
-      const response = await fetch('/api/admin/export?' + new URLSearchParams(slice), {credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,headers:{Accept:'text/csv'}});
+      const response = await fetch('/admin-api/v1/export?' + new URLSearchParams(slice), {credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,headers:{Accept:'text/csv'}});
       if (!response.ok) throw {status:response.status};
       if (!(response.headers.get('Content-Type') || '').toLowerCase().startsWith('text/csv')) throw new Error('schema');
       const blob = await response.blob();
@@ -162,10 +163,16 @@
     } catch (error) {
       if (serial !== generation) return;
       if ([401,403].includes(error.status)) clear();
-      status(errorMessage(error), true); $('login').hidden = error.status !== 401;
+      status(errorMessage(error), true); expire(error);
     } finally { clearTimeout(timer); exporting = false; $('export').disabled = !applied; }
   });
   $('to').value = shiftDay(moscowDay(new Date()), -1);
   $('from').value = shiftDay($('to').value, -6);
-  load();
+  if (window.adminSession) {
+    // Sign-in decides when data may be requested. Logout and expiry wipe everything shown.
+    window.adminSession.onReady(() => load());
+    window.adminSession.onLogout(() => { generation++; if (controller) controller.abort(); clear(); status(''); });
+  } else {
+    load();
+  }
 })();
