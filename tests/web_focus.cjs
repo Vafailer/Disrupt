@@ -4,6 +4,12 @@ const assert = require('node:assert/strict'), fs = require('fs'), path = require
 const root = path.join(__dirname, '../app/static');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 const reply = (data, status = 200) => ({ok: status < 400, status, headers: new Headers(), json: async () => structuredClone(data)});
+// Let pending observers and timers finish before the document goes away.
+async function closeWindow(t) {
+  for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve));
+  t.dom.window.close();
+}
+
 async function settled() { for (let i = 0; i < 30; i++) await new Promise(resolve => setImmediate(resolve)); }
 const summaries = [
   {id: 'n1', title: 'Заметка', version: 3, updated_at: 1791220000, category_id: null, channel: 'web', input_kind: 'text'},
@@ -91,7 +97,7 @@ async function autosaveDebounce() {
     // A title with a line break stays on one line.
     type($('title'), 'Две\nстроки');
     assert.equal($('title').value, 'Две строки');
-  } finally { t.dom.window.close(); }
+  } finally { await closeWindow(t); }
 }
 
 async function overlappingSaves() {
@@ -110,7 +116,7 @@ async function overlappingSaves() {
     assert.deepEqual(state.patches.map(p => [p.version, p.markdown]), [[3, 'A'], [4, 'AB']]);
     assert.equal(state.note.markdown, 'AB'); assert.equal($('markdown').value, 'AB');
     assert.equal($('note-save-text').textContent, 'Сохранено');
-  } finally { t.dom.window.close(); }
+  } finally { await closeWindow(t); }
 }
 
 async function conflictKeepsText() {
@@ -135,7 +141,7 @@ async function conflictKeepsText() {
     w.confirm = () => true; $('note-reload').click(); await settled();
     assert.equal($('markdown').value, 'Первый текст'); assert.equal($('note-reload').hidden, true);
     assert.equal($('note-save-text').textContent, '');
-  } finally { t.dom.window.close(); }
+  } finally { await closeWindow(t); }
 }
 
 async function failedSaveAndLeaving() {
@@ -155,7 +161,7 @@ async function failedSaveAndLeaving() {
     state.patchHook = null; w.confirm = () => { throw new Error('no prompt expected'); };
     [...$('notes').querySelectorAll('button')][1].click(); await settled();
     assert.equal(state.note.markdown, 'Черновик'); assert.equal(reads(), 1); assert.equal($('title').value, 'Другая');
-  } finally { t.dom.window.close(); }
+  } finally { await closeWindow(t); }
 
   // The same for the "new record" button and the section links.
   const u = boot(); const {w: w2, $: $2, state: s2, type: type2} = u;
@@ -166,7 +172,7 @@ async function failedSaveAndLeaving() {
     $2('new-note').click(); await settled();
     assert.equal(s2.patches.length, 1); assert.equal(s2.patches[0].markdown, 'Перед новой записью');
     assert.equal($2('capture-card').hidden, false); assert.equal($2('note-card').hidden, true);
-  } finally { u.dom.window.close(); }
+  } finally { await closeWindow(u); }
 }
 
 async function titleFit() {
@@ -177,12 +183,12 @@ async function titleFit() {
     // jsdom has no layout, so the measure is a stub: lines at a given font size.
     let result = w.BerestaFocus.fitTitle(() => 3);
     assert.equal(heading.classList.contains('is-clamped'), true, 'too long even at the minimum');
-    assert.deepEqual(result, {size: 20, clamped: true}); assert.equal($('title').style.fontSize, '20px');
+    assert.deepEqual({...result}, {size: 20, clamped: true}); assert.equal($('title').style.fontSize, '20px');
     result = w.BerestaFocus.fitTitle(size => (size > 28 ? 3 : 2));
-    assert.deepEqual(result, {size: 28, clamped: false}); assert.equal($('title').style.fontSize, '28px');
+    assert.deepEqual({...result}, {size: 28, clamped: false}); assert.equal($('title').style.fontSize, '28px');
     assert.equal(heading.classList.contains('is-clamped'), false);
     result = w.BerestaFocus.fitTitle(() => 1);
-    assert.deepEqual(result, {size: 36, clamped: false}, 'a short title keeps the full size');
+    assert.deepEqual({...result}, {size: 36, clamped: false}, 'a short title keeps the full size');
     // Phones use a smaller range.
     Object.defineProperty(w, 'innerWidth', {value: 400, configurable: true});
     assert.deepEqual(w.BerestaFocus.fitTitle(() => 3), {size: 18, clamped: true});
@@ -193,7 +199,7 @@ async function titleFit() {
     // Resize fits again too (jsdom has no ResizeObserver, so the window event is used).
     $('title').style.fontSize = '10px'; w.dispatchEvent(new w.Event('resize'));
     assert.notEqual($('title').style.fontSize, '10px');
-  } finally { t.dom.window.close(); }
+  } finally { await closeWindow(t); }
 }
 
 async function popovers() {
@@ -250,7 +256,7 @@ async function popovers() {
     assert.equal($('pop-import').hidden, false);
     [...$('notes').querySelectorAll('button')][0].click(); await settled();
     assert.equal($('capture-card').hidden, true); assert.equal($('pop-import').hidden, true);
-  } finally { t.dom.window.close(); }
+  } finally { await closeWindow(t); }
 }
 
 async function badges() {
@@ -275,7 +281,7 @@ async function badges() {
     // The bell on a form that opens brings its popover.
     $('reminder-form').hidden = false; await settled();
     assert.equal($('pop-reminders').hidden, false);
-  } finally { t.dom.window.close(); }
+  } finally { await closeWindow(t); }
 }
 
 async function importIntoCapture() {
@@ -326,7 +332,7 @@ async function importIntoCapture() {
     Object.defineProperty(w.navigator, 'clipboard', {value: {readText: async () => { throw new Error('denied'); }}, configurable: true});
     $('message').textContent = ''; $('tool-import').click(); $('import-paste').click(); await settled();
     assert.match($('message').textContent, /Ctrl\+V/); assert.equal($('thought').value, 'Из буфера');
-  } finally { t.dom.window.close(); }
+  } finally { await closeWindow(t); }
 }
 
 async function noFooter() {
@@ -337,7 +343,7 @@ async function noFooter() {
     assert.ok(!w.document.body.textContent.includes('Текст и аудио. Оригиналы остаются у вас.'));
     assert.equal($('capture-tabs'), null);
     for (const id of ['capture-form', 'capture-audio', 'capture-jobs', 'thought', 'processing-mode', 'ai-switch', 'capture-submit', 'example']) assert.ok($(id), id);
-  } finally { t.dom.window.close(); }
+  } finally { await closeWindow(t); }
 }
 
 module.exports = async () => {
