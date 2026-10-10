@@ -1,4 +1,4 @@
-param([string]$Username = 'mark')
+param([string]$Username = 'mark', [switch]$ConfirmOnly)
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = New-Object Text.UTF8Encoding($false)
 if ($Username -cnotmatch '^[a-z0-9_.-]{3,64}$') { throw 'Use a lowercase administrator login.' }
@@ -17,7 +17,7 @@ $taskAcl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($
 $taskAcl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule('NT AUTHORITY\SYSTEM','FullControl','ContainerInherit,ObjectInherit','None','Allow')))
 Set-Acl -LiteralPath $taskPrivateDirectory -AclObject $taskAcl
 $taskLocalBundle = Join-Path $taskPrivateDirectory ($Username + '-authenticator.txt')
-if (Test-Path -LiteralPath $taskLocalBundle) { throw 'Local authenticator bundle already exists. It will not be overwritten.' }
+if (!$ConfirmOnly -and (Test-Path -LiteralPath $taskLocalBundle)) { throw 'Local authenticator bundle already exists. Use -ConfirmOnly if only the code needs confirmation.' }
 & ssh @taskSsh 'test -f /opt/beresta/current/app/admin_cli.py'
 if ($LASTEXITCODE -ne 0) { throw 'The security release is not installed or SSH is unavailable.' }
 & scp @taskScp (Join-Path $PSScriptRoot 'admin_enroll_receiver.py') 'root@10.77.0.1:/opt/beresta/repository/.local/admin-enroll-receiver.py'
@@ -41,6 +41,7 @@ function Send-PrivateInput([string]$Command, [string]$Property, [Security.Secure
         $Value.Dispose()
     }
 }
+if (!$ConfirmOnly) {
 $taskPassword = Read-Host 'New administrator password, at least 12 characters (hidden)' -AsSecureString
 $taskRepeat = Read-Host 'Repeat administrator password (hidden)' -AsSecureString
 $taskFirstPointer = [IntPtr]::Zero; $taskSecondPointer = [IntPtr]::Zero
@@ -68,6 +69,7 @@ if ($LASTEXITCODE -ne 0) { Write-Warning 'Private temporary server copy could no
 Write-Host 'Authenticator setup is saved in your private folder. Keep another copy in your password manager.'
 Start-Process -FilePath notepad.exe -ArgumentList ('"' + $taskLocalBundle + '"')
 Write-Host 'In Google Authenticator choose Add account, Enter setup key, Time based. Use the key from the opened file.'
+}
 $taskCode = Read-Host 'Six-digit code from your authenticator (hidden)' -AsSecureString
 Send-PrivateInput 'confirm' 'code' $taskCode
 Write-Host 'Administrator confirmed. Open open-admin.cmd to access the page.'

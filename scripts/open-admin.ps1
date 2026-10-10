@@ -1,4 +1,8 @@
 $ErrorActionPreference = 'Stop'
+$taskProbe = New-Object Net.Sockets.TcpClient
+$taskOccupied = $false
+try { $taskProbe.Connect('127.0.0.1',18000); $taskOccupied = $true } catch {} finally { $taskProbe.Dispose() }
+if ($taskOccupied) { throw 'Local port 18000 is already in use. Close the previous tunnel first.' }
 $taskOptions = @('-N','-o','IPQoS=none','-o','BatchMode=yes','-o','StrictHostKeyChecking=yes',
     '-o','HostKeyAlias=178.217.98.101','-o','ConnectTimeout=20','-o','ForwardAgent=no',
     '-o','ExitOnForwardFailure=yes','-o','ServerAliveInterval=30','-o','ServerAliveCountMax=3',
