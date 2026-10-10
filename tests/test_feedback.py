@@ -2,9 +2,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
+from app.admin_models import AdminAccount, AdminAudit
 from app.feedback_models import Feedback
-from app.models import User
-from tests.conftest import register
+from tests.conftest import ADMIN_ADDRESS, admin_login, make_admin, register
 
 PAYLOAD = {'kind': 'bug', 'subject': 'Не сохраняется', 'description': '<script>example</script>',
            'steps': 'Открыл заметку', 'expected': 'Сохранение', 'contact': '@synthetic'}
@@ -14,15 +14,9 @@ def send(client, key='case-1', **changes):
     return client.post('/api/v1/feedback', json=PAYLOAD | changes, headers={'Idempotency-Key': key})
 
 
-def promote(app, user_id):
-    with app.state.sessions() as db:
-        db.get(User, user_id).role = 'admin'
-        db.commit()
-
-
-def test_feedback_auth_csrf_replay_and_isolation(app, client):
+def test_feedback_auth_csrf_replay_and_isolation(app, client, admin_client):
     assert send(client).status_code == 401
-    owner = register(client)
+    register(client)
     csrf = client.headers.pop('X-CSRF-Token')
     assert send(client).status_code == 403
     client.headers['X-CSRF-Token'] = csrf
@@ -34,15 +28,17 @@ def test_feedback_auth_csrf_replay_and_isolation(app, client):
     assert set(receipt.json()) == {'id'}
     assert send(client).json() == receipt.json()
     assert send(client, description='changed').status_code == 409
-    assert client.get('/api/admin/feedback').status_code == 403
+    # The inbox is not part of the user API any more, and a user address never reaches the admin API.
+    assert client.get('/api/admin/feedback').status_code == 404
+    assert client.get('/admin-api/v1/feedback').status_code == 404
     with TestClient(app) as other:
         register(other, 'second')
         second = send(other)
         assert second.status_code == 201
         assert second.json()['id'] != receipt.json()['id']
-        assert other.patch('/api/admin/feedback/' + receipt.json()['id'], json={'status':'resolved','version':1}).status_code == 403
-    promote(app, owner['id'])
-    rows = client.get('/api/admin/feedback').json()
+        assert other.patch('/admin-api/v1/feedback/' + receipt.json()['id'], json={'status':'resolved','version':1}).status_code == 404
+    assert admin_client.get('/api/admin/feedback').status_code == 404
+    rows = admin_client.get('/admin-api/v1/feedback').json()
     assert len(rows) == 2
     assert rows[0]['description'] == PAYLOAD['description']
     assert 'payload_hash' not in rows[0] and 'idempotency_key' not in rows[0]
@@ -50,31 +46,35 @@ def test_feedback_auth_csrf_replay_and_isolation(app, client):
         assert db.scalar(select(func.count()).select_from(Feedback)) == 2
 
 
-def test_feedback_status_versions_pagination_and_revocation(app, client):
-    account = register(client)
-    promote(app, account['id'])
+def test_feedback_status_versions_pagination_and_revocation(app, client, admin_client):
+    register(client)
     ids = [send(client, str(i)).json()['id'] for i in range(3)]
-    first = client.get('/api/admin/feedback?limit=2')
+    first = admin_client.get('/admin-api/v1/feedback?limit=2')
     assert len(first.json()) == 2
     assert first.headers['X-Next-Feedback-Offset'] == '2'
     assert first.headers['Cache-Control'] == 'no-store'
-    second = client.get('/api/admin/feedback?limit=2&offset=2')
+    second = admin_client.get('/admin-api/v1/feedback?limit=2&offset=2')
     assert len(second.json()) == 1 and 'X-Next-Feedback-Offset' not in second.headers
-    path = '/api/admin/feedback/' + ids[0]
-    csrf = client.headers.pop('X-CSRF-Token')
-    assert client.patch(path, json={'status':'resolved','version':1}).status_code == 403
-    client.headers['X-CSRF-Token'] = csrf
-    updated = client.patch(path, json={'status':'resolved','version':1})
+    path = '/admin-api/v1/feedback/' + ids[0]
+    csrf = admin_client.headers.pop('X-CSRF-Token')
+    assert admin_client.patch(path, json={'status':'resolved','version':1}).status_code == 403
+    admin_client.headers['X-CSRF-Token'] = 'wrong'
+    assert admin_client.patch(path, json={'status':'resolved','version':1}).status_code == 403
+    admin_client.headers['X-CSRF-Token'] = csrf
+    assert admin_client.patch(path, json={'status':'resolved','version':1}, headers={'Origin': 'https://other.invalid'}).status_code == 403
+    updated = admin_client.patch(path, json={'status':'resolved','version':1})
     assert updated.status_code == 200 and updated.json()['version'] == 2
-    assert client.patch(path, json={'status':'in_progress','version':1}).status_code == 409
-    assert len(client.get('/api/admin/feedback').json()) == 2
-    assert len(client.get('/api/admin/feedback?status=resolved').json()) == 1
-    assert len(client.get('/api/admin/feedback?status=all').json()) == 3
+    assert admin_client.patch(path, json={'status':'in_progress','version':1}).status_code == 409
+    assert len(admin_client.get('/admin-api/v1/feedback').json()) == 2
+    assert len(admin_client.get('/admin-api/v1/feedback?status=resolved').json()) == 1
+    assert len(admin_client.get('/admin-api/v1/feedback?status=all').json()) == 3
     with app.state.sessions() as db:
-        db.get(User, account['id']).role = 'user'
+        changes = list(db.scalars(select(AdminAudit).where(AdminAudit.action == 'feedback_status')))
+        assert len(changes) == 1 and changes[0].target == ids[0] and changes[0].details == {'status': 'resolved'}
+        db.scalar(select(AdminAccount)).disabled = True
         db.commit()
-    assert client.get('/api/admin/feedback').status_code == 403
-    assert client.patch(path, json={'status':'new','version':2}).status_code == 403
+    assert admin_client.get('/admin-api/v1/feedback').status_code == 401
+    assert admin_client.patch(path, json={'status':'new','version':2}).status_code == 401
 
 
 @pytest.mark.parametrize('changes', [{'subject':' '}, {'description':''}, {'kind':'invalid'},
@@ -112,7 +112,7 @@ def test_feedback_postgresql_concurrent_replay(monkeypatch):
     monkeypatch.setenv('NOTES_PROVIDER', 'mock')
     monkeypatch.setenv('NOTES_ALLOW_LIVE_REQUESTS', 'false')
     command.upgrade(Config('alembic.ini'), 'head')
-    application = create_app(Settings(database_url=url, auto_worker=False))
+    application = create_app(Settings(database_url=url, auto_worker=False, admin_cookie_secure=False))
     try:
         with TestClient(application) as client:
             account = register(client, 'feedback_' + uuid.uuid4().hex)
@@ -122,9 +122,12 @@ def test_feedback_postgresql_concurrent_replay(monkeypatch):
             assert replies[0].json() == replies[1].json()
             with application.state.sessions() as db:
                 assert db.scalar(select(func.count()).select_from(Feedback).where(Feedback.user_id == account['id'])) == 1
-            promote(application, account['id'])
-            response = client.patch('/api/admin/feedback/' + replies[0].json()['id'],
-                                    json={'status': 'resolved', 'version': 1})
+            username = 'pg_' + uuid.uuid4().hex[:12]
+            secret = make_admin(application, username)
+            with TestClient(application, client=ADMIN_ADDRESS) as private:
+                assert admin_login(application, private, secret, username).status_code == 200
+                response = private.patch('/admin-api/v1/feedback/' + replies[0].json()['id'],
+                                         json={'status': 'resolved', 'version': 1})
             assert response.status_code == 200
             assert response.json()['version'] == 2
     finally:

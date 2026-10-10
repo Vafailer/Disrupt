@@ -1,5 +1,6 @@
 """No dotenv autoloading: mock configuration never reads a model credential."""
 
+import ipaddress
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,6 +22,25 @@ def read_secret_file(path: str, *, maximum: int = 16384) -> str:
     if not value or "\x00" in value:
         raise ValueError("Secret file is empty or invalid")
     return value
+
+
+DEFAULT_ADMIN_NETWORKS = "127.0.0.1/32,::1/128,10.77.0.0/24"
+
+
+def parse_networks(value: str):
+    """Comma separated CIDRs. A catch-all network would defeat the private-network rule."""
+    networks = []
+    for part in value.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        network = ipaddress.ip_network(part, strict=False)
+        if network.prefixlen == 0:
+            raise ValueError("NOTES_ADMIN_ALLOWED_NETWORKS must not contain a catch-all network")
+        networks.append(network)
+    if not networks:
+        raise ValueError("NOTES_ADMIN_ALLOWED_NETWORKS must list at least one network")
+    return tuple(networks)
 
 
 @dataclass(frozen=True)
@@ -51,8 +71,11 @@ class Settings:
     audio_ffprobe_path: str = "ffprobe"
     analytics_pseudonym_key: str = field(default="", repr=False)
     internal_api_token: str = field(default="", repr=False)
+    admin_allowed_networks: str = DEFAULT_ADMIN_NETWORKS
+    admin_cookie_secure: bool = True
 
     def __post_init__(self):
+        parse_networks(self.admin_allowed_networks)
         if self.analytics_pseudonym_key and len(self.analytics_pseudonym_key) < 32:
             raise ValueError("Analytics pseudonym key must contain at least 32 characters")
         if not 30 <= self.delivery_lease_seconds <= 300:
@@ -117,6 +140,8 @@ class Settings:
             provider=os.environ.get("NOTES_PROVIDER", "mock"),
             auto_worker=flag("NOTES_AUTO_WORKER", True),
             secure_cookies=flag("NOTES_SECURE_COOKIES", False),
+            admin_allowed_networks=os.environ.get("NOTES_ADMIN_ALLOWED_NETWORKS", DEFAULT_ADMIN_NETWORKS),
+            admin_cookie_secure=flag("NOTES_ADMIN_COOKIE_SECURE", True),
             public_origin=os.environ.get("NOTES_PUBLIC_ORIGIN", cls.public_origin).rstrip("/"),
             allow_registration=flag("NOTES_ALLOW_REGISTRATION", True),
             allow_live_requests=flag("NOTES_ALLOW_LIVE_REQUESTS", False),

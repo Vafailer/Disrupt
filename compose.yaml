@@ -22,6 +22,10 @@ services:
       NOTES_ALLOW_LIVE_REQUESTS: "false"
       NOTES_AUTO_WORKER: "false"
       NOTES_PUBLIC_ORIGIN: http://127.0.0.1:8000
+      # Local demonstration only. The port is published on 127.0.0.1, so the Docker gateway is the host itself.
+      # Real deployments keep the default private network and never use this value.
+      NOTES_ADMIN_ALLOWED_NETWORKS: "127.0.0.1/32,::1/128,172.16.0.0/12"
+      NOTES_ADMIN_COOKIE_SECURE: "false"
     depends_on:
       db:
         condition: service_healthy

@@ -14,9 +14,10 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.admin_auth import AdminNetworkGate
 from app.analytics import record_event
 from app.audio_storage import AudioStorage
-from app.config import Settings
+from app.config import Settings, parse_networks
 from app.db import make_database
 from app.error_logging import log_error
 from app.integration import IntegrationRejection
@@ -184,6 +185,9 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     app.state.engine = engine
     app.state.audio_storage = audio_storage
     app.add_middleware(BodyLimit)
+    # Outside the private network the admin screen, its assets and its API simply do not exist (404).
+    admin_networks = parse_networks(settings.admin_allowed_networks)
+    app.add_middleware(AdminNetworkGate, networks=admin_networks)
 
     @app.middleware("http")
     async def security_headers(request, call_next):
@@ -485,7 +489,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
         edit_note(db, note, body.version, conclusions=conclusions)
         return note_view(db, note, settings)
 
-    app.mount("/static", ProtectedStaticFiles(directory=STATIC, sessions=sessions), name="static")
+    app.mount("/static", ProtectedStaticFiles(directory=STATIC, networks=admin_networks), name="static")
 
     @app.get("/", include_in_schema=False)
     def index():

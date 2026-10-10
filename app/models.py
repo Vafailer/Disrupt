@@ -325,5 +325,6 @@ class AssistantRequest(Base):
     finished_at: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
-# Register the independent feedback table for Alembic metadata.
+# Register the independent feedback and admin tables for Alembic metadata.
+from app.admin_models import AdminAccount, AdminAudit, AdminSession  # noqa: E402, F401
 from app.feedback_models import Feedback  # noqa: E402, F401

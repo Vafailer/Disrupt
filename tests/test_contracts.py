@@ -43,12 +43,14 @@ def test_published_contract_marks_unimplemented_routes_and_valid_refs():
     assert spec["paths"]["/internal/v1/telegram/voice"]["post"]["x-implementation-status"] == "implemented"
     assert spec["paths"]["/api/v1/captures/audio"]["post"]["x-implementation-status"] == "implemented"
     assert spec["paths"]["/api/v1/captures/{capture_id}/audio"]["get"]["x-implementation-status"] == "implemented"
-    assert spec["paths"]["/api/admin/summary"]["get"]["x-implementation-status"] == "implemented"
     app = create_app(Settings(auto_worker=False, database_url="sqlite:///:memory:"))
     try:
         runtime = app.openapi()
-        assert "/api/admin/summary" in runtime["paths"]
-        assert "/api/admin/export" in runtime["paths"]
+        assert "/admin-api/v1/summary" in runtime["paths"]
+        assert "/admin-api/v1/export" in runtime["paths"]
+        assert "/admin-api/v1/export.zip" in runtime["paths"]
+        # The old admin routes are gone for good: no user session can reach them.
+        assert not any(path.startswith("/api/admin") for path in runtime["paths"])
         assert "/internal/v1/deliveries/claim" in runtime["paths"]
         assert spec["paths"]["/internal/v1/deliveries/claim"]["post"]["x-implementation-status"] == "implemented"
         for path in runtime["paths"]:

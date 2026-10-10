@@ -1,16 +1,15 @@
-"""Session-bound feedback and an admin-only inbox."""
+"""Session-bound feedback. The administrator inbox lives in app.routes.admin."""
 import hashlib
-import time
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import Field, field_validator
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.feedback_models import Feedback
 from app.schemas import StrictModel
-from app.security import get_login_session, require_admin, throttle
+from app.security import get_login_session, throttle
 
 
 class FeedbackCreate(StrictModel):
@@ -89,34 +88,5 @@ def build_router(database):
                 return existing
             raise
         return {'id': row.id}
-
-    @router.get('/api/admin/feedback', response_model=list[FeedbackView])
-    def inbox(request: Request, response: Response, db=Depends(database),
-              status: Literal['all', 'new', 'in_progress', 'resolved'] = 'new',
-              limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0)):
-        require_admin(request, db)
-        query = select(Feedback)
-        if status != 'all':
-            query = query.where(Feedback.status == status)
-        rows = db.scalars(query.order_by(Feedback.created_at.desc(), Feedback.id.desc()).offset(offset).limit(limit + 1)).all()
-        if len(rows) > limit:
-            response.headers['X-Next-Feedback-Offset'] = str(offset + limit)
-        response.headers['Cache-Control'] = 'no-store'
-        return [view(row) for row in rows[:limit]]
-
-    @router.patch('/api/admin/feedback/{feedback_id}', response_model=FeedbackView)
-    def change(feedback_id: str, body: FeedbackUpdate, request: Request, db=Depends(database)):
-        require_admin(request, db)
-        get_login_session(request, db, write=True)
-        if db.get(Feedback, feedback_id) is None:
-            raise HTTPException(404, 'Обращение не найдено')
-        changed = db.execute(update(Feedback).where(Feedback.id == feedback_id, Feedback.version == body.version).values(
-            status=body.status, version=Feedback.version + 1, updated_at=time.time(),
-        )).rowcount
-        if not changed:
-            db.rollback()
-            raise HTTPException(409, 'Статус уже изменился. Обновите список обращений.')
-        db.commit()
-        return view(db.get(Feedback, feedback_id))
 
     return router
