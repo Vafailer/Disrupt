@@ -151,7 +151,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     const login = $('login');
     assert.equal(login.placeholder,'username');
     assert.equal(login.minLength,3); assert.equal(login.maxLength,64);
-    const link = w.document.querySelector('a[href="https://t.me/+kwnF-xaajiA3YmQy"]');
+    const link = w.document.querySelector('a[href="https://t.me/beresta_app"]');
     assert.ok(link && link.textContent.includes('Telegram'));
     const authCalls = [];
     w.fetch = async (url, options) => {
