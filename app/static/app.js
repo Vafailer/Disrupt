@@ -1,4 +1,15 @@
 'use strict';
+// v4 UUID. Older Safari and non-secure pages (plain http) have no crypto.randomUUID.
+window.berestaId = () => {
+  const c = window.crypto;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (c && typeof c.getRandomValues === 'function') c.getRandomValues(bytes);
+  else for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map(b => b.toString(16).padStart(2,'0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+};
 const $ = id => document.getElementById(id);
 let csrf = '', currentNote = null, epoch = 0, notesOffset = 0, pendingCapture = null;
 let categories = [], searchOperation = null, notesGeneration = 0, noteBusy = false;
@@ -37,10 +48,13 @@ function authMessage(text = '') {
 const iconPaths = {
   telegram:'m21 3-6 18-4-8-8-4 18-6Zm-10 10 5-5',
   mic:'M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM6 11a6 6 0 0 0 12 0M12 17v4',
+  bell:'M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7ZM10 20a2 2 0 0 0 4 0',
+  bulb:'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3Z',
+  dot:'M12 12h.01',
 };
-function icon(name) {
+function icon(name, size = 12) {
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns,'svg'), path = document.createElementNS(ns,'path');
-  for (const [key,value] of Object.entries({viewBox:'0 0 24 24',width:'12',height:'12','aria-hidden':'true',focusable:'false'})) svg.setAttribute(key,value);
+  for (const [key,value] of Object.entries({viewBox:'0 0 24 24',width:String(size),height:String(size),'aria-hidden':'true',focusable:'false'})) svg.setAttribute(key,value);
   for (const [key,value] of Object.entries({d:iconPaths[name],fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round'})) path.setAttribute(key,value);
   svg.append(path); return svg;
 }
@@ -54,6 +68,17 @@ function sourceTags(note) {
     const tag = element('span','','tag tag-voice'); tag.append(icon('mic'),'Голос'); tags.push(tag);
   }
   return tags;
+}
+// Library rows show the source as small icons at the end of the meta line.
+function sourceMarks(note) {
+  const marks = [];
+  if (note.channel === 'telegram') marks.push(['telegram','Из Telegram']);
+  if (note.input_kind === 'audio') marks.push(['mic','Голос']);
+  return marks.map(([name,label]) => {
+    const mark = element('span','',`note-mark note-mark-${name === 'mic' ? 'voice' : 'telegram'}`);
+    mark.setAttribute('role','img'); mark.setAttribute('aria-label',label); mark.title = label;
+    mark.append(icon(name)); return mark;
+  });
 }
 function element(tag, text, className) {
   const el = document.createElement(tag); el.textContent = text;
@@ -101,6 +126,18 @@ function limitTick() {
   stopLimitTimer(); limitHit = null;
   loadProviderUsage().catch(() => {});
 }
+// The switch is the visible control. The hidden #processing-mode select keeps the value and the limit logic.
+function syncModeSwitch() {
+  const select = $('processing-mode'), toggle = $('ai-switch'), ai = select.querySelector('option[value="ai"]');
+  toggle.checked = select.value === 'ai' && !ai.disabled;
+  toggle.disabled = select.disabled || ai.disabled;
+  $('ai-switch-label').classList.toggle('is-disabled',toggle.disabled);
+}
+$('ai-switch').onchange = () => {
+  const select = $('processing-mode');
+  select.value = $('ai-switch').checked && !select.querySelector('option[value="ai"]').disabled ? 'ai' : 'manual';
+  syncModeSwitch();
+};
 function showAiLimit({counter = '', title = '', warn = false, spent = false, appLimit = false} = {}) {
   const note = $('ai-limit-note'), line = $('ai-limit-counter');
   line.hidden = !counter; $('ai-limit-count').textContent = counter;
@@ -114,6 +151,7 @@ function showAiLimit({counter = '', title = '', warn = false, spent = false, app
     renderLimitWait();
     if (limitTimer === null && !$('workspace').hidden) limitTimer = setInterval(limitTick,LIMIT_TICK_MS);
   } else { stopLimitTimer(); $('ai-limit-wait').textContent = ''; }
+  syncModeSwitch();
 }
 function markLimitHit() {
   limitHit = {resetsAt: limitResetsAt};
@@ -169,14 +207,14 @@ async function loadNotes(reset = true) {
     hint.dataset.empty = kind; $('notes').append(hint);
   }
   for (const note of list) {
-    const button = element('button', note.title);
+    const button = element('button','');
     button.dataset.noteId = note.id;
+    button.append(element('span',note.title,'note-row-title'));
     const category = categories.find(c => c.id === note.category_id);
     const when = typeof note.updated_at === 'number' ? new Date(note.updated_at*1000).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '';
-    const meta = [when, category?.name].filter(Boolean).join(' · ');
-    if (meta) button.append(element('span',meta,'note-meta'));
-    const tags = sourceTags(note);
-    if (tags.length) { const row = element('span','','note-tags'); row.append(...tags); button.append(row); }
+    const meta = element('span',[when, category?.name].filter(Boolean).join(' · '),'note-meta');
+    for (const mark of sourceMarks(note)) meta.append(mark);
+    if (meta.childNodes.length) button.append(meta);
     button.onclick = () => openNote(note.id,{userAction:true,search:context}).catch(e => message(e.message));
     $('notes').append(button);
   }
@@ -208,7 +246,7 @@ function hasDrafts(except = null) {
   if (except !== 'new' && $('item-text').value.trim()) return true;
   for (const [id,editor] of itemEditors) {
     if (id === except) continue;
-    if (editor.text.value !== editor.item.text || editor.kind.value !== editor.item.kind || editor.status.value !== editor.item.status) return true;
+    if (editor.input && editor.input.value !== editor.item.text) return true;
   }
   return false;
 }
@@ -259,7 +297,10 @@ function renderNote(note) {
   $('markdown').value = note.markdown; renderMarkdown(note.markdown);
   $('original-details').open = false;
   fillCategoryOptions($('note-category'),false,note.category_id || '');
-  $('structure-status').textContent = note.structure_confirmed_at ? 'Вы проверили структуру этой записи.' : 'Проверьте текст, задачи и категорию.';
+  const checked = 'Вы проверили структуру этой записи.';
+  $('structure-status').textContent = note.structure_confirmed_at ? checked : '';
+  $('confirm-structure').title = note.structure_confirmed_at ? checked : 'Проверьте текст, задачи и категорию.';
+  $('confirm-structure').classList.toggle('is-confirmed',Boolean(note.structure_confirmed_at));
   $('confirm-structure').disabled = Boolean(note.structure_confirmed_at);
   renderItems(note);
   window.BerestaReminders?.show(note,{request:api,onBusy:setNoteBusy,
@@ -298,7 +339,7 @@ async function openNote(id, {userAction = false, search = null, reminder = null,
     if (backgroundDraft !== undefined && !jobDraftUnchanged(backgroundDraft)) return;
     renderNote(note); setNoteBusy(true); message();
     if (userAction) await api(`/api/v1/notes/${id}/opened`,{
-      method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID(),search_operation_id:search,reminder_id:reminder}),
+      method:'POST',body:JSON.stringify({operation_id:window.berestaId(),search_operation_id:search,reminder_id:reminder}),
     });
   } finally { setNoteBusy(false); }
 }
@@ -412,7 +453,7 @@ $('capture-form').onsubmit = async event => {
   if (!text.trim()) return message('Напишите что-нибудь.');
   // Keep the same key after a network error: retrying must not create another paid job.
   if (!pendingCapture || pendingCapture.text !== text || pendingCapture.processing_mode !== processing_mode) {
-    pendingCapture = {text,processing_mode,key:crypto.randomUUID()};
+    pendingCapture = {text,processing_mode,key:window.berestaId()};
   }
   const generation = ++viewGeneration;
   let savedJob = null;
@@ -439,6 +480,13 @@ $('capture-form').onsubmit = async event => {
   }
   if (savedJob) watchSavedJob(savedJob,generation);
 };
+$('thought').addEventListener('keydown',event => {
+  if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.isComposing) return;
+  event.preventDefault();
+  if ($('capture-submit').disabled) return;
+  if ($('capture-form').requestSubmit) $('capture-form').requestSubmit($('capture-submit'));
+  else $('capture-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+});
 $('edit-form').onsubmit = async event => {
   event.preventDefault();
   await mutateNote('','PATCH',{title:$('title').value,markdown:$('markdown').value},'Правки сохранены.','note');
@@ -451,6 +499,7 @@ $('new-note').onclick = () => {
   viewGeneration++; currentNote=null; currentCapture=null; hideSource();
   window.BerestaReminders?.hide();
   $('note-card').hidden=true; $('capture-card').hidden=false; message();
+  if (!$('thought').disabled) $('thought').focus();
   loadJobs().catch(e=>message(e.message));
 };
 $('more-notes').onclick = () => loadNotes(false).catch(e=>message(e.message));
@@ -501,21 +550,36 @@ $('category-form').onsubmit = async event => {
     $('category-name').value = ''; await loadCategories(); message('Категория добавлена.');
   } catch(e) { message(e.message); } finally { button.disabled = false; }
 };
+let searchSeq = 0, searchTimer = null;
+window.searchDebounceMs = 300;
 $('search-form').onsubmit = async event => {
-  event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true;
+  event.preventDefault(); clearTimeout(searchTimer);
+  // Typing sends many searches. Only the newest one may change the list.
+  const seq = ++searchSeq;
   try {
-    const operation = crypto.randomUUID();
+    const operation = window.berestaId();
     await api('/api/v1/search/events',{method:'POST',body:JSON.stringify({operation_id:operation})});
+    if (seq !== searchSeq) return;
     searchOperation = operation;
     activeFilter = {q:$('search-query').value.trim(),category:$('category-filter').value,source:activeFilter.source};
-    await loadNotes(); message();
-  } catch(e) { message(e.message); } finally { button.disabled = false; }
+    syncSearchClear();
+    await loadNotes(); if (seq === searchSeq) message();
+  } catch(e) { if (seq === searchSeq) message(e.message); }
 };
+function syncSearchClear() { $('clear-search').hidden = !$('search-query').value && !activeFilter.q; }
+$('search-query').addEventListener('input',() => {
+  syncSearchClear(); clearTimeout(searchTimer);
+  if ($('search-query').value.trim() === activeFilter.q) return;
+  searchTimer = setTimeout(() => $('search-form').requestSubmit(),window.searchDebounceMs);
+});
 $('clear-search').onclick = () => {
+  clearTimeout(searchTimer); searchSeq++;
   $('search-query').value = ''; $('category-filter').value = ''; searchOperation = null;
-  activeFilter = {q:'',category:'',source:''}; syncSourceFilter();
+  activeFilter = {q:'',category:'',source:''}; syncSourceFilter(); syncSearchClear();
   loadNotes().catch(e => message(e.message));
+  $('search-query').focus();
 };
+syncSearchClear();
 function syncSourceFilter() {
   for (const button of $('source-filter').querySelectorAll('button')) {
     button.setAttribute('aria-pressed',String(button.dataset.source === activeFilter.source));
@@ -532,63 +596,110 @@ $('note-category').onchange = async () => {
   $('note-category').value = currentNote.category_id || '';
 };
 $('confirm-structure').onclick = () => mutateNote('/confirm-structure','POST',{},'Структура подтверждена.');
+// Tasks and ideas are a checklist. A row is plain text until it is clicked, then it edits in place.
+function saveItem(item, patch, row, restore) {
+  const next = {kind:item.kind,text:item.text,status:item.status,...patch};
+  if (next.kind !== 'task') next.status = 'open';
+  return mutateNote(`/items/${item.id}`,'PATCH',next,'Элемент сохранён.',item.id).then(() => {
+    // A refused or failed save re-renders nothing. Put the control back to what is stored.
+    if (row.isConnected) restore();
+  });
+}
+function growField(field) {
+  field.style.height = 'auto';
+  if (field.scrollHeight) field.style.height = `${field.scrollHeight}px`;
+}
+function updateItemsCount(note) {
+  const tasks = note.items.filter(item => item.kind === 'task'), done = tasks.filter(item => item.status === 'completed').length;
+  $('items-count').textContent = tasks.length ? `${done} из ${tasks.length} выполнено` : '';
+}
 function renderItems(note) {
   itemEditors.clear(); $('items').replaceChildren(); $('item-text').value = '';
-  if (!note.items.length) $('items').append(element('p','Можно добавить задачу или идею вручную.'));
-  for (const item of note.items) {
-    const form = element('form','','item'), kind = document.createElement('select');
-    kind.id = `kind-${item.id}`;
+  updateItemsCount(note);
+  if (!note.items.length) $('items').append(element('p','Пока пусто. Добавьте задачу или идею ниже.','muted items-empty'));
+  const ordered = [...note.items].sort((a,b) => (a.status === 'completed') - (b.status === 'completed'));
+  for (const item of ordered) {
+    const row = element('div','','item'), entry = {item,input:null};
+    row.dataset.itemId = item.id;
+    const task = item.kind === 'task', completed = task && item.status === 'completed';
+    row.classList.toggle('is-done',completed); row.classList.toggle('is-idea',!task);
+    let lead;
+    if (task) {
+      lead = document.createElement('input'); lead.type = 'checkbox'; lead.className = 'item-done'; lead.checked = completed;
+      lead.setAttribute('aria-label','Задача выполнена');
+      lead.onchange = () => saveItem(item,{status:lead.checked ? 'completed' : 'open'},row,() => { lead.checked = completed; });
+    } else {
+      lead = element('span','','item-mark'); lead.setAttribute('aria-hidden','true');
+      lead.append(icon(item.kind === 'idea' ? 'bulb' : 'dot',item.kind === 'idea' ? 15 : 18));
+    }
+    const text = element('button',item.text,'item-text'); text.type = 'button';
+    text.title = 'Нажмите, чтобы изменить';
+    const main = element('div','','item-main'); main.append(text);
+    if (item.due_text) main.append(element('span',`Срок из записи: «${item.due_text}»`,'item-note muted'));
+    if (item.source_quote) {
+      const quote = document.createElement('details'); quote.className = 'item-quote';
+      quote.append(element('summary','Фрагмент исходника'),element('pre',item.source_quote)); main.append(quote);
+    }
+    const tools = element('div','','item-tools');
+    if (task && item.status === 'open') {
+      const remind = element('button','','item-remind'); remind.type = 'button';
+      remind.setAttribute('aria-label','Напомнить'); remind.title = 'Напомнить'; remind.append(icon('bell',15));
+      remind.onclick = () => window.BerestaReminders?.startForTask(item); tools.append(remind);
+    }
+    const kind = document.createElement('select'); kind.id = `kind-${item.id}`; kind.className = 'item-kind';
+    kind.setAttribute('aria-label','Тип');
     for (const [value,label] of Object.entries(itemLabels)) kind.append(new Option(label,value));
     kind.value = item.kind;
-    const kindLabel = element('label','Тип','sr-only'); kindLabel.htmlFor = kind.id;
-    const text = document.createElement('textarea'); text.id = `text-${item.id}`;
-    text.rows = 2; text.maxLength = 1500; text.required = true; text.value = item.text;
-    const textLabel = element('label','Текст','sr-only'); textLabel.htmlFor = text.id;
-    const status = document.createElement('select'); status.id = `status-${item.id}`;
-    status.append(new Option('В работе','open'),new Option('Выполнена','completed')); status.value = item.status;
-    const statusLabel = element('label','Статус','sr-only'); statusLabel.htmlFor = status.id;
-    // The checkbox is the visible control for a task status. The select stays for the saved value.
-    const done = document.createElement('input'); done.type = 'checkbox'; done.className = 'item-done';
-    done.setAttribute('aria-label','Задача выполнена');
-    const updateStatus = () => {
-      status.hidden = statusLabel.hidden = true;
-      if (kind.value !== 'task') status.value = 'open';
-      done.hidden = kind.value !== 'task'; done.checked = status.value === 'completed';
-      form.classList.toggle('is-done',done.checked && !done.hidden);
+    kind.onchange = () => saveItem(item,{kind:kind.value},row,() => { kind.value = item.kind; });
+    tools.append(kind);
+    const startEdit = () => {
+      if (entry.input || noteBusy) return;
+      const input = document.createElement('textarea'); input.className = 'item-edit'; input.rows = 1;
+      input.maxLength = 1500; input.value = item.text; input.id = `text-${item.id}`;
+      input.setAttribute('aria-label','Текст');
+      let finished = false;
+      const close = () => { entry.input = null; input.replaceWith(text); };
+      const commit = () => {
+        if (finished) return; finished = true;
+        const value = input.value.trim();
+        if (!value || value === item.text) { close(); if (!value) message('Текст не может быть пустым.'); return; }
+        input.value = value;
+        // If the save did not go through, the editor stays open with the typed text.
+        saveItem(item,{text:value},row,() => { finished = false; if (entry.input === input) input.focus(); });
+      };
+      input.addEventListener('keydown',event => {
+        if (event.isComposing) return;
+        if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); commit(); }
+        else if (event.key === 'Escape') { event.preventDefault(); finished = true; close(); text.focus(); }
+      });
+      input.addEventListener('input',() => growField(input));
+      input.addEventListener('blur',commit);
+      entry.input = input; text.replaceWith(input); growField(input); input.focus();
+      input.setSelectionRange?.(input.value.length,input.value.length);
     };
-    kind.onchange = updateStatus; updateStatus();
-    done.onchange = () => {
-      status.value = done.checked ? 'completed' : 'open';
-      if (form.requestSubmit) form.requestSubmit();
-      else form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
-    };
-    form.append(done,kindLabel,kind,textLabel,text,statusLabel,status);
-    if (item.due_text) form.append(element('p',`Срок из записи «${item.due_text}». Время напоминания ещё не подтверждено.`,'muted'));
-    if (item.source_quote) {
-      const quote = document.createElement('details');
-      quote.append(element('summary','Фрагмент исходника'),element('pre',item.source_quote)); form.append(quote);
-    }
-    const actions = element('div','','item-actions');
-    const button = element('button','Сохранить элемент','secondary'); button.type = 'submit'; actions.append(button);
-    if (item.kind === 'task' && item.status === 'open') {
-      const remind = element('button','Напомнить','quiet'); remind.type = 'button';
-      remind.onclick = () => window.BerestaReminders?.startForTask(item); actions.append(remind);
-    }
-    form.append(actions);
-    form.onsubmit = async event => {
-      event.preventDefault();
-      await mutateNote(`/items/${item.id}`,'PATCH',{kind:kind.value,text:text.value,status:status.value},'Элемент сохранён.',item.id);
-    };
-    itemEditors.set(item.id,{item,text,kind,status}); $('items').append(form);
+    text.onclick = startEdit;
+    row.append(lead,main,tools);
+    itemEditors.set(item.id,entry); $('items').append(row);
   }
 }
+function syncItemKind() {
+  const kind = $('item-kind').value;
+  for (const button of $('item-kind-toggle').querySelectorAll('button')) button.setAttribute('aria-pressed',String(button.dataset.kind === kind));
+  $('item-text').placeholder = kind === 'idea' ? '+ Добавить идею' : '+ Добавить задачу';
+}
+for (const button of $('item-kind-toggle').querySelectorAll('button')) {
+  button.onclick = () => { $('item-kind').value = button.dataset.kind; syncItemKind(); $('item-text').focus(); };
+}
+syncItemKind();
 $('item-form').onsubmit = async event => {
   event.preventDefault();
-  await mutateNote('/items','POST',{kind:$('item-kind').value,text:$('item-text').value},'Элемент добавлен.','new');
+  const text = $('item-text').value.trim();
+  if (!text) return;
+  await mutateNote('/items','POST',{kind:$('item-kind').value,text},'Элемент добавлен.','new');
 };
 $('original-details').ontoggle = () => {
   if (!$('original-details').open || !currentNote) return;
-  api(`/api/v1/notes/${currentNote.id}/original-opened`,{method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID()})}).catch(e => message(e.message));
+  api(`/api/v1/notes/${currentNote.id}/original-opened`,{method:'POST',body:JSON.stringify({operation_id:window.berestaId()})}).catch(e => message(e.message));
 };
 // Telegram linking lives in telegram-link.js.
 async function openLinkedCapture() {
@@ -615,6 +726,7 @@ function setAudioControls() {
 function setCaptureBusy(value) {
   captureBusy = value;
   for (const id of ['capture-submit','thought','example','processing-mode']) $(id).disabled = value;
+  syncModeSwitch();
   setAudioControls();
 }
 function clearAudio() {
@@ -646,7 +758,7 @@ $('audio-clear').onclick = () => { if (!captureBusy && !recorder) clearAudio(); 
 $('audio-form').onsubmit = async event => {
   event.preventDefault();
   if (!selectedAudio || captureBusy || recorder || microphonePending) return;
-  if (!pendingAudio || pendingAudio.file !== selectedAudio) pendingAudio = {file:selectedAudio,key:crypto.randomUUID()};
+  if (!pendingAudio || pendingAudio.file !== selectedAudio) pendingAudio = {file:selectedAudio,key:window.berestaId()};
   const form = new FormData();
   form.append('audio',pendingAudio.file); form.append('processing_mode','ai');
   const generation = ++viewGeneration, draft = $('thought').value;
@@ -770,7 +882,7 @@ async function openCapture(id, {userAction = false, backgroundDraft} = {}) {
     if (currentNote?.capture_id !== id) { currentNote = null; $('note-card').hidden = true; window.BerestaReminders?.hide(); }
     $('capture-card').hidden = true; renderSource(capture);
     if (userAction) await api(`/api/v1/captures/${encodeURIComponent(id)}/original-opened`,{
-      method:'POST',body:JSON.stringify({operation_id:crypto.randomUUID()}),
+      method:'POST',body:JSON.stringify({operation_id:window.berestaId()}),
     });
   } finally { setNoteBusy(false); }
 }

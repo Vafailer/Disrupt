@@ -47,6 +47,14 @@ function boot({health = {simulation: false}, usage = cloudUsage, list = () => su
       Object.assign(state.note, {structure_confirmed_at: 1791220100, version: state.note.version + 1});
       return reply(state.note);
     }
+    const itemRoute = url.pathname.match(/^\/api\/v1\/notes\/n1\/items(?:\/([\w-]+))?$/);
+    if (itemRoute && (method === 'PATCH' || method === 'POST')) {
+      assert.equal(body.version, state.note.version);
+      if (method === 'PATCH') Object.assign(state.note.items.find(item => item.id === itemRoute[1]), {kind: body.kind, text: body.text, status: body.status});
+      else state.note.items.push({id: `i${state.note.items.length + 1}`, kind: body.kind, text: body.text, status: 'open', version: 1});
+      state.note.version++;
+      return reply(state.note);
+    }
     if (url.pathname.endsWith('/opened') || url.pathname.endsWith('/original-opened') || url.pathname === '/api/v1/search/events') return reply(null, 204);
     throw new Error(`Unexpected ${method} ${url.pathname}`);
   };
@@ -185,12 +193,15 @@ async function tagsAndFilters() {
   try {
     const rows = [...t.$('notes').querySelectorAll('button')];
     assert.equal(rows.length, 3);
-    assert.equal(rows[0].querySelector('.tag-telegram').textContent, 'Telegram');
-    assert.ok(rows[0].querySelector('.tag-telegram svg'), 'paper plane icon');
-    assert.equal(rows[0].querySelector('.tag-voice'), null);
-    assert.equal(rows[1].querySelector('.tag-telegram') !== null && rows[1].querySelector('.tag-voice').textContent, 'Голос');
-    assert.ok(rows[1].querySelector('.tag-voice svg'), 'microphone icon');
-    assert.equal(rows[2].querySelector('.tag'), null, 'web text notes carry no tag');
+    const marks = row => [...row.querySelectorAll('.note-meta .note-mark')].map(m => m.getAttribute('aria-label'));
+    assert.deepEqual(marks(rows[0]), ['Из Telegram']);
+    assert.ok(rows[0].querySelector('.note-mark svg'), 'paper plane icon');
+    assert.deepEqual(marks(rows[1]), ['Из Telegram', 'Голос']);
+    assert.ok(rows[1].querySelector('.note-mark-voice svg'), 'microphone icon');
+    assert.deepEqual(marks(rows[2]), [], 'web text notes carry no mark');
+    assert.equal(rows[0].querySelector('.tag'), null, 'no tag pills in the library');
+    assert.equal(rows[0].querySelector('.note-row-title').textContent, 'Из Telegram');
+    assert.equal(rows[0].querySelector('.note-meta').lastElementChild.classList.contains('note-mark'), true, 'icons end the meta line');
 
     const chips = [...t.$('source-filter').querySelectorAll('button')];
     assert.deepEqual(chips.map(c => c.textContent), ['Все', 'Telegram', 'Голос', 'Текст']);
@@ -319,10 +330,212 @@ async function noteScreen() {
   } finally { await new Promise(resolve => w.setTimeout(resolve, 10)); t.dom.window.close(); }
 }
 
+async function liveSearchAndCapture() {
+  const t = boot({list: params => params.get('q') === 'нет' ? [] : summaries}); await settled();
+  const {w, $} = t;
+  try {
+    t.w.searchDebounceMs = 20;
+    const wait = ms => new Promise(resolve => w.setTimeout(resolve, ms));
+    const events = () => t.state.calls.filter(c => c.url.pathname === '/api/v1/search/events').length;
+    const type = value => { $('search-query').value = value; $('search-query').dispatchEvent(new w.Event('input', {bubbles: true})); };
+    assert.equal($('clear-search').hidden, true, 'clear button is hidden for an empty field');
+    assert.equal($('clear-search').getAttribute('aria-label'), 'Очистить поиск');
+    // Typing searches by itself after the pause, and only the last text is sent.
+    type('н'); type('не'); type('нет');
+    await wait(5); assert.equal(events(), 0, 'nothing is sent before the pause');
+    assert.equal($('clear-search').hidden, false);
+    await wait(80); await settled();
+    assert.equal(events(), 1);
+    assert.equal(lastList(t.state).get('q'), 'нет');
+    assert.ok($('notes').querySelector('[data-empty=search]'));
+    // The clear button resets the field and the list.
+    $('clear-search').click(); await settled();
+    assert.equal($('search-query').value, ''); assert.equal(lastList(t.state).get('q'), null);
+    assert.equal($('notes').querySelectorAll('button').length, 3); assert.equal($('clear-search').hidden, true);
+    // An empty field after a search shows everything again.
+    type('нет'); await wait(60); await settled();
+    type(''); await wait(60); await settled();
+    assert.equal(lastList(t.state).get('q'), null); assert.equal($('notes').querySelectorAll('button').length, 3);
+    // Enter still submits at once, through the same path.
+    const before = events(); $('search-query').value = 'нет';
+    $('search-form').dispatchEvent(new w.Event('submit', {bubbles: true, cancelable: true})); await settled();
+    assert.equal(events(), before + 1); assert.equal(lastList(t.state).get('q'), 'нет');
+    // The Find button stays for assistive tech but is not shown.
+    assert.equal($('search-form').querySelector('button[type=submit]').classList.contains('sr-only'), true);
+  } finally { t.dom.window.close(); }
+
+  const c = boot(); await settled();
+  try {
+    // The switch drives the hidden select.
+    assert.equal(c.$('processing-mode').hidden, true);
+    assert.equal(c.$('ai-switch').checked, true); assert.equal(c.$('ai-switch').getAttribute('role'), 'switch');
+    c.$('ai-switch').checked = false; c.$('ai-switch').dispatchEvent(new c.w.Event('change', {bubbles: true}));
+    assert.equal(c.$('processing-mode').value, 'manual');
+    c.$('ai-switch').checked = true; c.$('ai-switch').dispatchEvent(new c.w.Event('change', {bubbles: true}));
+    assert.equal(c.$('processing-mode').value, 'ai');
+    assert.equal(c.w.document.querySelector('[data-capture-view=capture-jobs]').textContent, 'История');
+    assert.equal(c.$('capture-submit').textContent, 'Сохранить');
+    // New record focuses the text field.
+    c.$('new-note').click(); await settled();
+    assert.equal(c.w.document.activeElement, c.$('thought'));
+    // Ctrl+Enter submits the form, plain Enter does not.
+    let sent = 0; c.$('capture-form').addEventListener('submit', () => { sent++; });
+    c.$('thought').value = 'Текст';
+    key(c.w, c.$('thought'), {key: 'Enter'}); await settled(); assert.equal(sent, 0);
+    key(c.w, c.$('thought'), {key: 'Enter', ctrlKey: true}); await settled(); assert.equal(sent, 1);
+    key(c.w, c.$('thought'), {key: 'Enter', metaKey: true}); await settled(); assert.equal(sent, 2);
+  } finally { c.dom.window.close(); }
+
+  // An exhausted daily limit turns the switch off and locks it.
+  const spent = boot({usage: {...cloudUsage, daily_unit_limit: 30, daily_units_used: 30, daily_units_remaining: 0}}); await settled();
+  try {
+    assert.equal(spent.$('ai-switch').checked, false); assert.equal(spent.$('ai-switch').disabled, true);
+    assert.equal(spent.$('processing-mode').value, 'manual'); assert.equal(spent.$('ai-limit-note').hidden, false);
+  } finally { spent.dom.window.close(); }
+}
+
+async function idFallback() {
+  const t = boot(); await settled();
+  try {
+    const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    Object.defineProperty(t.w.crypto, 'randomUUID', {value: undefined, configurable: true});
+    const first = t.w.berestaId(), second = t.w.berestaId();
+    assert.match(first, pattern); assert.match(second, pattern); assert.notEqual(first, second);
+    // Without crypto.getRandomValues it still returns a valid id.
+    Object.defineProperty(t.w.crypto, 'getRandomValues', {value: undefined, configurable: true});
+    assert.match(t.w.berestaId(), pattern);
+    // A stub that appears later is used, so tests can control ids.
+    Object.defineProperty(t.w.crypto, 'randomUUID', {value: () => 'stub-id', configurable: true});
+    assert.equal(t.w.berestaId(), 'stub-id');
+  } finally { t.dom.window.close(); }
+}
+
+// Tasks and ideas are a checklist: checkbox, plain text, inline editor, add row.
+async function checklist() {
+  const t = boot(), {w, $, state} = t; await settled();
+  try {
+    state.note.items = [
+      {id: 'i1', kind: 'task', text: 'Позвонить', status: 'open', version: 1},
+      {id: 'i2', kind: 'task', text: 'Купить молоко', status: 'completed', version: 1},
+      {id: 'i3', kind: 'idea', text: 'Идея', status: 'open', version: 1},
+      {id: 'i4', kind: 'task', text: 'Написать', status: 'open', version: 1},
+    ];
+    $('notes').querySelector('button').click(); await settled();
+    const rows = () => [...$('items').querySelectorAll('.item')];
+    const ids = () => rows().map(row => row.dataset.itemId);
+    const row = id => rows().find(item => item.dataset.itemId === id);
+    const patches = () => state.calls.filter(c => c.method === 'PATCH' && c.url.pathname.includes('/items/'));
+    // Header, counter and order: open first, completed last.
+    assert.equal($('view-tasks').querySelector('h2').textContent, 'Задачи и идеи');
+    assert.equal($('items-count').textContent, '1 из 3 выполнено');
+    assert.deepEqual(ids(), ['i1', 'i3', 'i4', 'i2']);
+    assert.equal(row('i2').classList.contains('is-done'), true);
+    assert.equal(row('i2').querySelector('.item-done').checked, true);
+    assert.equal(row('i3').querySelector('.item-done'), null, 'an idea has no checkbox');
+    assert.ok(row('i3').querySelector('.item-mark'));
+    assert.equal(row('i1').querySelector('.item-text').tagName, 'BUTTON');
+    assert.equal(row('i1').querySelector('textarea'), null, 'text is plain until clicked');
+    assert.equal(w.document.querySelectorAll('#items select').length, 4, 'one small type select per row');
+    assert.ok(!$('view-tasks').textContent.includes('Сохранить элемент'));
+    // The structure button is small and keeps its hint as a tooltip.
+    assert.equal($('confirm-structure').title, 'Проверьте текст, задачи и категорию.');
+    assert.match($('confirm-structure').textContent, /Структура верна/);
+    assert.equal($('structure-status').textContent, '');
+    assert.equal($('confirm-structure').closest('#note-meta') !== null, true);
+    assert.equal($('note-edit-start').closest('#note-meta') !== null, true);
+    assert.ok(!$('note-card').textContent.includes('Проверьте текст, задачи и категорию.'));
+
+    // The checkbox saves at once.
+    const box = row('i1').querySelector('.item-done');
+    box.checked = true; box.dispatchEvent(new w.Event('change', {bubbles: true})); await settled();
+    assert.equal(patches().length, 1);
+    assert.deepEqual({...patches()[0].body}, {kind: 'task', text: 'Позвонить', status: 'completed', version: patches()[0].body.version});
+    assert.equal($('items-count').textContent, '2 из 3 выполнено');
+    assert.deepEqual(ids(), ['i3', 'i4', 'i1', 'i2'], 'a finished task moves down');
+    assert.equal(row('i1').classList.contains('is-done'), true);
+
+    // A click on the text opens an editor, Enter saves it with the note version.
+    const version = state.note.version;
+    row('i4').querySelector('.item-text').click();
+    let editor = row('i4').querySelector('textarea');
+    assert.ok(editor); assert.equal(editor.value, 'Написать'); assert.equal(w.document.activeElement, editor);
+    editor.value = 'Написать Оле'; key(w, editor, {key: 'Enter'}); await settled();
+    assert.equal(patches().length, 2);
+    assert.equal(patches()[1].body.text, 'Написать Оле'); assert.equal(patches()[1].body.version, version);
+    assert.equal(row('i4').querySelector('.item-text').textContent, 'Написать Оле');
+    assert.equal(row('i4').querySelector('textarea'), null);
+
+    // Esc drops the edit without a request.
+    row('i3').querySelector('.item-text').click();
+    editor = row('i3').querySelector('textarea'); editor.value = 'Другое';
+    key(w, editor, {key: 'Escape'}); await settled();
+    assert.equal(patches().length, 2); assert.equal(row('i3').querySelector('textarea'), null);
+    assert.equal(row('i3').querySelector('.item-text').textContent, 'Идея');
+    // Blur saves, and an unchanged text sends nothing.
+    row('i3').querySelector('.item-text').click();
+    editor = row('i3').querySelector('textarea'); editor.dispatchEvent(new w.Event('blur')); await settled();
+    assert.equal(patches().length, 2); assert.equal(row('i3').querySelector('textarea'), null);
+    row('i3').querySelector('.item-text').click();
+    editor = row('i3').querySelector('textarea'); editor.value = 'Идея про видео'; editor.dispatchEvent(new w.Event('blur')); await settled();
+    assert.equal(patches().length, 3); assert.equal(patches()[2].body.text, 'Идея про видео');
+
+    // Type switch from the row.
+    const kind = row('i3').querySelector('select');
+    kind.value = 'task'; kind.dispatchEvent(new w.Event('change', {bubbles: true})); await settled();
+    assert.equal(patches().length, 4); assert.equal(patches()[3].body.kind, 'task');
+    assert.ok(row('i3').querySelector('.item-done'), 'it became a task');
+
+    // The add row: Enter adds, the toggle picks the type.
+    assert.equal($('item-text').tagName, 'INPUT'); assert.equal($('item-text').placeholder, '+ Добавить задачу');
+    assert.equal($('item-kind').value, 'task');
+    $('item-text').value = 'Новая задача'; $('item-form').requestSubmit(); await settled();
+    let post = state.calls.filter(c => c.method === 'POST' && c.url.pathname === '/api/v1/notes/n1/items');
+    assert.equal(post.length, 1); assert.equal(post[0].body.kind, 'task'); assert.equal(post[0].body.text, 'Новая задача');
+    assert.equal($('item-text').value, '');
+    const toggle = [...$('item-kind-toggle').querySelectorAll('button')];
+    assert.deepEqual(toggle.map(b => b.textContent), ['Задача', 'Идея']);
+    toggle[1].click();
+    assert.equal($('item-kind').value, 'idea'); assert.equal(toggle[1].getAttribute('aria-pressed'), 'true');
+    assert.equal(toggle[0].getAttribute('aria-pressed'), 'false'); assert.match($('item-text').placeholder, /идею/);
+    $('item-text').value = 'Новая идея'; $('item-form').requestSubmit(); await settled();
+    post = state.calls.filter(c => c.method === 'POST' && c.url.pathname === '/api/v1/notes/n1/items');
+    assert.equal(post.length, 2); assert.equal(post[1].body.kind, 'idea');
+    assert.equal(rows().at(-1).querySelector('.item-text').textContent, 'Купить молоко', 'completed stays last');
+    assert.ok(rows().some(item => item.querySelector('.item-text').textContent === 'Новая идея'));
+    // An empty field sends nothing.
+    $('item-text').value = '  '; $('item-form').onsubmit({preventDefault() {}}); await settled();
+    assert.equal(state.calls.filter(c => c.method === 'POST' && c.url.pathname === '/api/v1/notes/n1/items').length, 2);
+  } finally { t.dom.window.close(); }
+}
+
+// On phones the three secondary actions sit behind one menu button.
+async function phoneMenu() {
+  const t = boot(), {w, $} = t; await settled();
+  try {
+    const menu = $('nav-menu'), more = $('nav-more');
+    assert.equal(more.getAttribute('aria-expanded'), 'false'); assert.equal(menu.classList.contains('is-open'), false);
+    more.click();
+    assert.equal(more.getAttribute('aria-expanded'), 'true'); assert.equal(menu.classList.contains('is-open'), true);
+    for (const id of ['manage-categories', 'open-telegram', 'open-feedback']) assert.equal(menu.contains($(id)), true, id);
+    assert.equal($('category-navigation').closest('.nav-row'), menu.closest('.nav-row'));
+    key(w, w.document.body, {key: 'Escape'});
+    assert.equal(menu.classList.contains('is-open'), false);
+    more.click(); $('open-feedback').click();
+    assert.equal($('feedback-dialog').open, true); assert.equal(menu.classList.contains('is-open'), false, 'a choice closes the menu');
+    $('feedback-dialog').close();
+    more.click(); w.document.body.click();
+    assert.equal(menu.classList.contains('is-open'), false, 'a click outside closes the menu');
+  } finally { t.dom.window.close(); }
+}
+
 module.exports = async () => {
   await usageHints();
+  await liveSearchAndCapture();
+  await idFallback();
   await tagsAndFilters();
   await noteScreen();
-  console.log('Note UX checks passed: quiet banner, AI limit hints, source tags and filters, inline editing, panels.');
+  await checklist();
+  await phoneMenu();
+  console.log('Note UX checks passed: quiet banner, AI limit hints, source tags and filters, inline editing, panels, checklist, phone menu.');
 };
 if (require.main === module) module.exports().catch(error => { console.error(error); process.exitCode = 1; });
