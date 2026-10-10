@@ -3,7 +3,6 @@
 import argparse
 import fcntl
 import hashlib
-import io
 import json
 import os
 import re
@@ -274,6 +273,26 @@ def unpack_bundle(bundle, directory):
     return metadata
 
 
+def verify_encrypted_audio(args, rows):
+    path = Path(args.data_key_file).resolve()
+    if not path.is_file() or any(char in str(path) for char in ":\r\n") or not args.audio_verifier_image:
+        raise Failure("invalid_audio_verifier_configuration")
+    # subprocess stdin needs a real file descriptor; BytesIO has no fileno.
+    with tempfile.TemporaryFile() as source:
+        source.write(json.dumps(rows).encode())
+        source.seek(0)
+        result = run([
+            "docker", "run", "--rm", "-i", "--network", "none", "--read-only",
+            "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+            "--memory", "128m", "--pids-limit", "32", "--user", "1000:1000",
+            "-v", args.project + "_restore-audio:/audio:ro",
+            "-v", str(path) + ":/run/secrets/data_key:ro", "--entrypoint", "python",
+            args.audio_verifier_image, "-m", "app.recovery_verify",
+        ], source=source)
+    if json.loads(result.stdout).get("audio_verified") != len(rows):
+        raise Failure("restored_audio_verification_failed")
+
+
 def restore(args):
     if not re.fullmatch(r"beresta-restore-[a-z0-9-]{1,40}", args.project):
         raise Failure("restore_requires_new_beresta_restore_project")
@@ -314,22 +333,8 @@ def restore(args):
                     raise Failure("invalid_audio_metadata")
                 validated_rows.append([key, checksum])
             data_key_file = getattr(args, "data_key_file", None)
-            verifier_image = getattr(args, "audio_verifier_image", None)
             if data_key_file:
-                path = Path(data_key_file).resolve()
-                if not path.is_file() or any(char in str(path) for char in ":\r\n") or not verifier_image:
-                    raise Failure("invalid_audio_verifier_configuration")
-                with io.BytesIO(json.dumps(validated_rows).encode()) as source:
-                    result = run([
-                        "docker", "run", "--rm", "-i", "--network", "none", "--read-only",
-                        "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
-                        "--memory", "128m", "--pids-limit", "32", "--user", "1000:1000",
-                        "-v", args.project + "_restore-audio:/audio:ro",
-                        "-v", str(path) + ":/run/secrets/data_key:ro", "--entrypoint", "python",
-                        verifier_image, "-m", "app.recovery_verify",
-                    ], source=source)
-                if json.loads(result.stdout).get("audio_verified") != len(rows):
-                    raise Failure("restored_audio_verification_failed")
+                verify_encrypted_audio(args, validated_rows)
             else:
                 for key, checksum in validated_rows:
                     actual = run(command + ["run", "--rm", "--no-deps", "-T", "--entrypoint", "sha256sum", "files", "/audio/" + key]).stdout.decode().split()[0]

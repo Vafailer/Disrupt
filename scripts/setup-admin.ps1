@@ -32,7 +32,7 @@ function Send-PrivateInput([string]$Command, [string]$Property, [Security.Secure
         $taskPlain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($taskPointer)
         $taskObject = @{}; $taskObject[$Property] = $taskPlain
         $taskJson = ConvertTo-Json -Compress -InputObject $taskObject
-        $taskRemote = 'beresta-core run --rm -T --no-deps -v /opt/beresta/repository/.local/admin-enroll-receiver.py:/enroll-receiver.py:ro -v /opt/beresta/repository/.local/admin-enroll:/enroll api python /enroll-receiver.py ' + $Command + ' ' + $Username
+        $taskRemote = 'beresta-core run --rm -T --no-deps -e PYTHONPATH=/app -v /opt/beresta/repository/.local/admin-enroll-receiver.py:/enroll-receiver.py:ro -v /opt/beresta/repository/.local/admin-enroll:/enroll api python /enroll-receiver.py ' + $Command + ' ' + $Username
         $taskJson | & ssh @taskSsh $taskRemote
         if ($LASTEXITCODE -ne 0) { throw 'Administrator setup failed. Check the message above.' }
     } finally {
