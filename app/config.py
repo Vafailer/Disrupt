@@ -82,6 +82,7 @@ class Settings:
     telegram_bot_username: str = "beresta_ru_bot"
     # Mail stays off until the owner configures an SMTP account. See docs/auth-telegram-v1.md.
     mail_enabled: bool = False
+    email_registration_enabled: bool = False
     # smtp_bz sends over HTTPS (SMTP ports are closed at the VPS provider); smtp is plain STARTTLS.
     mail_transport: Literal["smtp_bz", "smtp"] = "smtp_bz"
     smtp_bz_api_key_file: str = ""
@@ -195,6 +196,7 @@ class Settings:
             audio_ffprobe_path=os.environ.get("NOTES_AUDIO_FFPROBE_PATH", cls.audio_ffprobe_path),
             telegram_bot_username=os.environ.get("NOTES_TELEGRAM_BOT_USERNAME", cls.telegram_bot_username),
             mail_enabled=flag("NOTES_MAIL_ENABLED", False),
+            email_registration_enabled=flag("NOTES_EMAIL_REGISTRATION_ENABLED", False),
             mail_transport=os.environ.get("NOTES_MAIL_TRANSPORT", "smtp_bz"),
             smtp_bz_api_key_file=os.environ.get("NOTES_SMTP_BZ_API_KEY_FILE", ""),
             smtp_host=os.environ.get("NOTES_SMTP_HOST", ""),
