@@ -107,7 +107,7 @@ update и сообщить о нарушении контракта. В комм
 | POST /internal/v1/telegram/actions | Принимает bot_id, update_id, telegram_user_id, callback_token. Возвращает status=completed/already_completed. Проверяет связь, владельца, бота, задачу и поколение напоминания |
 | POST /api/v1/captures/text | Старый AI-ответ сохранён. processing_mode=manual создаёт заметку и ревизию без Job. Ответ содержит capture_id, job_id=null, status=saved, note_id. Idempotency-Key учитывает режим. AI-запрос сверх дневного лимита так же сохраняется без Job, в ответе ai_limit_exceeded=true |
 | GET /api/v1/captures/{id} | Требует Cookie и проверяет владельца. Возвращает оригинал, режим, note_id и job/null, в том числе при ошибке обработки |
-| GET /admin | Требует серверную роль admin. Отдаёт static/admin.html, когда файл появится. Пока возвращает 503. Без сессии 401, обычному пользователю 403. /static/admin.* тоже закрыты |
+| GET /admin | Отдаёт static/admin.html с формой входа администратора. Работает только из приватной сети, снаружи 404. /static/admin.* закрыты так же. См. admin-security-v1.md |
 
 Текст ограничен 12 000 символами. Ручной режим сохраняет оригинал и Markdown
 без изменений и создаёт первую ревизию. Он не вызывает провайдер и не создаёт Job.
@@ -220,15 +220,15 @@ STT и структурирование выполняются отдельно.
 
 ## Админка
 
-Методы GET `/api/admin/summary` и `/api/admin/export` используют фильтры
+Методы GET `/admin-api/v1/summary` и `/admin-api/v1/export` используют фильтры
 `from=YYYY-MM-DD&to=YYYY-MM-DD&channel=all|web|telegram&source=all`.
 Даты включаются целиком в зоне Europe/Moscow. Период до 366 дней, конец не позже сегодня.
 Методы реализованы в `feature/admin-api-v1`. [Правила расчёта](admin-api-v1.md)
 описывают когорты, каналы и неизвестные расходы. Формат Summary сохранён.
 
-Роль admin назначается на сервере командой
-`python -m app.admin <user_id> --role admin`.
-Для снятия роли используется `--role user`.
+Администратор это отдельная учётная запись с паролем и кодом из приложения,
+а не пользователь с ролью. Создаётся командой `python -m app.admin_cli create <имя>`,
+доступ только из приватной сети. См. [admin-security-v1.md](admin-security-v1.md).
 
 Summary содержит cards, daily[], funnel[], retention, usage[], quality
 и generated_at. Поля и типы описаны в `app/contracts.py` и OpenAPI.

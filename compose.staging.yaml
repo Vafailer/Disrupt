@@ -14,6 +14,10 @@ x-backend-environment: &backend-environment
   NOTES_AUTO_WORKER: "false"
   NOTES_PUBLIC_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
   NOTES_SECURE_COOKIES: "true"
+  # Admin: private network only. Set NOTES_ADMIN_COOKIE_SECURE=false in .env.production when the admin
+  # is opened over plain HTTP (WireGuard or an SSH tunnel). See docs/admin-security-v1.md.
+  NOTES_ADMIN_ALLOWED_NETWORKS: "${NOTES_ADMIN_ALLOWED_NETWORKS:-127.0.0.1/32,::1/128,10.77.0.0/24}"
+  NOTES_ADMIN_COOKIE_SECURE: "${NOTES_ADMIN_COOKIE_SECURE:-true}"
   NOTES_ALLOW_REGISTRATION: ${NOTES_ALLOW_REGISTRATION:-true}
 
 services:

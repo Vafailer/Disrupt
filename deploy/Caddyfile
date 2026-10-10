@@ -4,6 +4,11 @@
     handle @internal {
         respond 404
     }
+    # The admin exists only inside the private network (WireGuard or an SSH tunnel), never on the public site.
+    @admin path /admin* /admin-api* /static/admin.*
+    handle @admin {
+        respond 404
+    }
     handle {
         reverse_proxy api:8000
     }

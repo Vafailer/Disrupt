@@ -3,6 +3,10 @@
     handle @internal {
         respond 404
     }
+    @admin path /admin* /admin-api* /static/admin.*
+    handle @admin {
+        respond 404
+    }
     handle {
         respond "Beresta is being prepared. HTTPS domain is required." 503
     }

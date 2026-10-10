@@ -40,7 +40,9 @@ with httpx.Client(timeout=5, trust_env=False, follow_redirects=False) as client:
     if args.public_origin:
         assert client.get(public_origin + "/").status_code == 200
         assert client.get(public_origin + "/health").status_code == 200
-        assert client.get(public_origin + "/admin").status_code == 401
+        # The admin is private: the public site answers 404, even for the sign-in API and its assets.
+        for path in ("/admin", "/admin-api/v1/me", "/static/admin.js"):
+            assert client.get(public_origin + path).status_code == 404
     else:
         assert client.get(public_origin + "/").status_code == 503
     try:
@@ -50,4 +52,4 @@ with httpx.Client(timeout=5, trust_env=False, follow_redirects=False) as client:
     else:
         raise AssertionError("Public API has HTTP access")
 print("Container VPN health/auth OK; public API has no HTTP access; internal routes 404; "
-      + ("HTTPS web/health 200; admin without session 401" if args.public_origin else "maintenance 503"))
+      + ("HTTPS web/health 200; admin and admin API 404" if args.public_origin else "maintenance 503"))
