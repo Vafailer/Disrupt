@@ -1,5 +1,6 @@
 from email import policy
 from email.parser import BytesParser
+from urllib.parse import parse_qs
 
 import httpx
 import pytest
@@ -7,18 +8,23 @@ import pytest
 from app.smtp_bz import ENDPOINT, SmtpBzError, SmtpBzMailer
 
 
-def test_https_contract_multipart_and_escaped_html():
+@pytest.mark.parametrize("encoding", ["multipart", "urlencoded"])
+def test_https_contract_multipart_and_escaped_html(encoding):
     calls = []
 
     def handler(request):
         calls.append(request)
         assert str(request.url) == ENDPOINT
         assert request.headers["Authorization"] == "fake-api-key"
-        message = BytesParser(policy=policy.default).parsebytes(
-            ("Content-Type: " + request.headers["Content-Type"] + "\r\n\r\n").encode() + request.content,
-        )
-        fields = {part.get_param("name", header="content-disposition"): part.get_payload(decode=True).decode()
-                  for part in message.iter_parts()}
+        if encoding == "multipart":
+            message = BytesParser(policy=policy.default).parsebytes(
+                ("Content-Type: " + request.headers["Content-Type"] + "\r\n\r\n").encode() + request.content,
+            )
+            fields = {part.get_param("name", header="content-disposition"): part.get_payload(decode=True).decode()
+                      for part in message.iter_parts()}
+        else:
+            assert request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+            fields = {name: values[0] for name, values in parse_qs(request.content.decode()).items()}
         assert fields["from"] == "sender@example.test"
         assert fields["to"] == "owner@example.test"
         assert fields["subject"] == "Проверка"
@@ -26,7 +32,7 @@ def test_https_contract_multipart_and_escaped_html():
         assert fields["html"] == "<pre>&lt;script&gt;не HTML&lt;/script&gt;</pre>"
         return httpx.Response(200, json={"id": "synthetic-message-1"})
 
-    mailer = SmtpBzMailer("fake-api-key", "sender@example.test", transport=httpx.MockTransport(handler))
+    mailer = SmtpBzMailer("fake-api-key", "sender@example.test", transport=httpx.MockTransport(handler), encoding=encoding)
     assert not calls
     assert mailer.send_with_receipt("owner@example.test", "Проверка", "<script>не HTML</script>") == "synthetic-message-1"
     assert len(calls) == 1
