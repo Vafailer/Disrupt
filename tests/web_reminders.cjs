@@ -218,7 +218,7 @@ function row(id) { return [...$('reminders-list').querySelectorAll('article')].f
     assert.equal($('reminder-time-choices').hidden,false);
     assert.equal($('reminder-confirm').disabled,true,'An ambiguous time cannot be silently selected');
     assert.ok($('reminder-preview').textContent.includes('наступит дважды'));
-    assert.ok([...$('reminder-time-choice').options].some(option => option.textContent.startsWith('Первый раз, 02:30, UTC+02:00')));
+    assert.ok([...$('reminder-time-choice').options].some(option => option.textContent.startsWith('Первый раз, 2:30, UTC+02:00')));
     $('reminder-time-choice').value = '2090-10-29T01:30:00+00:00';
     $('reminder-time-choice').dispatchEvent(new w.Event('change'));
     assert.equal($('reminder-confirm').disabled,false);
