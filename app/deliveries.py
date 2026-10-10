@@ -12,7 +12,7 @@ from sqlalchemy import and_, or_, select
 from app.analytics import record_event
 from app.models import Capture, Item, Job, Note, Outbox, Reminder, TelegramIdentity
 from app.security import hash_token
-from app.services import lock_account
+from app.services import item_view, lock_account, reminder_proposals
 
 
 def locked_delivery(db, delivery_id):
@@ -86,12 +86,45 @@ def expire_authorization(db, row):
     record_event(db, row.user_id, event, attempt_id(row), "telegram", outcome="unknown")
 
 
-def processing_reply_text(note):
+REPLY_UNITS, TELEGRAM_UNITS = 3500, 4096
+REPLY_FOOTER = "\n\nПолный результат в Beresta."
+HINT_TASK_CHARS = 100
+
+
+def utf16_units(text):
+    return len(text.encode("utf-16-le")) // 2
+
+
+def reminder_hint(db, note, settings, now=None):
+    """One line offering a reminder for the first open task whose deadline can be read, or an empty string.
+
+    Nothing is stored. The link opens the note, where the user confirms or changes the time.
+    """
+    items = [item_view(item) for item in db.scalars(
+        select(Item).where(Item.note_id == note.id, Item.user_id == note.user_id).order_by(Item.position, Item.id)
+    )]
+    proposals = reminder_proposals(db, note.user_id, items, settings, now)
+    for item in items:
+        proposal = proposals.get(item["id"])
+        if proposal:
+            task = " ".join(item["text"].split())
+            task = task if len(task) <= HINT_TASK_CHARS else task[:HINT_TASK_CHARS - 1].rstrip() + "…"
+            link = settings.public_origin + "/?capture=" + note.capture_id + "#remind"
+            return (
+                f"Предлагаю напоминание: {proposal['label']}, «{task}». "
+                f"Подтвердить или изменить время: {link}"
+            )
+    return ""
+
+
+def processing_reply_text(note, hint=""):
+    """Reply text. The note part stays within 3500 UTF-16 units, the whole text within Telegram's 4096."""
+    tail = "\n\n" + hint if hint else ""
     text = "Заметка готова.\n\n" + note.title + "\n\n" + note.markdown
-    encoded = text.encode("utf-16-le")
-    if len(encoded) > 3500 * 2:
-        text = encoded[:3500 * 2].decode("utf-16-le", errors="ignore") + "\n\nПолный результат в Beresta."
-    return text
+    room = min(REPLY_UNITS, TELEGRAM_UNITS - utf16_units(tail) - utf16_units(REPLY_FOOTER))
+    if utf16_units(text) > room:
+        text = text.encode("utf-16-le")[:room * 2].decode("utf-16-le", errors="ignore") + REPLY_FOOTER
+    return text + tail
 
 
 def claim_deliveries(db, body, settings):
@@ -169,7 +202,8 @@ def claim_deliveries(db, body, settings):
         row.callback_token_hash = hash_token(callback) if callback else None
         results.append({
             "delivery_id": row.id, "lease_token": lease, "generation": row.generation,
-            "chat_id": row.chat_id, "text": reminder.text if reminder is not None else processing_reply_text(note),
+            "chat_id": row.chat_id, "text": reminder.text if reminder is not None
+            else processing_reply_text(note, reminder_hint(db, note, settings)),
             "note_url": settings.public_origin + "/?capture=" + note.capture_id
                         + ("&reminder=" + reminder.id if reminder is not None else ""), "callback_token": callback,
         })

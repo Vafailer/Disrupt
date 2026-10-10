@@ -63,21 +63,21 @@ def build_router(database):
         session = get_login_session(request, db, write=True)
         note = owned_note(db, note_id, session.user_id)
         change_note_category(db, note, body.category_id, body.version)
-        return note_view(db, note)
+        return note_view(db, note, request.app.state.settings)
 
     @router.post("/notes/{note_id}/items", status_code=201, response_model=NoteResponse)
     def add_item(note_id: str, body: ItemCreate, request: Request, db=Depends(database)):
         session = get_login_session(request, db, write=True)
         note = owned_note(db, note_id, session.user_id)
         create_item(db, note, body)
-        return note_view(db, note)
+        return note_view(db, note, request.app.state.settings)
 
     @router.patch("/notes/{note_id}/items/{item_id}", response_model=NoteResponse)
     def update_item(note_id: str, item_id: str, body: ItemEdit, request: Request, db=Depends(database)):
         session = get_login_session(request, db, write=True)
         note = owned_note(db, note_id, session.user_id)
         edit_item(db, note, item_id, body)
-        return note_view(db, note)
+        return note_view(db, note, request.app.state.settings)
 
     @router.post("/notes/{note_id}/confirm-structure", response_model=NoteResponse)
     def confirm(note_id: str, body: VersionRequest, request: Request, db=Depends(database)):
@@ -88,7 +88,7 @@ def build_router(database):
         db.flush()
         save_revision(db, note)
         db.commit()
-        return note_view(db, note)
+        return note_view(db, note, request.app.state.settings)
 
     @router.post("/search/events", status_code=204)
     def search_event(body: UserAction, request: Request, db=Depends(database)):
