@@ -3,12 +3,21 @@
 import re
 import smtplib
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.config import Settings
-from app.mailer import DisabledMailer, MailDisabled, MailError, SmtpMailer, build_mailer
+from app.mailer import (
+    SMTP_BZ_SEND_URL,
+    DisabledMailer,
+    MailDisabled,
+    MailError,
+    SmtpBzMailer,
+    SmtpMailer,
+    build_mailer,
+)
 from app.models import EmailVerification, User
 from tests.conftest import register
 
@@ -166,14 +175,20 @@ def test_email_reset_is_throttled(app_factory):
 
 
 def test_mail_settings_are_checked(tmp_path):
-    with pytest.raises(ValueError, match="SMTP_HOST"):
+    with pytest.raises(ValueError, match="MAIL_FROM"):
         Settings(mail_enabled=True)
+    with pytest.raises(ValueError, match="SMTP_HOST"):
+        Settings(mail_enabled=True, mail_transport="smtp", mail_from="noreply@example.test")
+    with pytest.raises(ValueError, match="SMTP_BZ_API_KEY_FILE"):
+        Settings(mail_enabled=True, mail_from="noreply@example.test")
+    with pytest.raises(ValueError, match="MAIL_TRANSPORT"):
+        Settings(mail_transport="carrier-pigeon")
     with pytest.raises(ValueError, match="PORT"):
         Settings(smtp_port=0)
     password_file = tmp_path / "smtp-password"
     password_file.write_text("fake-smtp-password\n")
     settings = Settings(
-        mail_enabled=True, smtp_host="smtp.example.test", smtp_port=2525, smtp_user="mailer",
+        mail_enabled=True, mail_transport="smtp", smtp_host="smtp.example.test", smtp_port=2525, smtp_user="mailer",
         smtp_password_file=str(password_file), mail_from="beresta <noreply@example.test>",
     )
     mailer = build_mailer(settings)
@@ -222,3 +237,47 @@ def test_smtp_mailer_uses_starttls_then_login_and_never_leaks_the_address(monkey
     monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
     SmtpMailer("smtp.example.test", 587, "", "", "noreply@example.test").send("a@example.com", "Тема", "Текст")
     assert ("login", "", "") not in calls
+
+
+def test_smtp_bz_settings_read_the_key_from_a_file(tmp_path):
+    key_file = tmp_path / "smtp-bz-key"
+    key_file.write_text("fake-smtp-bz-key\n")
+    settings = Settings(mail_enabled=True, smtp_bz_api_key_file=str(key_file), mail_from="noreply@example.test")
+    mailer = build_mailer(settings)
+    assert isinstance(mailer, SmtpBzMailer) and mailer.api_key == "fake-smtp-bz-key"
+    assert "fake-smtp-bz-key" not in repr(settings)
+
+
+def test_smtp_bz_mailer_posts_one_multipart_form_over_https():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"result": True})
+
+    mailer = SmtpBzMailer("fake-key", "noreply@example.test", transport=httpx.MockTransport(handler))
+    mailer.send("user@example.com", "Тема", "Строка 1\n<b>Строка 2</b>")
+    assert len(seen) == 1
+    request = seen[0]
+    assert str(request.url) == SMTP_BZ_SEND_URL and request.method == "POST"
+    assert request.headers["authorization"] == "fake-key"
+    assert request.headers["content-type"].startswith("multipart/form-data")
+    body = request.content.decode()
+    for name, value in (
+        ("from", "noreply@example.test"), ("to", "user@example.com"), ("subject", "Тема"),
+        ("html", "<p>Строка 1<br>&lt;b&gt;Строка 2&lt;/b&gt;</p>"), ("text", "Строка 1\n<b>Строка 2</b>"),
+    ):
+        assert f'name="{name}"\r\n\r\n{value}\r\n' in body, name
+
+
+@pytest.mark.parametrize("outcome", [400, 401, 500, "network"])
+def test_smtp_bz_failures_never_leak_the_address_or_the_reply(outcome):
+    def handler(request):
+        if outcome == "network":
+            raise httpx.ConnectError("user@example.com unreachable")
+        return httpx.Response(outcome, json={"error": "bad address user@example.com"})
+
+    mailer = SmtpBzMailer("fake-key", "noreply@example.test", transport=httpx.MockTransport(handler))
+    with pytest.raises(MailError) as error:
+        mailer.send("user@example.com", "Тема", "Текст")
+    assert "user@example.com" not in str(error.value) and error.value.__cause__ is None

@@ -14,6 +14,8 @@ async function open({hash='',me=null,routes={}}={}){
  const w=dom.window,$=id=>w.document.getElementById(id);
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
+ // jsdom reports a hidden document unless told otherwise; a real visible tab polls.
+ Object.defineProperty(w.document,'hidden',{configurable:true,get:()=>false});
  const timers=new Map();let next=1;
  w.setTimeout=fn=>{const id=next++;timers.set(id,fn);return id;};
  w.clearTimeout=id=>{timers.delete(id);};
