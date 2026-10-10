@@ -11,8 +11,9 @@ ADDRESS = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9
 
 
 class SmtpBzError(Exception):
-    def __init__(self, code, *, http_status=None, stage=None):
+    def __init__(self, code, *, http_status=None, stage=None, diagnostics=()):
         self.code, self.http_status, self.stage = code, http_status, stage
+        self.diagnostics = diagnostics
         super().__init__(code)
 
 
@@ -45,11 +46,13 @@ class SmtpBzMailer:
                 break
         text = raw.decode("utf-8", errors="ignore").casefold()
         if any(word in text for word in ("content-type", "multipart", "form-data", "encoding", "json")):
-            return "request_format"
-        for field in ("from", "to", "html", "subject", "domain", "authorization", "api_key"):
-            if re.search(r"\b" + field + r"\b", text):
-                return field
-        return "unclassified"
+            stage = "request_format"
+        else:
+            stage = next((field for field in ("from", "to", "html", "subject", "domain", "authorization", "api_key")
+                          if re.search(r"\b" + field + r"\b", text)), "unclassified")
+        known = ("domain", "spf", "dkim", "mx", "moderation", "moderated", "verified", "approved", "pending",
+                 "not", "missing", "disabled", "required", "invalid", "found", "registered")
+        return stage, tuple(word for word in known if re.search(r"\b" + word + r"\b", text))
 
     def send(self, to, subject, body):
         self.send_with_receipt(to, subject, body)
@@ -80,7 +83,8 @@ class SmtpBzMailer:
                 ) as response:
                     if response.status_code != 200:
                         code = "mail_auth" if response.status_code in {401, 403} else "mail_http_error"
-                        raise SmtpBzError(code, http_status=response.status_code, stage=self.error_stage(response))
+                        stage, diagnostics = self.error_stage(response)
+                        raise SmtpBzError(code, http_status=response.status_code, stage=stage, diagnostics=diagnostics)
                     raw = bytearray()
                     for chunk in response.iter_bytes():
                         raw.extend(chunk)

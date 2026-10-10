@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 
+import httpx
+
 from app.config import read_secret_file
 from app.smtp_bz import SmtpBzError, SmtpBzMailer, validate_address
 
@@ -18,6 +20,7 @@ def main():
     parser.add_argument("--allow-send", action="store_true")
     parser.add_argument("--retry-rejected", action="store_true")
     parser.add_argument("--retry-json-rejected", action="store_true")
+    parser.add_argument("--retry-verified-domain", action="store_true")
     args = parser.parse_args()
     if not args.allow_send:
         raise SystemExit("Explicit --allow-send is required")
@@ -28,16 +31,29 @@ def main():
     )
     directory = Path("/audit")
     target = directory / "first-smtp-bz-delivery.json"
-    if args.retry_rejected or args.retry_json_rejected:
+    if args.retry_rejected or args.retry_json_rejected or args.retry_verified_domain:
         previous = json.loads(target.read_text(encoding="utf-8"))
         if previous.get("status") != "failed_or_unknown" or previous.get("http_status") != 400:
             raise SystemExit("Retry allowed only after a documented HTTP 400 rejection")
         target = directory / "urlencoded-smtp-bz-delivery.json"
-        if args.retry_json_rejected:
+        if args.retry_json_rejected or args.retry_verified_domain:
             previous = json.loads(target.read_text(encoding="utf-8"))
             if previous.get("status") != "failed_or_unknown" or previous.get("http_status") != 400:
                 raise SystemExit("JSON probe allowed only after both documented HTTP 400 rejections")
             target = directory / "json-smtp-bz-delivery.json"
+            if args.retry_verified_domain:
+                previous = json.loads(target.read_text(encoding="utf-8"))
+                if previous.get("status") != "failed_or_unknown" or previous.get("http_status") != 400:
+                    raise SystemExit("Domain retry allowed only after all documented HTTP 400 rejections")
+                with httpx.Client(timeout=15, trust_env=False, follow_redirects=False) as client:
+                    response = client.post(
+                        "https://api.smtp.bz/v1/user/domain/verify",
+                        headers={"Authorization": read_secret_file("/run/secrets/smtp_bz_api_key", maximum=8192)},
+                        files={"domain": (None, "berestaapp.ru")},
+                    )
+                if response.status_code != 200 or response.json().get("result") is not True:
+                    raise SystemExit("Domain re-verification did not succeed; no email sent")
+                target = directory / "verified-domain-smtp-bz-delivery.json"
     # This receipt exists before dispatch. Re-running cannot send a second email after a lost reply.
     try:
         fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -52,7 +68,7 @@ def main():
         result = {"status": "accepted_http_200", "message_id": receipt, "delivery_confirmed": False}
     except SmtpBzError as error:
         result = {"status": "failed_or_unknown", "code": error.code, "http_status": error.http_status,
-                  "stage": error.stage}
+                  "stage": error.stage, "diagnostics": error.diagnostics}
     target.write_text(json.dumps(result), encoding="utf-8")
     print(json.dumps(result))
     return 0 if result["status"] == "accepted_http_200" else 1
