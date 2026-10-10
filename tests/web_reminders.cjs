@@ -126,7 +126,7 @@ function row(id) { return [...$('reminders-list').querySelectorAll('article')].f
     assert.equal($('reminders-heading').textContent,'Напоминания');
     assert.equal($('reminder-new').closest('.reminders-head') !== null,true,'The new button sits in the header');
     assert.equal($('reminders-refresh').closest('.reminders-head') !== null,true);
-    assert.equal($('reminders-panel').querySelectorAll('p.muted:not(.reminders-empty)').length,0,'No explanatory paragraphs');
+    assert.equal($('reminders-panel').querySelectorAll(':scope > p.muted, :scope > fieldset > p.muted:not(.reminders-empty)').length,0,'No explanatory paragraphs');
     assert.equal($('reminder-form').hidden,true);
     assert.equal($('reminder-target-wrap').hidden,false,'A note with open tasks offers a target');
     assert.equal($('reminder-target-wrap').querySelector('label').textContent,'Напомнить о');
