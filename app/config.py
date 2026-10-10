@@ -1,6 +1,8 @@
 """No dotenv autoloading: mock configuration never reads a model credential."""
 
+import ipaddress
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -21,6 +23,25 @@ def read_secret_file(path: str, *, maximum: int = 16384) -> str:
     if not value or "\x00" in value:
         raise ValueError("Secret file is empty or invalid")
     return value
+
+
+DEFAULT_ADMIN_NETWORKS = "127.0.0.1/32,::1/128,10.77.0.0/24"
+
+
+def parse_networks(value: str):
+    """Comma separated CIDRs. A catch-all network would defeat the private-network rule."""
+    networks = []
+    for part in value.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        network = ipaddress.ip_network(part, strict=False)
+        if network.prefixlen == 0:
+            raise ValueError("NOTES_ADMIN_ALLOWED_NETWORKS must not contain a catch-all network")
+        networks.append(network)
+    if not networks:
+        raise ValueError("NOTES_ADMIN_ALLOWED_NETWORKS must list at least one network")
+    return tuple(networks)
 
 
 @dataclass(frozen=True)
@@ -51,8 +72,41 @@ class Settings:
     audio_ffprobe_path: str = "ffprobe"
     analytics_pseudonym_key: str = field(default="", repr=False)
     internal_api_token: str = field(default="", repr=False)
+    admin_allowed_networks: str = DEFAULT_ADMIN_NETWORKS
+    admin_cookie_secure: bool = True
+    # Шифрование содержимого на диске. Подробности в docs/encryption-v1.md. Файлы ключей читает app.crypto.
+    data_encryption: str = "off"
+    data_key_file: str = ""
+    data_old_key_files: str = ""
+
+    telegram_bot_username: str = "beresta_ru_bot"
+    # Mail stays off until the owner configures an SMTP account. See docs/auth-telegram-v1.md.
+    mail_enabled: bool = False
+    # smtp_bz sends over HTTPS (SMTP ports are closed at the VPS provider); smtp is plain STARTTLS.
+    mail_transport: Literal["smtp_bz", "smtp"] = "smtp_bz"
+    smtp_bz_api_key_file: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password_file: str = ""
+    mail_from: str = ""
 
     def __post_init__(self):
+        parse_networks(self.admin_allowed_networks)
+        if self.data_encryption not in {"off", "required"}:
+            raise ValueError("NOTES_DATA_ENCRYPTION must be off or required")
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{4,31}", self.telegram_bot_username):
+            raise ValueError("NOTES_TELEGRAM_BOT_USERNAME must be a Telegram bot username without @")
+        if self.mail_transport not in {"smtp_bz", "smtp"}:
+            raise ValueError("NOTES_MAIL_TRANSPORT must be smtp_bz or smtp")
+        if self.mail_enabled and not self.mail_from:
+            raise ValueError("Mail needs NOTES_MAIL_FROM")
+        if self.mail_enabled and self.mail_transport == "smtp" and not self.smtp_host:
+            raise ValueError("SMTP mail needs NOTES_SMTP_HOST")
+        if self.mail_enabled and self.mail_transport == "smtp_bz" and not self.smtp_bz_api_key_file:
+            raise ValueError("SMTP.BZ mail needs NOTES_SMTP_BZ_API_KEY_FILE")
+        if not 1 <= self.smtp_port <= 65535:
+            raise ValueError("NOTES_SMTP_PORT must be a valid port")
         if self.analytics_pseudonym_key and len(self.analytics_pseudonym_key) < 32:
             raise ValueError("Analytics pseudonym key must contain at least 32 characters")
         if not 30 <= self.delivery_lease_seconds <= 300:
@@ -117,6 +171,11 @@ class Settings:
             provider=os.environ.get("NOTES_PROVIDER", "mock"),
             auto_worker=flag("NOTES_AUTO_WORKER", True),
             secure_cookies=flag("NOTES_SECURE_COOKIES", False),
+            admin_allowed_networks=os.environ.get("NOTES_ADMIN_ALLOWED_NETWORKS", DEFAULT_ADMIN_NETWORKS),
+            admin_cookie_secure=flag("NOTES_ADMIN_COOKIE_SECURE", True),
+            data_encryption=os.environ.get("NOTES_DATA_ENCRYPTION", cls.data_encryption),
+            data_key_file=os.environ.get("NOTES_DATA_KEY_FILE", ""),
+            data_old_key_files=os.environ.get("NOTES_DATA_OLD_KEY_FILES", ""),
             public_origin=os.environ.get("NOTES_PUBLIC_ORIGIN", cls.public_origin).rstrip("/"),
             allow_registration=flag("NOTES_ALLOW_REGISTRATION", True),
             allow_live_requests=flag("NOTES_ALLOW_LIVE_REQUESTS", False),
@@ -134,4 +193,13 @@ class Settings:
             audio_storage_path=os.environ.get("NOTES_AUDIO_STORAGE_PATH", cls.audio_storage_path),
             audio_ffmpeg_path=os.environ.get("NOTES_AUDIO_FFMPEG_PATH", cls.audio_ffmpeg_path),
             audio_ffprobe_path=os.environ.get("NOTES_AUDIO_FFPROBE_PATH", cls.audio_ffprobe_path),
+            telegram_bot_username=os.environ.get("NOTES_TELEGRAM_BOT_USERNAME", cls.telegram_bot_username),
+            mail_enabled=flag("NOTES_MAIL_ENABLED", False),
+            mail_transport=os.environ.get("NOTES_MAIL_TRANSPORT", "smtp_bz"),
+            smtp_bz_api_key_file=os.environ.get("NOTES_SMTP_BZ_API_KEY_FILE", ""),
+            smtp_host=os.environ.get("NOTES_SMTP_HOST", ""),
+            smtp_port=int(os.environ.get("NOTES_SMTP_PORT", "587")),
+            smtp_user=os.environ.get("NOTES_SMTP_USER", ""),
+            smtp_password_file=os.environ.get("NOTES_SMTP_PASSWORD_FILE", ""),
+            mail_from=os.environ.get("NOTES_MAIL_FROM", ""),
         )

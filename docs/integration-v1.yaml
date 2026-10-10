@@ -145,126 +145,37 @@
         "x-implementation-status": "implemented"
       }
     },
-    "/api/admin/feedback": {
-      "get": {
+    "/admin-api/v1/login": {
+      "post": {
         "tags": [
-          "feedback"
+          "admin"
         ],
-        "summary": "Inbox",
-        "operationId": "inbox_api_admin_feedback_get",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "enum": [
-                "all",
-                "new",
-                "in_progress",
-                "resolved"
-              ],
-              "type": "string",
-              "default": "new",
-              "title": "Status"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 20,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/FeedbackView"
-                  },
-                  "title": "Response Inbox Api Admin Feedback Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "x-implementation-status": "implemented",
-        "security": [
-          {
-            "BrowserSession": []
-          }
-        ]
-      }
-    },
-    "/api/admin/feedback/{feedback_id}": {
-      "patch": {
-        "tags": [
-          "feedback"
-        ],
-        "summary": "Change",
-        "operationId": "change_api_admin_feedback__feedback_id__patch",
-        "parameters": [
-          {
-            "name": "feedback_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Feedback Id"
-            }
-          }
-        ],
+        "summary": "Login",
+        "operationId": "login_admin_api_v1_login_post",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FeedbackUpdate"
+                "$ref": "#/components/schemas/LoginBody"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeedbackView"
-                }
+                "schema": {}
               }
             }
+          },
+          "401": {
+            "description": "Generic failure"
+          },
+          "429": {
+            "description": "Too many attempts"
           },
           "422": {
             "description": "Validation Error",
@@ -277,21 +188,73 @@
             }
           }
         },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/admin-api/v1/logout": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_admin_api_v1_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "No administrator session"
+          },
+          "404": {
+            "description": "Outside the private network"
+          }
+        },
         "x-implementation-status": "implemented",
         "security": [
           {
-            "BrowserSession": []
+            "AdminSession": []
           }
         ]
       }
     },
-    "/api/admin/summary": {
+    "/admin-api/v1/me": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Me",
+        "operationId": "me_admin_api_v1_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "No administrator session"
+          },
+          "404": {
+            "description": "Outside the private network"
+          }
+        },
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "AdminSession": []
+          }
+        ]
+      }
+    },
+    "/admin-api/v1/summary": {
       "get": {
         "tags": [
           "admin"
         ],
         "summary": "Summary",
-        "operationId": "summary_api_admin_summary_get",
+        "operationId": "summary_admin_api_v1_summary_get",
         "parameters": [
           {
             "name": "from",
@@ -580,10 +543,10 @@
             }
           },
           "401": {
-            "description": "No browser session"
+            "description": "No administrator session"
           },
-          "403": {
-            "description": "Admin role required"
+          "404": {
+            "description": "Outside the private network"
           },
           "422": {
             "description": "Validation Error",
@@ -599,18 +562,18 @@
         "x-implementation-status": "implemented",
         "security": [
           {
-            "BrowserSession": []
+            "AdminSession": []
           }
         ]
       }
     },
-    "/api/admin/export": {
+    "/admin-api/v1/export": {
       "get": {
         "tags": [
           "admin"
         ],
         "summary": "Export",
-        "operationId": "export_api_admin_export_get",
+        "operationId": "export_admin_api_v1_export_get",
         "parameters": [
           {
             "name": "from",
@@ -672,10 +635,10 @@
             }
           },
           "401": {
-            "description": "No browser session"
+            "description": "No administrator session"
           },
-          "403": {
-            "description": "Admin role required"
+          "404": {
+            "description": "Outside the private network"
           },
           "422": {
             "description": "Validation Error",
@@ -691,7 +654,280 @@
         "x-implementation-status": "implemented",
         "security": [
           {
-            "BrowserSession": []
+            "AdminSession": []
+          }
+        ]
+      }
+    },
+    "/admin-api/v1/export.zip": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Export Zip",
+        "operationId": "export_zip_admin_api_v1_export_zip_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ZIP archive of pseudonymous metrics",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No administrator session"
+          },
+          "404": {
+            "description": "Outside the private network"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "AdminSession": []
+          }
+        ]
+      }
+    },
+    "/admin-api/v1/feedback": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Inbox",
+        "operationId": "inbox_admin_api_v1_feedback_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "new",
+                "in_progress",
+                "resolved"
+              ],
+              "type": "string",
+              "default": "new",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FeedbackView"
+                  },
+                  "title": "Response Inbox Admin Api V1 Feedback Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No administrator session"
+          },
+          "404": {
+            "description": "Outside the private network"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "AdminSession": []
+          }
+        ]
+      }
+    },
+    "/admin-api/v1/feedback/{feedback_id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Change",
+        "operationId": "change_admin_api_v1_feedback__feedback_id__patch",
+        "parameters": [
+          {
+            "name": "feedback_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Feedback Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No administrator session"
+          },
+          "404": {
+            "description": "Outside the private network"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "AdminSession": []
+          }
+        ]
+      }
+    },
+    "/admin-api/v1/audit": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Audit Log",
+        "operationId": "audit_log_admin_api_v1_audit_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "No administrator session"
+          },
+          "404": {
+            "description": "Outside the private network"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "security": [
+          {
+            "AdminSession": []
           }
         ]
       }
@@ -3861,6 +4097,448 @@
         "x-implementation-status": "implemented"
       }
     },
+    "/api/v1/auth/telegram/start": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Telegram Start",
+        "operationId": "telegram_start_api_v1_auth_telegram_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramLoginStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/auth/telegram/status/{login_id}": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Telegram Status",
+        "operationId": "telegram_status_api_v1_auth_telegram_status__login_id__get",
+        "parameters": [
+          {
+            "name": "login_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Login Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/auth/recovery/telegram": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Recover Through Telegram",
+        "operationId": "recover_through_telegram_api_v1_auth_recovery_telegram_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/auth/recovery/email": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Recover Through Email",
+        "operationId": "recover_through_email_api_v1_auth_recovery_email_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/auth/password-reset": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reset Password",
+        "operationId": "reset_password_api_v1_auth_password_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordReset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/account/accept-policy": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Accept Policy",
+        "operationId": "accept_policy_api_v1_account_accept_policy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptPolicy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/account/email": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Set Email",
+        "operationId": "set_email_api_v1_account_email_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/account/email/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Verify Email",
+        "operationId": "verify_email_api_v1_account_email_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/account/delete-request": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete With Password",
+        "operationId": "delete_with_password_api_v1_account_delete_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/account/delete-request/telegram": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete Telegram Start",
+        "operationId": "delete_telegram_start_api_v1_account_delete_request_telegram_post",
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/account/delete-request/telegram/{login_id}": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete Telegram Check",
+        "operationId": "delete_telegram_check_api_v1_account_delete_request_telegram__login_id__post",
+        "parameters": [
+          {
+            "name": "login_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Login Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/v1/account/delete-request/cancel": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete Cancel",
+        "operationId": "delete_cancel_api_v1_account_delete_request_cancel_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -3903,7 +4581,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Credentials"
+                "$ref": "#/components/schemas/Registration"
               }
             }
           },
@@ -4512,6 +5190,22 @@
   },
   "components": {
     "schemas": {
+      "AcceptPolicy": {
+        "properties": {
+          "policy_version": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Policy Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "policy_version"
+        ],
+        "title": "AcceptPolicy"
+      },
       "ActionRequest": {
         "properties": {
           "bot_id": {
@@ -5405,6 +6099,22 @@
         ],
         "title": "DailyMetrics"
       },
+      "DeletionRequest": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "DeletionRequest"
+      },
       "Delivery": {
         "properties": {
           "delivery_id": {
@@ -5458,6 +6168,22 @@
           "callback_token"
         ],
         "title": "Delivery"
+      },
+      "EmailBody": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "minLength": 3,
+            "title": "Email"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "EmailBody"
       },
       "FeedbackCreate": {
         "properties": {
@@ -5954,6 +6680,30 @@
         ],
         "title": "LinkResponse"
       },
+      "LoginBody": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "totp": {
+            "type": "string",
+            "title": "Totp"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "username",
+          "password",
+          "totp"
+        ],
+        "title": "LoginBody"
+      },
       "NoteCategoryEdit": {
         "properties": {
           "version": {
@@ -6287,6 +7037,29 @@
         ],
         "title": "NoteSummary"
       },
+      "PasswordReset": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Token"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "title": "PasswordReset"
+      },
       "Percentage": {
         "properties": {
           "numerator": {
@@ -6414,6 +7187,63 @@
           "costs"
         ],
         "title": "Quality"
+      },
+      "RecoveryRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Username"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "title": "RecoveryRequest"
+      },
+      "Registration": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "Password"
+          },
+          "accept_policy": {
+            "type": "boolean",
+            "title": "Accept Policy",
+            "default": false
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Registration"
       },
       "ReminderCancel": {
         "properties": {
@@ -6896,6 +7726,30 @@
         ],
         "title": "TelegramLink"
       },
+      "TelegramLoginStart": {
+        "properties": {
+          "accept_policy": {
+            "type": "boolean",
+            "title": "Accept Policy",
+            "default": false
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TelegramLoginStart"
+      },
       "TelegramText": {
         "properties": {
           "text": {
@@ -6973,6 +7827,22 @@
           "text"
         ],
         "title": "TextCapture"
+      },
+      "TokenBody": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "TokenBody"
       },
       "TranscriptEdit": {
         "properties": {
@@ -7282,6 +8152,11 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "notes_session"
+      },
+      "AdminSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "beresta_admin"
       }
     }
   }

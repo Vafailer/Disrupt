@@ -13,7 +13,6 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
-    Text,
     UniqueConstraint,
     false,
     true,
@@ -21,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.encrypted_types import EncryptedJSON, EncryptedText
 
 
 def new_id():
@@ -29,7 +29,10 @@ def new_id():
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),)
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),
+        Index("uq_users_email", "email", unique=True),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     username: Mapped[str] = mapped_column(String(64), unique=True)
     password_hash: Mapped[str] = mapped_column(String(256))
@@ -42,6 +45,12 @@ class User(Base):
     assistant_recommendations_enabled: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(),
     )
+    # Always stored lowercased. Empty until the owner of the address confirms it.
+    email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    email_verified_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    policy_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    policy_accepted_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    deletion_requested_at: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class LoginSession(Base):
@@ -64,7 +73,7 @@ class Capture(Base):
     __table_args__ = (UniqueConstraint("user_id", "idempotency_key"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    original_text: Mapped[str] = mapped_column(Text)
+    original_text: Mapped[str] = mapped_column(EncryptedText("captures.original_text"))
     idempotency_key: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
     channel: Mapped[str] = mapped_column(String(16), default="web", server_default="web")
@@ -75,7 +84,7 @@ class Capture(Base):
     audio_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     audio_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     audio_media_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    transcript: Mapped[str | None] = mapped_column(EncryptedText("captures.transcript"), nullable=True)
     transcript_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
@@ -88,7 +97,7 @@ class TranscriptRevision(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     capture_id: Mapped[str] = mapped_column(ForeignKey("captures.id"), index=True)
     version: Mapped[int] = mapped_column(Integer)
-    text: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(EncryptedText("transcript_revisions.text"))
     origin: Mapped[str] = mapped_column(String(16))
     created_at: Mapped[float | None] = mapped_column(Float, nullable=True)
 
@@ -111,9 +120,9 @@ class Note(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     capture_id: Mapped[str] = mapped_column(ForeignKey("captures.id"), unique=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    title: Mapped[str] = mapped_column(String(200))
-    markdown: Mapped[str] = mapped_column(Text)
-    conclusions: Mapped[list] = mapped_column(JSON)
+    title: Mapped[str] = mapped_column(EncryptedText("notes.title"))
+    markdown: Mapped[str] = mapped_column(EncryptedText("notes.markdown"))
+    conclusions: Mapped[list] = mapped_column(EncryptedJSON("notes.conclusions"))
     version: Mapped[int] = mapped_column(Integer, default=1)
     provider: Mapped[str] = mapped_column(String(16))
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
@@ -128,7 +137,7 @@ class Revision(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     note_id: Mapped[str] = mapped_column(ForeignKey("notes.id"), index=True)
     version: Mapped[int] = mapped_column(Integer)
-    snapshot: Mapped[dict] = mapped_column(JSON)
+    snapshot: Mapped[dict] = mapped_column(EncryptedJSON("revisions.snapshot"))
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
 
 
@@ -185,13 +194,13 @@ class Item(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     note_id: Mapped[str] = mapped_column(ForeignKey("notes.id"), index=True)
     kind: Mapped[str] = mapped_column(String(16))
-    text: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(EncryptedText("items.text"))
     status: Mapped[str] = mapped_column(String(16), default="open")
     version: Mapped[int] = mapped_column(Integer, default=1)
     due_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     category_id: Mapped[str | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
-    source_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
-    due_text: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    source_quote: Mapped[str | None] = mapped_column(EncryptedText("items.source_quote"), nullable=True)
+    due_text: Mapped[str | None] = mapped_column(EncryptedText("items.due_text"), nullable=True)
     position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
@@ -207,7 +216,7 @@ class Reminder(Base):
     item_id: Mapped[str | None] = mapped_column(ForeignKey("items.id"), nullable=True)
     scheduled_at: Mapped[float] = mapped_column(Float, index=True)
     timezone: Mapped[str] = mapped_column(String(64))
-    text: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(EncryptedText("reminders.text"))
     status: Mapped[str] = mapped_column(String(16), default="confirmed", index=True)
     generation: Mapped[int] = mapped_column(Integer, default=1)
     confirmed_at: Mapped[float] = mapped_column(Float, default=time.time)
@@ -223,7 +232,7 @@ class Inbox(Base):
     update_id: Mapped[int] = mapped_column(BigInteger)
     payload_hash: Mapped[str] = mapped_column(String(64))
     operation: Mapped[str] = mapped_column(String(32))
-    response: Mapped[dict] = mapped_column(JSON)
+    response: Mapped[dict] = mapped_column(EncryptedJSON("inbox.response"))
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
 
 
@@ -232,8 +241,12 @@ class Outbox(Base):
     __table_args__ = (
         UniqueConstraint("reminder_id", "generation"),
         UniqueConstraint("job_id", name="uq_outbox_processing_job"),
-        CheckConstraint("(reminder_id IS NOT NULL AND job_id IS NULL) OR "
-                        "(reminder_id IS NULL AND job_id IS NOT NULL)", name="ck_outbox_target"),
+        CheckConstraint(
+            "(reminder_id IS NOT NULL AND job_id IS NULL AND message_kind IS NULL) OR "
+            "(reminder_id IS NULL AND job_id IS NOT NULL AND message_kind IS NULL) OR "
+            "(reminder_id IS NULL AND job_id IS NULL AND message_kind IS NOT NULL)",
+            name="ck_outbox_target",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     reminder_id: Mapped[str | None] = mapped_column(ForeignKey("reminders.id"), index=True, nullable=True)
@@ -251,6 +264,55 @@ class Outbox(Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     retry_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     result_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    # Account messages (for example a password reset link). The text is erased once the attempt is final.
+    message_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    message_text: Mapped[str | None] = mapped_column(EncryptedText("outbox.message_text"), nullable=True)
+
+
+class TelegramLogin(Base):
+    """One browser sign-in (or deletion confirmation) answered by the bot. Only hashes are stored."""
+
+    __tablename__ = "telegram_logins"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('login', 'delete')", name="ck_telegram_logins_purpose"),
+        CheckConstraint(
+            "status IN ('pending', 'confirmed', 'consumed')", name="ck_telegram_logins_status",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    purpose: Mapped[str] = mapped_column(String(16), default="login", server_default="login")
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    binding_hash: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    policy_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    bot_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    telegram_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    telegram_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    expires_at: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    confirmed_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    consumed_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class EmailVerification(Base):
+    """A one-time token for confirming an address or resetting a password. Only the hash is stored."""
+
+    __tablename__ = "email_verifications"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('verify', 'reset')", name="ck_email_verifications_purpose"),
+        CheckConstraint("channel IN ('email', 'telegram')", name="ck_email_verifications_channel"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String(16))
+    channel: Mapped[str] = mapped_column(String(16), default="email", server_default="email")
+    email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[float] = mapped_column(Float)
+    used_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
 
 
@@ -311,10 +373,10 @@ class AssistantRequest(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")
-    question: Mapped[str | None] = mapped_column(Text, nullable=True)
+    question: Mapped[str | None] = mapped_column(EncryptedText("assistant_requests.question"), nullable=True)
     days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     input_note_ids: Mapped[list] = mapped_column(JSON)
-    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    result: Mapped[dict | None] = mapped_column(EncryptedJSON("assistant_requests.result"), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(100))
     request_hash: Mapped[str] = mapped_column(String(64))
@@ -325,5 +387,6 @@ class AssistantRequest(Base):
     finished_at: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
-# Register the independent feedback table for Alembic metadata.
+# Register the independent feedback and admin tables for Alembic metadata.
+from app.admin_models import AdminAccount, AdminAudit, AdminSession  # noqa: E402, F401
 from app.feedback_models import Feedback  # noqa: E402, F401

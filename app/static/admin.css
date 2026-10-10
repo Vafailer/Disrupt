@@ -2,3 +2,4 @@
 .admin-sections{display:flex;gap:10px;margin-bottom:28px}.admin-sections button[aria-pressed=true]{background:#345943;color:white}.feedback-card h2{overflow-wrap:anywhere}.feedback-card h3{font-size:12px;color:#687760;margin:20px 0 6px}.feedback-body{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;line-height:1.7}.feedback-card .muted{overflow-wrap:anywhere}.feedback-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}.columns>*{min-width:0}.pagination{flex-wrap:wrap}
 
 .admin-sections button[aria-pressed=false]{background:#e5ebdf;color:#34513b}
+.network-note{display:inline-block;margin:0 0 16px;padding:6px 12px;border:1px solid #c6d3c4;border-radius:999px;background:#eaf0e6;color:#294934;font-size:13px;font-weight:600}.session{display:flex;align-items:center;gap:12px;font-size:14px}#login-message{min-height:24px;color:#8c2929}#archive-status,#audit-status{min-height:24px}#archive-status.error{color:#8c2929}

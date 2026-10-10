@@ -112,7 +112,8 @@ def test_real_adapter_voice_uses_application_router_and_keeps_original(app_facto
             capture = captures[0]
             assert capture.input_kind == "audio" and capture.channel == "telegram"
             assert capture.original_text == "" and capture.transcript is None
-            assert (app.state.audio_storage.root / capture.audio_key).read_bytes() == wav()
+            with app.state.audio_storage.open_original(capture.audio_key) as source:
+                assert source.read() == wav()
             assert browser.get(f"/api/v1/captures/{capture.id}/audio").content == wav()
 
 

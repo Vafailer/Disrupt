@@ -179,6 +179,9 @@ class Bot:
                 else:
                     await self.notify(chat_id, "Привет! Кнопки внизу, выбирай.", reply_markup=MAIN_MENU)
                 return
+            if command == "/start" and re.fullmatch(r"login_[A-Za-z0-9_-]{43}", argument):
+                await self.confirm_login(chat_id, identity, argument[len("login_"):], sender)
+                return
             if command == "/start":
                 if not re.fullmatch(r"[A-Za-z0-9_-]{22,64}", argument):
                     raise Rejected("invalid_link")
@@ -236,6 +239,24 @@ class Bot:
             await self.notify(chat_id, saved, url)
         except Rejected as error:
             await self.notify(chat_id, REJECTIONS[str(error)], self.settings.web_url)
+
+    async def confirm_login(self, chat_id, identity, token, sender):
+        """Browser sign-in or account deletion. The core decides what the press means; the bot only reports it."""
+        payload = {**identity, "token": token}
+        username = sender.get("username")
+        if isinstance(username, str) and re.fullmatch(r"[A-Za-z0-9_]{1,32}", username):
+            payload["telegram_username"] = username
+        result = await self.core.post("/telegram/login-confirm", payload)
+        purpose, new_account = result.get("purpose"), result.get("new_account")
+        if result.get("status") != "confirmed" or purpose not in {"login", "delete"} or type(new_account) is not bool:
+            raise RemoteFailure("core_invalid_response")
+        if purpose == "delete":
+            text = "Запрос на удаление аккаунта подтверждён. Вернитесь в браузер."
+        elif new_account:
+            text = "Подтверждено. Вернитесь в браузер, там мы создадим ваш аккаунт."
+        else:
+            text = "Вход подтверждён. Вернитесь в браузер."
+        await self.notify(chat_id, text, reply_markup=MAIN_MENU)
 
     async def press(self, chat_id, label):
         if label == BTN_WRITE:

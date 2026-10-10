@@ -21,7 +21,7 @@ from app.analytics import record_event
 from app.config import Settings
 from app.main import create_app
 from app.models import Capture, Job, Note, ProductEvent, ProviderUsage, User, new_id
-from tests.conftest import register
+from tests.conftest import ADMIN_ADDRESS, admin_login, make_admin, register
 
 KEY = b"synthetic-admin-pseudonym-key-12345"
 
@@ -34,13 +34,10 @@ NOW = stamp("2026-10-07T12:00:00")
 FILTER = {"from": "2026-10-05", "to": "2026-10-06"}
 
 
-def admin(client, app):
-    account = register(client, "admin_" + uuid.uuid4().hex)
-    with app.state.sessions() as db:
-        user = db.get(User, account["id"])
-        user.role, user.is_test = "admin", True
-        db.commit()
-    return account
+@pytest.fixture
+def client(admin_client):
+    """These tests use the signed-in administrator on the private network."""
+    return admin_client
 
 
 def seed(sessions, *, source=None):
@@ -105,7 +102,6 @@ def seed(sessions, *, source=None):
 
 @pytest.fixture
 def populated(app, client, monkeypatch):
-    admin(client, app)
     ids = seed(app.state.sessions)
     original = aggregate
     monkeypatch.setattr("app.routes.admin.aggregate", lambda *args, **kwargs: original(*args, **kwargs, now=NOW))
@@ -113,7 +109,7 @@ def populated(app, client, monkeypatch):
 
 
 def test_controlled_aggregate_with_two_channels_duplicate_test_and_pending(app, client, populated):
-    response = client.get("/api/admin/summary", params=FILTER)
+    response = client.get("/admin-api/v1/summary", params=FILTER)
     assert response.status_code == 200, response.text
     result = response.json()
     reference = json.loads(Path("docs/fixtures/admin-summary.json").read_text())
@@ -139,7 +135,7 @@ def test_controlled_aggregate_with_two_channels_duplicate_test_and_pending(app, 
     assert costs["unknown_usage_calls"] == 1 and costs["llm_calls"] == 2
     assert costs["llm_cost"] is None and costs["known_llm_cost"] == "0.25000000"
     assert costs["input_tokens"] is None and costs["llm_cost_per_dau"] is None
-    extended = client.get("/api/admin/summary", params={**FILTER, "to": "2026-10-07"}).json()
+    extended = client.get("/admin-api/v1/summary", params={**FILTER, "to": "2026-10-07"}).json()
     assert extended["cards"]["activation_pending"] == 1
     assert extended["cards"]["ai_activation"]["denominator"] == 2
     assert extended["daily"][-1]["dau"] == 0
@@ -149,20 +145,20 @@ def test_controlled_aggregate_with_two_channels_duplicate_test_and_pending(app, 
 
 
 def test_source_channel_and_usage_pagination_share_slice_and_preserve_pseudonyms(client, populated):
-    all_result = client.get("/api/admin/summary", params=FILTER).json()
-    web = client.get("/api/admin/summary", params={**FILTER, "channel": "web"}).json()
-    telegram = client.get("/api/admin/summary", params={**FILTER, "channel": "telegram"}).json()
+    all_result = client.get("/admin-api/v1/summary", params=FILTER).json()
+    web = client.get("/admin-api/v1/summary", params={**FILTER, "channel": "web"}).json()
+    telegram = client.get("/admin-api/v1/summary", params={**FILTER, "channel": "telegram"}).json()
     assert all_result["cards"]["unique_users"] == 2
     assert web["cards"]["unique_users"] + telegram["cards"]["unique_users"] == 3
     assert web["cards"]["ai_activation"]["numerator"] == telegram["cards"]["ai_activation"]["numerator"] == 0
     assert telegram["cards"]["manual_activation"]["denominator"] == 1
     assert telegram["quality"]["costs"]["llm_cost"] == "0.25000000"
     assert telegram["quality"]["costs"]["llm_cost_per_dau"] == "0.25000000"
-    organic = client.get("/api/admin/summary", params={**FILTER, "source": "organic"}).json()
+    organic = client.get("/admin-api/v1/summary", params={**FILTER, "source": "organic"}).json()
     assert organic["cards"]["manual_activation"]["value"] == 100.0
     assert organic["cards"]["ai_activation"]["denominator"] == 1 and organic["usage"] == []
-    first = client.get("/api/admin/summary", params={**FILTER, "usage_limit": 1})
-    second = client.get("/api/admin/summary", params={**FILTER, "usage_limit": 1, "usage_offset": 1})
+    first = client.get("/admin-api/v1/summary", params={**FILTER, "usage_limit": 1})
+    second = client.get("/admin-api/v1/summary", params={**FILTER, "usage_limit": 1, "usage_offset": 1})
     assert first.headers["X-Next-Usage-Offset"] == "1"
     assert "X-Next-Usage-Offset" not in second.headers
     a, b = first.json(), second.json()
@@ -175,8 +171,8 @@ def test_source_channel_and_usage_pagination_share_slice_and_preserve_pseudonyms
 
 
 def test_json_csv_same_aggregates_and_formula_guard(client, populated):
-    summary = client.get("/api/admin/summary", params=FILTER)
-    response = client.get("/api/admin/export", params=FILTER)
+    summary = client.get("/admin-api/v1/summary", params=FILTER)
+    response = client.get("/admin-api/v1/export", params=FILTER)
     assert summary.headers["cache-control"] == response.headers["cache-control"] == "no-store"
     assert response.status_code == 200 and response.headers["content-type"].startswith("text/csv")
     rows = list(csv.DictReader(io.StringIO(response.text)))
@@ -196,7 +192,7 @@ def test_json_csv_same_aggregates_and_formula_guard(client, populated):
         for row in data[section]:
             verify(section, row[label], {key: value for key, value in row.items() if key != label})
     assert all(row["section"] != "usage" for row in rows)
-    attack = client.get("/api/admin/export", params={**FILTER, "source": " =HYPERLINK(1)"})
+    attack = client.get("/admin-api/v1/export", params={**FILTER, "source": " =HYPERLINK(1)"})
     assert "' =HYPERLINK(1)" in attack.text
     assert "user_pseudonym" not in response.text
 
@@ -207,20 +203,15 @@ def test_csv_formula_prefixes(value):
     assert safe_cell(None) == "" and safe_cell(0) == 0
 
 
-@pytest.mark.parametrize("path", ["/api/admin/summary", "/api/admin/export", "/admin", "/static/admin.js"])
-def test_admin_requires_live_server_role(client, app, path):
-    response = client.get(path, params=FILTER)
+@pytest.mark.parametrize("path", ["/admin-api/v1/summary", "/admin-api/v1/export", "/admin-api/v1/export.zip"])
+def test_metrics_need_an_administrator_session_and_ignore_user_roles(app, private_client, path):
+    response = private_client.get(path, params=FILTER)
     assert response.status_code == 401 and response.headers["cache-control"] == "no-store"
-    account = register(client)
-    assert client.get(path, params=FILTER).status_code == 403
+    account = register(private_client)
     with app.state.sessions() as db:
-        db.get(User, account["id"]).role = "admin"
+        db.get(User, account["id"]).role = "admin"  # Legacy value: it grants nothing any more.
         db.commit()
-    assert client.get(path, params=FILTER).status_code in {200, 404, 503}
-    with app.state.sessions() as db:
-        db.get(User, account["id"]).role = "user"
-        db.commit()
-    assert client.get(path, params=FILTER).status_code == 403
+    assert private_client.get(path, params=FILTER).status_code == 401
 
 
 @pytest.mark.parametrize("change", [
@@ -229,14 +220,14 @@ def test_admin_requires_live_server_role(client, app, path):
     {"usage_limit": 0}, {"usage_limit": 101}, {"usage_offset": -1},
 ])
 def test_invalid_filters_fail_without_fabricated_zeroes(client, populated, change):
-    response = client.get("/api/admin/summary", params={**FILTER, **change})
+    response = client.get("/admin-api/v1/summary", params={**FILTER, **change})
     assert response.status_code == 422
     assert "cards" not in response.json()
     assert response.headers["cache-control"] == "no-store"
 
 
 def test_empty_slice_is_valid_zero_dau_and_null_percentages(client, populated):
-    result = client.get("/api/admin/summary", params={"from": "2026-10-01", "to": "2026-10-04"}).json()
+    result = client.get("/admin-api/v1/summary", params={"from": "2026-10-01", "to": "2026-10-04"}).json()
     assert len(result["daily"]) == 4 and all(row["dau"] == 0 for row in result["daily"])
     assert result["cards"]["ai_activation"]["value"] is None
     assert result["quality"]["processing_p95_ms"] is None
@@ -251,7 +242,7 @@ def test_d7_matured_calendar_cohort_and_background_not_activity(app, client, pop
         db.commit()
     original = aggregate
     monkeypatch.setattr("app.routes.admin.aggregate", lambda *args, **kwargs: original(*args, **kwargs, now=stamp("2026-10-14T00:00:00")))
-    result = client.get("/api/admin/summary", params=FILTER).json()
+    result = client.get("/admin-api/v1/summary", params=FILTER).json()
     assert result["retention"]["d7"] == {"numerator": 1, "denominator": 2, "value": 50.0}
     assert result["retention"]["pending_d7"] == 0
 
@@ -261,7 +252,7 @@ def test_legacy_success_without_receipt_remains_unknown_and_midnight_call_not_du
         receipt = db.scalar(select(ProviderUsage).where(ProviderUsage.operation_id == populated["job"]))
         db.delete(receipt)
         db.commit()
-    result = client.get("/api/admin/summary", params=FILTER).json()
+    result = client.get("/admin-api/v1/summary", params=FILTER).json()
     assert result["quality"]["costs"]["unknown_usage_calls"] == 2
     assert result["quality"]["costs"]["llm_calls"] == 2
     assert any(row["model"] == "legacy-untracked" for row in result["usage"])
@@ -270,7 +261,7 @@ def test_legacy_success_without_receipt_remains_unknown_and_midnight_call_not_du
                              kind="llm", channel="telegram", model="mock", status="succeeded",
                              occurred_at=stamp("2026-10-04T23:59:59")))
         db.commit()
-    result = client.get("/api/admin/summary", params=FILTER).json()
+    result = client.get("/admin-api/v1/summary", params=FILTER).json()
     assert result["quality"]["costs"]["llm_calls"] == 1
 
 
@@ -284,9 +275,9 @@ def test_delivery_attempt_outcome_snapshot_survives_late_result_and_period_bound
         ]:
             record_event(db, populated["ai"], name, operation, "telegram", occurred_at=stamp(at), outcome=outcome)
         db.commit()
-    result = client.get("/api/admin/summary", params=FILTER).json()["quality"]
+    result = client.get("/admin-api/v1/summary", params=FILTER).json()["quality"]
     assert (result["reminder_sent"], result["reminder_unknown"], result["reminder_blocked"], result["reminder_failed"]) == (1, 0, 1, 1)
-    day1 = client.get("/api/admin/summary", params={**FILTER, "to": "2026-10-05"}).json()["quality"]
+    day1 = client.get("/admin-api/v1/summary", params={**FILTER, "to": "2026-10-05"}).json()["quality"]
     assert day1["reminder_unknown"] == 1 and day1["reminder_sent"] == 0
 
 
@@ -298,19 +289,20 @@ def test_postgres_admin_snapshot_and_shared_contract(monkeypatch):
     monkeypatch.setenv("NOTES_PROVIDER", "mock")
     command.upgrade(Config("alembic.ini"), "head")
     command.check(Config("alembic.ini"))
-    app = create_app(Settings(database_url=url, auto_worker=False))
+    app = create_app(Settings(database_url=url, auto_worker=False, admin_cookie_secure=False))
     try:
-        with TestClient(app) as client:
-            admin(client, app)
+        with TestClient(app, client=ADMIN_ADDRESS) as client:
+            username = "pg_" + uuid.uuid4().hex[:12]
+            assert admin_login(app, client, make_admin(app, username), username).status_code == 200
             source = "pg_admin_" + uuid.uuid4().hex
             ids = seed(app.state.sessions, source=source)
             original = aggregate
             monkeypatch.setattr("app.routes.admin.aggregate", lambda *args, **kwargs: original(*args, **kwargs, now=NOW))
-            response = client.get("/api/admin/summary", params={**FILTER, "source": source})
+            response = client.get("/admin-api/v1/summary", params={**FILTER, "source": source})
             assert response.status_code == 200, response.text
             assert response.json()["cards"]["unique_users"] == 2
             assert response.json()["cards"]["ai_activation"]["value"] == 50.0
-            csv_response = client.get("/api/admin/export", params={**FILTER, "source": source})
+            csv_response = client.get("/admin-api/v1/export", params={**FILTER, "source": source})
             assert csv_response.status_code == 200 and "0.25000000" in csv_response.text
             fired = []
 
@@ -325,12 +317,12 @@ def test_postgres_admin_snapshot_and_shared_contract(monkeypatch):
 
             event.listen(app.state.engine, "after_cursor_execute", concurrent_write)
             try:
-                snapshot = client.get("/api/admin/summary", params={**FILTER, "source": source})
+                snapshot = client.get("/admin-api/v1/summary", params={**FILTER, "source": source})
             finally:
                 event.remove(app.state.engine, "after_cursor_execute", concurrent_write)
             assert fired and snapshot.status_code == 200, snapshot.text
             assert snapshot.json()["quality"]["edited_notes"] == 0
-            following = client.get("/api/admin/summary", params={**FILTER, "source": source})
+            following = client.get("/admin-api/v1/summary", params={**FILTER, "source": source})
             assert following.json()["quality"]["edited_notes"] == 1
     finally:
         app.state.engine.dispose()
@@ -356,7 +348,7 @@ def test_different_owned_notes_cannot_be_mixed_into_activation(app, client, popu
         record_event(db, user.id, "note_opened", new_id(), occurred_at=stamp("2026-10-05T12:02:00"), subject_id=notes[1].id)
         record_event(db, user.id, "structure_confirmed", new_id(), occurred_at=stamp("2026-10-05T12:03:00"), subject_id=notes[1].id)
         db.commit()
-    result = client.get("/api/admin/summary", params={**FILTER, "source": "mixed"}).json()
+    result = client.get("/admin-api/v1/summary", params={**FILTER, "source": "mixed"}).json()
     assert result["cards"]["ai_activation"] == {"numerator": 0, "denominator": 1, "value": 0.0}
     assert [row["users"] for row in result["funnel"]] == [1, 1, 0, 0, 0]
 
@@ -367,7 +359,7 @@ def test_stt_minutes_and_estimate_are_separate_from_measured_cost(app, client, p
                              channel="telegram", model="synthetic", status="succeeded", stt_seconds=90.0,
                              estimated_cost=Decimal("1.5"), occurred_at=stamp("2026-10-05T12:00:00")))
         db.commit()
-    result = client.get("/api/admin/summary", params=FILTER).json()
+    result = client.get("/admin-api/v1/summary", params=FILTER).json()
     costs = result["quality"]["costs"]
     assert costs["stt_minutes"] == "1.50000000" and costs["stt_calls"] == 1
     assert costs["stt_cost"] is None and costs["known_stt_cost"] == "0.00000000"
@@ -385,7 +377,7 @@ def test_moscow_midnight_inclusive_dates_and_foreground_session_boundary(app, cl
         db.commit()
         events = list(db.scalars(select(ProductEvent).where(ProductEvent.user_id == populated["ai"], ProductEvent.occurred_at >= stamp("2026-10-06T23:59:59")).order_by(ProductEvent.occurred_at)))
         assert events[0].session_id == events[1].session_id != events[2].session_id
-    result = client.get("/api/admin/summary", params={**FILTER, "from": "2026-10-07", "to": "2026-10-07"}).json()
+    result = client.get("/admin-api/v1/summary", params={**FILTER, "from": "2026-10-07", "to": "2026-10-07"}).json()
     assert result["cards"]["dau"] == result["cards"]["unique_users"] == 1
     assert result["cards"]["returning_users"] == 1 and result["daily"][0]["session_count"] == 3  # Two active sessions and pending user's login.
 
@@ -400,7 +392,7 @@ def test_old_ambiguous_dispatch_cannot_turn_into_known_zero_cost(app, client, po
         db.add(Job(user_id=populated["ai"], capture_id=capture.id, provider="mock", status="failed", error_code=error,
                    created_at=stamp("2026-10-05T12:00:00"), finished_at=stamp("2026-10-05T12:01:00")))
         db.commit()
-    result = client.get("/api/admin/summary", params=FILTER).json()
+    result = client.get("/admin-api/v1/summary", params=FILTER).json()
     costs = result["quality"]["costs"]
     assert costs["unknown_usage_calls"] == 1 + extra_calls
     assert costs["llm_calls"] == 2 + (1 if extra_calls else 0)

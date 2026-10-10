@@ -55,19 +55,24 @@ spec["paths"]["/internal/v1/telegram/updates"]["post"]["responses"]["200"]["cont
     mode: {"value": json.loads(Path(f"docs/fixtures/telegram-save-{mode}.json").read_text())}
     for mode in ("ai", "manual")
 }
-spec["paths"]["/api/admin/summary"]["get"]["responses"]["200"]["content"]["application/json"]["example"] = json.loads(
+spec["paths"]["/admin-api/v1/summary"]["get"]["responses"]["200"]["content"]["application/json"]["example"] = json.loads(
     Path("docs/fixtures/admin-summary.json").read_text()
 )
 for path, operations in spec["paths"].items():
     for method, operation in operations.items():
         if method in {"get", "post", "patch", "delete"}:
             operation["x-implementation-status"] = "implemented" if path in implemented else "contract-only"
-            if path.startswith("/api/admin/"):
-                operation["security"] = [{"BrowserSession": []}]
+            if path.startswith("/admin-api/") and path != "/admin-api/v1/login":
+                operation["security"] = [{"AdminSession": []}]
 spec["components"]["securitySchemes"]["BrowserSession"] = {
     "type": "apiKey",
     "in": "cookie",
     "name": "notes_session",
+}
+spec["components"]["securitySchemes"]["AdminSession"] = {
+    "type": "apiKey",
+    "in": "cookie",
+    "name": "beresta_admin",
 }
 time_resolution = spec["paths"]["/api/v1/reminders/resolve-time"]["post"]
 time_resolution["security"] = [{"BrowserSession": []}]

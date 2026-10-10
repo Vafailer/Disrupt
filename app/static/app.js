@@ -103,6 +103,14 @@ async function api(path, options = {}, withHeaders = false) {
 function showUser(user) {
   csrf = user.csrf_token; $('username').textContent = user.username;
   $('auth').hidden = true; $('account').hidden = false; $('workspace').hidden = false;
+  // Older accounts accept the current privacy policy once. Nothing else is blocked meanwhile.
+  const policy = $('policy-banner'), deletion = $('deletion-banner');
+  if (policy) policy.hidden = user.policy_current !== false;
+  if (deletion) deletion.hidden = user.deletion_requested !== true;
+}
+// Everything the app loads right after a person gets in, by password, by Telegram or from a saved session.
+async function enterApp(user) {
+  showUser(user); await loadProviderUsage(); await loadCategories(); await loadNotes(); await loadJobs(); await openLinkedCapture();
 }
 const LIMIT_SPENT = 'Лимит ИИ на сегодня исчерпан. Запись сохранена без ИИ, разобрать её можно завтра.';
 function setMode(text = '') { $('mode').textContent = text; }
@@ -432,12 +440,21 @@ $('auth-form').onsubmit = async event => {
     authMessage('Пароль должен содержать от 10 до 128 символов.');
     $('password').focus(); return;
   }
+  const body = {username,password};
+  if (action === 'register') {
+    const consent = $('accept-policy');
+    if (!consent.checked) {
+      authMessage('Чтобы создать аккаунт, примите политику конфиденциальности.');
+      consent.focus(); return;
+    }
+    body.accept_policy = true; body.policy_version = consent.dataset.policyVersion;
+  }
   authMessage();
   const buttons = [...event.target.querySelectorAll('button')];
   buttons.forEach(b => b.disabled=true);
   try {
-    const user = await api(`/api/v1/auth/${action}`, {method:'POST',body:JSON.stringify({username,password})});
-    $('password').value=''; showUser(user); await loadProviderUsage(); await loadCategories(); await loadNotes(); await loadJobs(); await openLinkedCapture(); message();
+    const user = await api(`/api/v1/auth/${action}`, {method:'POST',body:JSON.stringify(body)});
+    $('password').value=''; await enterApp(user); message();
   } catch(e) {
     authMessage(e.message);
   } finally { buttons.forEach(b => b.disabled=false); }
@@ -979,7 +996,7 @@ if (!recordingMime()) $('record-status').textContent = 'В этом браузе
     const health = await api('/health');
     setMode(health.simulation
       ? 'Демо без ИИ. Для примера есть готовый ответ, остальные записи просто размечаются.' : '');
-    try { showUser(await api('/api/v1/auth/me')); await loadProviderUsage(); await loadCategories(); await loadNotes(); await loadJobs(); await openLinkedCapture(); }
+    try { await enterApp(await api('/api/v1/auth/me')); }
     catch(e) { if (!e.message.includes('Войдите') && !e.message.includes('Сессия')) message(e.message); }
   } catch(e) { $('mode').textContent='Не удалось связаться с приложением.'; message(e.message); }
 })();

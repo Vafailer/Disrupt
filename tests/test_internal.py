@@ -315,24 +315,6 @@ def test_analytical_session_combines_channels_without_background_extension(servi
         assert len([e for e in events.values() if e.operation_id == "later"]) == 1
 
 
-def test_admin_page_and_static_files_require_server_role(app, client):
-    for path in ("/admin", "/static/admin.html", "/static/admin.js", "/static/admin.css"):
-        assert client.get(path).status_code == 401
-    owner = register(client)
-    for path in ("/admin", "/static/admin.html", "/static/admin.js", "/static/admin.css"):
-        assert client.get(path).status_code == 403
-    with app.state.sessions() as db:
-        db.get(User, owner["id"]).role = "admin"
-        db.commit()
-    assert client.get("/admin").status_code == 200
-    assert client.get("/static/admin.js").status_code == 200
-    assert client.get("/static/admin.css").status_code == 200
-    with app.state.sessions() as db:
-        db.get(User, owner["id"]).role = "user"
-        db.commit()
-    assert client.get("/admin").status_code == 403
-
-
 def test_concurrent_queue_limit_and_manual_bypass(app_factory):
     app = app_factory(internal_api_token=SERVICE_TOKEN, max_pending_per_user=1)
     with TestClient(app) as client:

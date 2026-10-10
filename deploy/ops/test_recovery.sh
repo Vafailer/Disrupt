@@ -101,3 +101,17 @@ for path in /internal/v1/telegram/updates /internal/v1/deliveries/claim; do
   test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "http://127.0.0.1:8000$path")" = 401
   test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' -H 'Host: localhost' "http://127.0.0.1:8088$path")" = 404
 done
+# The admin exists only inside the private network. Prove the routes work directly (the CI compose file
+# allows the Docker gateway), then check that the public Caddy answers 404 for every admin path.
+test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/admin)" = 200
+test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/static/admin.js)" = 200
+test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/admin-api/v1/me)" = 401
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8000/admin-api/v1/login)" = 422
+for path in /admin /admin/ /admin-api /admin-api/v1/me /admin-api/v1/export.zip /admin-api/v1/audit /static/admin.js /static/admin.html /administrator; do
+  test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: localhost' "http://127.0.0.1:8088$path")" = 404
+done
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' -H 'Host: localhost' http://127.0.0.1:8088/admin-api/v1/login)" = 404
+# Even a request that skips Caddy but carries proxy headers is refused by the app.
+test "$(curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 10.77.0.5' http://127.0.0.1:8000/admin)" = 404
+# The public site itself keeps working.
+test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: localhost' http://127.0.0.1:8088/static/styles.css)" = 200

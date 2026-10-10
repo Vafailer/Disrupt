@@ -139,7 +139,10 @@ def test_publish_survives_database_failure(audio_app, monkeypatch):
         monkeypatch.setattr(session_class, "commit", fail)
         assert web(client).status_code == 500
         originals = list(storage.root.glob("*.audio"))
-        assert len(originals) == 1 and originals[0].read_bytes() == wav()
+        assert len(originals) == 1
+        assert originals[0].read_bytes() != wav()  # На диске шифртекст, а читается оригинал.
+        with storage.open_original(originals[0].name) as source:
+            assert source.read() == wav()
         with app.state.sessions() as db:
             assert not db.scalars(select(Capture)).all()
 

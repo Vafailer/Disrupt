@@ -22,12 +22,24 @@ from app.contracts import (
 from app.deliveries import authorize_delivery, claim_deliveries, record_delivery_result
 from app.integration import IntegrationRejection
 from app.limits import telegram_state
-from app.models import Inbox, Item, LinkRequest, Note, Outbox, Reminder, TelegramIdentity, User, new_id
+from app.models import (
+    Inbox,
+    Item,
+    LinkRequest,
+    Note,
+    Outbox,
+    Reminder,
+    TelegramIdentity,
+    TelegramLogin,
+    User,
+    new_id,
+)
 from app.schemas import (
     IntegrationError,
     LinkResponse,
     TelegramCaptureResponse,
     TelegramLink,
+    TelegramLoginConfirm,
     TelegramText,
 )
 from app.security import hash_token, require_internal_service
@@ -196,6 +208,47 @@ def build_router(database, settings):
             return {"link_request_id": link.id, "status": "pending"}
 
         return process_update(db, body, "link", handle)
+
+    # Not in the published OpenAPI contract, like the status poll below. The browser finishes the
+    # sign-in or the deletion request; this call only records who pressed the link in Telegram.
+    @router.post("/telegram/login-confirm", include_in_schema=False)
+    def login_confirm(body: TelegramLoginConfirm, db=Depends(database)):
+        def handle(operation_id):
+            now = time.time()
+            row = db.scalar(select(TelegramLogin).where(TelegramLogin.token_hash == hash_token(body.token)))
+            if row is None:
+                raise IntegrationRejection(409, "invalid_login", "Ссылка входа недействительна")
+            if row.status != "pending":
+                raise IntegrationRejection(409, "login_used", "Эта ссылка уже использована")
+            if row.expires_at <= now:
+                raise IntegrationRejection(409, "login_expired", "Ссылка входа истекла")
+            existing = db.scalar(
+                select(TelegramIdentity).where(
+                    TelegramIdentity.bot_id == body.bot_id,
+                    TelegramIdentity.telegram_user_id == body.telegram_user_id,
+                )
+            )
+            if row.purpose == "delete" and (existing is None or existing.user_id != row.user_id):
+                raise IntegrationRejection(403, "login_forbidden", "Этот Telegram не связан с аккаунтом")
+            changed = db.execute(
+                update(TelegramLogin)
+                .where(
+                    TelegramLogin.id == row.id, TelegramLogin.status == "pending", TelegramLogin.expires_at > now,
+                )
+                .values(
+                    status="confirmed", bot_id=body.bot_id, telegram_user_id=body.telegram_user_id,
+                    chat_id=body.chat_id, telegram_username=body.telegram_username, confirmed_at=now,
+                )
+            ).rowcount
+            if not changed:
+                raise IntegrationRejection(409, "login_used", "Эта ссылка уже использована")
+            return {
+                "status": "confirmed",
+                "purpose": row.purpose,
+                "new_account": existing is None and row.purpose == "login",
+            }
+
+        return process_update(db, body, "login", handle)
 
     # Not in the published OpenAPI contract: a small status poll for the adapter's welcome message.
     @router.get("/telegram/link-requests/{link_request_id}", include_in_schema=False)

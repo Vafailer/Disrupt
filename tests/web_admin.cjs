@@ -7,21 +7,26 @@ const root = path.join(__dirname,'..');
 const fixture = JSON.parse(fs.readFileSync(path.join(root,'docs/fixtures/admin-summary.json'),'utf8'));
 const html = fs.readFileSync(path.join(root,'app/static/admin.html'),'utf8');
 const js = fs.readFileSync(path.join(root,'app/static/admin.js'),'utf8');
+const authJs = fs.readFileSync(path.join(root,'app/static/admin.auth.js'),'utf8');
 const dom = new JSDOM(html,{url:'https://beresta.invalid/admin',runScripts:'outside-only'});
 const w = dom.window, $ = id => w.document.getElementById(id), calls = [], downloads = [];
 w.Date = class extends Date {constructor(...args){super(...(args.length ? args : ['2026-10-07T09:00:00Z']));}};
 w.URL.createObjectURL = blob => {downloads.push(blob);return 'blob:synthetic';};
 w.URL.revokeObjectURL = () => {};
 w.HTMLAnchorElement.prototype.click = function(){ downloads.push(this.download); };
-let nextResponse = null;
+let nextResponse = null, signedIn = true;
+const me = {username:'owner',csrf_token:'csrf-1'};
 function reply(data=fixture,status=200,headers={}) {
   return {ok:status>=200&&status<300,status,headers:new Headers(headers),json:async()=>structuredClone(data),blob:async()=>new Blob(['synthetic CSV'])};
 }
 w.fetch = async (input,options) => {
-  const url = new URL(input,w.location.href);calls.push({url,options});
+  const url = new URL(input,w.location.href);
   assert.equal(url.origin,'https://beresta.invalid');
   assert.equal(options.credentials,'same-origin');assert.equal(options.cache,'no-store');
-  assert.ok(['/api/admin/summary','/api/admin/export'].includes(url.pathname));
+  if (url.pathname === '/admin-api/v1/me') return signedIn ? reply(me) : reply(null,401);
+  if (url.pathname === '/admin-api/v1/login') {signedIn = true;return reply(me);}
+  calls.push({url,options});
+  assert.ok(['/admin-api/v1/summary','/admin-api/v1/export'].includes(url.pathname));
   if (nextResponse) {const fn=nextResponse;nextResponse=null;return fn(url);}
   if (url.pathname.endsWith('/export')) return reply(null,200,{'Content-Type':'text/csv; charset=utf-8'});
   const offset = Number(url.searchParams.get('usage_offset'));
@@ -31,7 +36,8 @@ const tick = () => new Promise(resolve=>setImmediate(resolve));
 async function settled(){for(let i=0;i<8;i++)await tick();}
 async function reload(fn){if(fn)nextResponse=fn;$('filters').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await settled();}
 (async()=>{
-  w.eval(js);await settled();
+  w.eval(authJs);w.eval(js);await settled();
+  assert.equal($('login-view').hidden,true);assert.equal($('admin-app').hidden,false);
   assert.equal($('dashboard').hidden,false);
   assert.equal($('to').value,'2026-10-06');
   assert.equal(calls[0].url.searchParams.get('usage_limit'),'50');
@@ -48,7 +54,7 @@ async function reload(fn){if(fn)nextResponse=fn;$('filters').dispatchEvent(new w
   $('previous').click();await settled();
   assert.equal(calls.at(-1).url.searchParams.get('usage_offset'),'0');
   $('export').click();await settled();
-  assert.equal(calls.at(-1).url.pathname,'/api/admin/export');
+  assert.equal(calls.at(-1).url.pathname,'/admin-api/v1/export');
   assert.equal(calls.at(-1).url.searchParams.has('usage_offset'),false);
   assert.ok(downloads.includes('beresta-2026-09-30-2026-10-06.csv'));
 
@@ -62,8 +68,15 @@ async function reload(fn){if(fn)nextResponse=fn;$('filters').dispatchEvent(new w
     assert.equal($('dashboard').hidden,true);
     assert.equal($('usage').textContent,'');
     assert.equal($('export').disabled,true);
-    assert.equal($('login').hidden,code!==401);
-    if(code===404)assert.match($('status').textContent,/ещё не подключён/);
+    // Only an expired session sends the page back to the sign-in form.
+    assert.equal($('login-view').hidden,code!==401);assert.equal($('admin-app').hidden,code===401);
+    if(code===404)assert.match($('status').textContent,/недоступен/);
+    if(code===401){
+      assert.match($('login-message').textContent,/Сессия завершилась/);
+      $('admin-username').value='owner';$('admin-password').value='synthetic-password';$('admin-code').value='123456';
+      $('login-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await settled();
+      assert.equal($('admin-app').hidden,false);assert.equal($('admin-password').value,'');
+    }
   }
   await reload(()=>reply({...fixture,cards:{...fixture.cards,dau:null}}));
   assert.equal($('dashboard').hidden,true);
@@ -91,8 +104,10 @@ async function reload(fn){if(fn)nextResponse=fn;$('filters').dispatchEvent(new w
   assert.match($('cards').textContent,/текущего дня · предварительно/);
   nextResponse=()=>reply(null,403);$('export').click();await settled();
   assert.equal($('dashboard').hidden,true);assert.equal($('export').disabled,true);
+  assert.equal($('admin-app').hidden,false);
   assert.equal(w.localStorage.length,0);
   await require('./web_feedback_admin.cjs')();
+  await require('./web_admin_session.cjs')();
   dom.window.close();
   console.log('Admin DOM checks passed: filters, null/zero, cohorts, pagination, CSV, role failures, XSS, stale responses.');
 })().catch(error=>{console.error(error);dom.window.close();process.exitCode=1;});
