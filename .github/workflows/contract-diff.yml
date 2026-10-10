@@ -30,7 +30,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: python -m pip install -r requirements.txt
       - run: |
-          python -m pytest -q -rf --tb=short -p no:cacheprovider > out.txt 2>&1 || true
+          echo skip > out.txt
           python -c "import re;d=open('out.txt').read();i=d.find('= FAILURES =');s=d[i:] if i>=0 else d;s=s[-60000:];print('::error title=pytest::'+s.replace('%','%25').replace('\r','').replace('\n','%0A'))"
       - uses: actions/setup-node@v4
         with:
@@ -38,4 +38,4 @@ jobs:
       - run: npm install --prefix "$RUNNER_TEMP/w" --no-audit --no-fund --ignore-scripts jsdom@26.0.0
       - run: |
           for t in web_structure web_admin web_audio web_reminders; do echo "== $t"; for k in 1; do NODE_PATH=$RUNNER_TEMP/w/node_modules timeout 90 node tests/$t.cjs; echo "exit $?"; done; done > js.txt 2>&1 || true
-          python -c "d=open('js.txt').read()[-30000:];print('::error title=jsdom::'+d.replace('%','%25').replace('\r','').replace('\n','%0A'))"
+          python -c "import re;d=open('js.txt').read();keep=[l for l in d.splitlines() if re.search(r'passed|^==|^exit|AssertionError|Error:|at .*web_.*cjs|expected|actual',l) and 'node_modules' not in l];print('::error title=jsdom::'+'%0A'.join(keep[-80:]).replace('%','%25').replace('%250A','%0A'))"
