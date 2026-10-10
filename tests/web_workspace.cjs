@@ -21,13 +21,13 @@ module.exports=async()=>{
  };
  async function settled(){for(let i=0;i<25;i++)await new Promise(resolve=>setImmediate(resolve));}
  try{
-  w.eval(fs.readFileSync(path.join(root,'app.js'),'utf8')+'\n'+fs.readFileSync(path.join(root,'workspace.js'),'utf8'));await settled();
+  w.eval(fs.readFileSync(path.join(root,'app.js'),'utf8')+'\n'+fs.readFileSync(path.join(root,'workspace.js'),'utf8')+'\n'+fs.readFileSync(path.join(root,'focus.js'),'utf8'));await settled();
   assert.equal($('workspace').hidden,false);assert.equal($('category-navigation').children.length,3);
   $('category-navigation').lastChild.click();await settled();assert.equal($('library-title').textContent,'Research');
   $('notes').querySelector('button').click();await settled();
-  assert.equal($('note-heading-title').textContent,'Synthetic note');assert.equal($('view-tasks').hidden,false);assert.equal($('view-reminders').hidden,false);assert.equal($('markdown').hidden,true);assert.equal(w.document.querySelector('#note-card [data-note-view]'),null);
-  $('note-edit-start').click();assert.equal($('markdown').hidden,false);assert.equal($('preview').hidden,true);$('markdown').value='Unsaved';
-  w.document.querySelector('[data-note-panel=original]').click();await settled();assert.equal($('original-details').open,true);assert.equal($('view-original').hidden,false);assert.equal($('markdown').value,'Unsaved');assert.equal($('markdown').hidden,false);
+  assert.equal($('note-heading-title').textContent,'Synthetic note');assert.equal($('view-tasks').hidden,false);assert.equal($('view-reminders').hidden,false);assert.equal($('markdown').hidden,false);assert.equal(w.document.querySelector('#note-card [data-note-view]'),null);
+  assert.equal($('preview').hidden,true);$('markdown').value='Unsaved';
+  $('tool-original').click();await settled();assert.equal($('original-details').open,true);assert.equal($('pop-original').hidden,false);assert.equal($('markdown').value,'Unsaved');assert.equal($('markdown').hidden,false);
   $('mobile-library-toggle').click();assert.equal($('mobile-library-toggle').getAttribute('aria-expanded'),'true');
   $('mobile-library-toggle').click();assert.equal($('workspace').classList.contains('library-open'),false);
   $('open-feedback').click();assert.equal($('feedback-dialog').open,true);
@@ -37,6 +37,6 @@ module.exports=async()=>{
   assert.equal(posts[0].headers['Idempotency-Key'],posts[1].headers['Idempotency-Key']);assert.equal(posts[0].headers['X-CSRF-Token'],'csrf');assert.equal($('feedback-description').value,'');
   assert.equal($('markdown').value,'Unsaved');
   $('feedback-description').value='Private draft';$('workspace').hidden=true;await settled();assert.equal($('feedback-description').value,'');assert.equal($('feedback-dialog').open,false);
-  console.log('Workspace checks passed: categories, inline edit, original panel, preserved drafts, feedback lost-response replay.');
+  console.log('Workspace checks passed: categories, typing field, original popover, preserved drafts, feedback lost-response replay.');
  }finally{await new Promise(resolve=>w.setTimeout(resolve,10));dom.window.close();}
 };
