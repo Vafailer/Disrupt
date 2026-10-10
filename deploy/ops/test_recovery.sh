@@ -4,11 +4,19 @@ set -euo pipefail
 umask 077
 work=$(mktemp -d)
 export APP_DOMAIN=http://localhost
+export BERESTA_RECOVERY_TEST_KEY="$work/data_key"
+python -c 'import base64,os; print(base64.b64encode(os.urandom(32)).decode())' > "$BERESTA_RECOVERY_TEST_KEY"
+# The containing directory is private; the disposable non-root container reads this synthetic key.
+chmod 444 "$BERESTA_RECOVERY_TEST_KEY"
 cat > "$work/telegram-fixture.yaml" <<'YAML'
 services:
   api:
     environment:
       NOTES_INTERNAL_API_TOKEN: synthetic-ci-internal-token-not-for-deployment
+      NOTES_DATA_ENCRYPTION: required
+      NOTES_DATA_KEY_FILE: /run/secrets/data_key
+    volumes:
+      - "${BERESTA_RECOVERY_TEST_KEY}:/run/secrets/data_key:ro"
   telegram:
     image: postgres:17
     network_mode: none
@@ -51,6 +59,8 @@ with Session(engine) as session:
                         audio_bytes=len(data), audio_seconds=1, audio_media_type='audio/ogg', created_at=time.time()))
     session.commit()
 PY
+docker compose -p beresta-ops-ci -f compose.yaml -f "$work/telegram-fixture.yaml" exec -T api python -m app.data_crypto encrypt-existing
+verifier_image=$(docker inspect --format '{{.Image}}' "$(docker compose -p beresta-ops-ci -f compose.yaml -f "$work/telegram-fixture.yaml" ps -q api)")
 backup_bot_args=(--telegram)
 monitor_bot_args=(--telegram)
 if [ -n "${REMOTE_BOT_CONTEXT:-}" ]; then
@@ -75,7 +85,8 @@ done
 python deploy/ops/beresta_ops.py monitor --project beresta-ops-ci --compose compose.yaml \
   --compose "$work/telegram-fixture.yaml" "${monitor_bot_args[@]}" --backup-dir "$work/backups"
 python deploy/ops/beresta_ops.py restore --project beresta-restore-ci \
-  --bundle "$work/backups/$bundle" --identity "$work/identity" --work-dir "$work/recovery"
+  --bundle "$work/backups/$bundle" --identity "$work/identity" --work-dir "$work/recovery" \
+  --data-key-file "$BERESTA_RECOVERY_TEST_KEY" --audio-verifier-image "$verifier_image"
 test "$(docker compose -p beresta-restore-ci -f deploy/ops/restore.compose.yaml run --rm --no-deps -T --entrypoint cat files /state/offset)" = 42
 test "$(docker compose -p beresta-restore-ci -f deploy/ops/restore.compose.yaml run --rm --no-deps -T --entrypoint cat files /state/delivery.json)" = synthetic-journal
 if [ -n "${REMOTE_BOT_CONTEXT:-}" ]; then

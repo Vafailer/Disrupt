@@ -236,8 +236,8 @@
           <pre id="source-original" hidden=""></pre>
           <div id="transcript-editor" hidden="">
             <p id="transcript-label" class="muted"></p>
-            <p class="muted">Расшифровка может содержать ошибки. Сохранение правок не запускает ИИ и не меняет готовую заметку.</p>
-            <form id="transcript-form"><label for="transcript-text">Расшифровка</label><textarea id="transcript-text" rows="7" maxlength="12000" required=""></textarea><button id="transcript-save" type="submit">Сохранить расшифровку</button></form>
+            <p class="muted">Проверьте текст и сохраните правки. Чтобы обработать его, создайте новую заметку из расшифровки. Оригинальное аудио и готовая заметка сохранятся.</p>
+            <form id="transcript-form"><label for="transcript-text">Расшифровка</label><textarea id="transcript-text" rows="7" maxlength="12000" required=""></textarea><div class="actions"><button id="transcript-save" type="submit">Сохранить расшифровку</button><button id="transcript-create-note" type="button" class="secondary">Создать заметку из расшифровки</button></div><p id="transcript-message" role="status" aria-live="polite"></p></form>
             <div id="transcript-conflict" hidden=""><p>В другой вкладке сохранена новая версия. Сравните её с вашим текстом.</p><button id="transcript-compare" type="button" class="quiet">Показать текущую версию</button><pre id="transcript-remote" hidden=""></pre><button id="transcript-use-version" type="button" class="secondary" hidden="">Продолжить правку с этой версии</button></div>
             <details><summary>История расшифровки</summary><button id="transcript-history-load" type="button" class="quiet">Показать версии</button><div id="transcript-history"></div></details>
           </div>

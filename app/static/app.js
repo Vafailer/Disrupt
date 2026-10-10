@@ -29,6 +29,7 @@ const errors = {
   provider_auth:'Нет доступа к модели. Проверьте настройки сервера.',
   provider_model_not_found:'Модель не найдена. Проверьте её название и доступ команды.',
   provider_invalid_response:'ИИ ответил, но формат результата не удалось принять. Исходник сохранён.',
+  ungrounded_quote:'ИИ вернул неточную цитату. Исходник сохранён. Можно проверить текст и отправить его как новую запись.',
   provider_rate_limit:'Cloud.ru ограничил запросы. Повтора не было.',
   provider_unavailable:'Cloud.ru сейчас недоступен. Запись сохранена, повтора не было.',
   provider_conflict:'Cloud.ru отклонил запрос. Повтора не было.',
@@ -883,8 +884,11 @@ function setTranscriptControls() {
     (currentCapture.note_id || ['failed','succeeded'].includes(currentCapture.job?.status));
   $('transcript-text').disabled = noteBusy || !editable;
   $('transcript-save').disabled = noteBusy || !editable;
+  $('transcript-create-note').disabled = noteBusy || !editable;
 }
+function transcriptMessage(text = '') { $('transcript-message').textContent = text; message(text); }
 function renderSource(capture) {
+  $('transcript-message').textContent = '';
   comparisonCapture = null; $('transcript-conflict').hidden = true;
   $('transcript-remote').hidden = true; $('transcript-use-version').hidden = true;
   currentCapture = capture; $('source-card').hidden = false;
@@ -928,12 +932,11 @@ $('source-refresh').onclick = () => {
   if (hasDrafts()) return message('Сначала сохраните правки.');
   if (currentCapture) openCapture(currentCapture.capture_id).catch(e => message(e.message));
 };
-$('transcript-form').onsubmit = async event => {
-  event.preventDefault();
+async function saveTranscript() {
   if (noteBusy || currentCapture?.input_kind !== 'audio' || $('transcript-save').disabled) return;
-  if (hasDrafts('transcript')) return message('Сначала сохраните остальные правки.');
+  if (hasDrafts('transcript')) return transcriptMessage('Сначала сохраните остальные правки.');
   const text = $('transcript-text').value;
-  if (!text.trim() || text.includes('\0')) return message('Расшифровка не должна быть пустой.');
+  if (!text.trim() || text.includes('\0')) return transcriptMessage('Расшифровка не должна быть пустой.');
   const id = currentCapture.capture_id, generation = viewGeneration;
   setNoteBusy(true);
   try {
@@ -945,12 +948,36 @@ $('transcript-form').onsubmit = async event => {
     if (currentNote?.capture_id === id) Object.assign(currentNote,{
       transcript:capture.transcript,transcript_version:capture.transcript_version,transcript_origin:capture.transcript_origin,
     });
-    message('Расшифровка сохранена.');
+    transcriptMessage('Расшифровка сохранена. Для обработки нажмите «Создать заметку из расшифровки».');
+    return capture;
   } catch(e) {
     if (e.status === 409 && generation === viewGeneration && currentCapture?.capture_id === id) $('transcript-conflict').hidden = false;
-    message(e.message);
+    transcriptMessage(e.message);
   }
   finally { setNoteBusy(false); }
+}
+$('transcript-form').onsubmit = async event => { event.preventDefault(); await saveTranscript(); };
+$('transcript-create-note').onclick = async () => {
+  if (noteBusy || $('transcript-create-note').disabled) return;
+  if (captureBusy || recorder || microphonePending || pendingCapture || pendingAudio) {
+    return transcriptMessage('Сначала завершите текущую запись или проверьте её сохранение.');
+  }
+  if (hasDrafts('transcript')) return transcriptMessage('Сначала сохраните остальные правки.');
+  const draft = $('thought').value, text = $('transcript-text').value;
+  if (draft.trim() && draft !== text && !confirm('В форме новой записи есть текст. Заменить его расшифровкой?')) return;
+  const capture = await saveTranscript();
+  if (!capture) return;
+  if ($('thought').value !== draft) return transcriptMessage('Расшифровка сохранена. Текст новой записи изменился, поэтому он сохранён в форме.');
+  $('new-note').click();
+  if ($('capture-card').hidden) return;
+  $('thought').value = capture.transcript;
+  $('processing-mode').value = $('processing-mode').querySelector('option[value="ai"]').disabled ? 'manual' : 'ai';
+  $('capture-form').hidden = false;
+  window.BerestaFocus?.closeAll();
+  if ($('ai-switch')) $('ai-switch').checked = $('processing-mode').value === 'ai';
+  $('thought').dispatchEvent(new Event('input',{bubbles:true}));
+  message('Расшифровка готова к созданию новой заметки. Выберите обработку и нажмите «Сохранить».');
+  $('thought').focus(); $('capture-card').scrollIntoView?.({block:'start'});
 };
 $('transcript-compare').onclick = async () => {
   if (!currentCapture || noteBusy) return;

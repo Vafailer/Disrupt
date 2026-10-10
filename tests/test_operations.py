@@ -9,6 +9,27 @@ from types import SimpleNamespace
 
 import pytest
 
+
+def test_encrypted_audio_verifier_uses_real_stdin_and_offline_container(tmp_path, monkeypatch):
+    key = tmp_path / "synthetic-data-key"
+    key.write_text("synthetic-not-a-real-key")
+    rows = [["00000000-0000-0000-0000-000000000001.audio", "a" * 64]]
+
+    def check_run(command, *, source):
+        assert source.fileno() >= 0
+        assert json.load(source) == rows
+        assert command[command.index("--network") + 1] == "none"
+        assert "--read-only" in command and "ALL" in command
+        assert command[-2:] == ["-m", "app.recovery_verify"]
+        assert "synthetic-not-a-real-key" not in " ".join(command)
+        assert not any("cloudru" in argument or "telegram" in argument for argument in command)
+        return SimpleNamespace(stdout=b'{"audio_verified":1}')
+
+    monkeypatch.setattr(ops, "run", check_run)
+    ops.verify_encrypted_audio(SimpleNamespace(
+        project="beresta-restore-verifier", data_key_file=str(key), audio_verifier_image="synthetic-image",
+    ), rows)
+
 spec = importlib.util.spec_from_file_location("beresta_ops", Path(__file__).parents[1] / "deploy/ops/beresta_ops.py")
 ops = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ops)

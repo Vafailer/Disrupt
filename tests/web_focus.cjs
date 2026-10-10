@@ -100,6 +100,24 @@ async function autosaveDebounce() {
   } finally { await closeWindow(t); }
 }
 
+async function idleFlushDoesNotLockAutosave() {
+  const t = boot(); const {w, $, state, wait, type} = t;
+  try {
+    await openFirst(t);
+    assert.equal(await w.BerestaFocus.flush(), true);
+    assert.equal(state.patches.length, 0, 'An unchanged note should not be patched');
+    type($('markdown'), 'После пустой проверки');
+    await wait(60); await settled();
+    assert.equal(state.patches.length, 1, 'An idle flush must not block the next autosave');
+    assert.equal(state.note.markdown, 'После пустой проверки');
+    assert.equal(await w.BerestaFocus.flush(), true);
+    type($('title'), 'После сохранения');
+    await wait(60); await settled();
+    assert.equal(state.patches.length, 2);
+    assert.equal(state.patches[1].version, 4);
+  } finally { await closeWindow(t); }
+}
+
 async function overlappingSaves() {
   const t = boot(); const {$, state, wait, until, type} = t;
   try {
@@ -347,6 +365,7 @@ async function noFooter() {
 }
 
 module.exports = async () => {
+  await idleFlushDoesNotLockAutosave();
   await autosaveDebounce();
   await overlappingSaves();
   await conflictKeepsText();
