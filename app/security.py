@@ -10,7 +10,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from app.models import LoginSession, LoginThrottle, User
+from app.models import LoginSession, LoginThrottle
 
 COOKIE_NAME = "notes_session"
 SERVICE_BEARER = HTTPBearer(auto_error=False, scheme_name="InternalServiceToken")
@@ -28,13 +28,6 @@ def require_internal_service(
         or not hmac.compare_digest(credentials.credentials.encode(), expected.encode())
     ):
         raise HTTPException(401, "Недопустимый сервисный секрет", headers={"WWW-Authenticate": "Bearer"})
-
-
-def require_admin(request, db):
-    session = get_login_session(request, db)
-    if db.get(User, session.user_id).role != "admin":
-        raise HTTPException(403, "Требуется роль admin")
-    return session
 
 
 def hash_token(value: str) -> str:
