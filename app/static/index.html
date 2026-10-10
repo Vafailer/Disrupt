@@ -127,25 +127,41 @@
 </div>
 </form>
 <section id="view-tasks" class="note-section"><h2>Задачи и идеи</h2><div id="items"></div><form id="item-form"><label for="item-kind" class="sr-only">Тип нового элемента</label><select id="item-kind"><option value="task">Задача</option><option value="idea">Идея</option><option value="note">Заметка</option><option value="goal">Цель</option><option value="plan">План</option></select><label for="item-text" class="sr-only">Текст</label><textarea id="item-text" rows="2" placeholder="Добавить задачу или идею" maxlength="1500" required=""></textarea><button type="submit" class="secondary">Добавить элемент</button></form></section><section id="view-reminders" class="note-section"><section id="reminders-panel" aria-labelledby="reminders-heading">
-            <h2 id="reminders-heading">Напоминания</h2>
+            <div class="reminders-head"><h2 id="reminders-heading">Напоминания</h2><button id="reminders-refresh" type="button" class="quiet reminder-small" aria-label="Обновить статусы" title="Обновить статусы">Обновить</button></div>
             <p class="muted">Напоминание придёт в Telegram. Время и текст подтверждаете вы.</p>
             <p id="reminder-telegram" class="muted" aria-live="polite"></p>
             <fieldset id="reminder-controls">
-              <div class="actions"><button id="reminder-new" type="button" class="secondary">Добавить напоминание</button><button id="reminders-refresh" type="button" class="quiet">Обновить статусы</button><button id="reminder-link" type="button" class="quiet">Подключить Telegram</button></div>
+              <div class="actions"><button id="reminder-new" type="button" class="secondary">Добавить напоминание</button><button id="reminder-link" type="button" class="quiet" hidden="">Подключить Telegram</button></div>
               <p id="reminders-message" role="status" aria-live="polite"></p><div id="reminders-list"></div><button id="reminders-more" type="button" class="quiet" hidden="">Показать ещё напоминания</button>
               <form id="reminder-form" hidden="">
                 <h3 id="reminder-form-title">Новое напоминание</h3>
                 <fieldset id="reminder-fields">
-                  <label for="reminder-target">К чему вернуться</label><select id="reminder-target"><option value="">К заметке</option></select>
-                  <label for="reminder-text">Текст напоминания</label><textarea id="reminder-text" rows="2" maxlength="1000" required=""></textarea>
-                  <label for="reminder-local">Дата и время</label><input id="reminder-local" type="datetime-local" step="1" required="">
-                  <label for="reminder-zone">Часовой пояс</label><input id="reminder-zone" list="reminder-zones" maxlength="64" required="" placeholder="Europe/Moscow"><datalist id="reminder-zones"><option value="Europe/Moscow"></option><option value="Europe/Berlin"></option><option value="Asia/Yekaterinburg"></option><option value="Asia/Novosibirsk"></option><option value="Asia/Vladivostok"></option><option value="UTC"></option></datalist>
-                  <p class="muted">Время относится к выбранному часовому поясу, даже если вы находитесь в другом.</p>
-                  <button id="reminder-check-time" type="button" class="secondary">Проверить время</button>
-                  <div id="reminder-time-choices" hidden=""><label for="reminder-time-choice">Выберите время при переводе часов</label><select id="reminder-time-choice"></select></div>
+                  <label for="reminder-text">О чём напомнить</label><textarea id="reminder-text" rows="2" maxlength="1000" required=""></textarea>
+                  <div id="reminder-target-wrap"><label for="reminder-target">Напомнить о</label><select id="reminder-target"><option value="">Заметка целиком</option></select></div>
+                  <p id="reminder-when-label" class="reminder-label">Когда</p>
+                  <div id="reminder-chips" class="reminder-chips" role="group" aria-labelledby="reminder-when-label">
+                    <button type="button" class="reminder-chip" data-pick="hour" aria-pressed="false">Через час</button>
+                    <button type="button" class="reminder-chip" data-pick="today" aria-pressed="false">Сегодня в 19:00</button>
+                    <button type="button" class="reminder-chip" data-pick="tomorrow" aria-pressed="false">Завтра в 9:00</button>
+                    <button type="button" class="reminder-chip" data-pick="monday" aria-pressed="false">В понедельник в 9:00</button>
+                    <button type="button" class="reminder-chip" data-pick="week" aria-pressed="false">Через неделю</button>
+                    <button type="button" class="reminder-chip" data-pick="custom" aria-pressed="false">Другое время</button>
+                  </div>
+                  <div id="reminder-custom" class="reminder-custom" hidden="">
+                    <div><label for="reminder-date">Дата</label><input id="reminder-date" type="date"></div>
+                    <div><label for="reminder-time">Время</label><input id="reminder-time" type="time" step="300"></div>
+                  </div>
+                  <input id="reminder-local" type="hidden">
+                  <p class="reminder-zone-line muted">Часовой пояс: <span id="reminder-zone-name"></span> · <button id="reminder-zone-change" type="button" class="reminder-link" aria-expanded="false" aria-controls="reminder-zone-edit">Изменить</button></p>
+                  <div id="reminder-zone-edit" hidden="">
+                    <label for="reminder-zone">Часовой пояс</label><input id="reminder-zone" list="reminder-zones" maxlength="64" required="" placeholder="Europe/Moscow"><datalist id="reminder-zones"><option value="Europe/Moscow"></option><option value="Europe/Berlin"></option><option value="Asia/Yekaterinburg"></option><option value="Asia/Novosibirsk"></option><option value="Asia/Vladivostok"></option><option value="UTC"></option></datalist>
+                    <p class="muted">Время относится к этому поясу, даже если вы сейчас в другом.</p>
+                  </div>
+                  <button id="reminder-check-time" type="button" class="secondary" hidden="">Проверить время</button>
+                  <div id="reminder-time-choices" hidden=""><label for="reminder-time-choice">Это время наступит дважды из-за перевода часов. Какое выбрать?</label><select id="reminder-time-choice"></select></div>
                 </fieldset>
                 <p id="reminder-preview" aria-live="polite"></p>
-                <div class="actions"><button id="reminder-confirm" type="submit" disabled="">Подтвердить напоминание</button><button id="reminder-discard" type="button" class="quiet">Закрыть форму</button></div>
+                <div class="actions"><button id="reminder-confirm" type="submit" disabled="">Напомнить</button><button id="reminder-discard" type="button" class="quiet">Отмена</button></div>
                 <div id="reminder-conflict" hidden=""><p>Напоминание уже изменилось. Ваши поля сохранены. Сравните их с текущим вариантом.</p><button id="reminder-compare" type="button" class="quiet">Показать текущий вариант</button><pre id="reminder-remote" hidden=""></pre><button id="reminder-use-version" type="button" class="secondary" hidden="">Продолжить с этой версии</button></div>
               </form>
             </fieldset>
