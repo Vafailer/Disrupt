@@ -1,7 +1,7 @@
 name: Temporary contract diff
 on:
   push:
-    branches: [tmp/security-debug]
+    branches: [tmp/encryption-debug]
 permissions:
   contents: read
 jobs:
