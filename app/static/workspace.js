@@ -25,6 +25,14 @@
     body.style.height = 'auto';
     if (body.scrollHeight) body.style.height = `${body.scrollHeight}px`;
   }
+  // The title is a textarea so a long one wraps. It never holds a line break.
+  function growTitle() {
+    const title = get('title');
+    if (/\n/.test(title.value)) title.value = title.value.replace(/\s*\n\s*/g,' ');
+    title.style.height = 'auto';
+    if (title.scrollHeight) title.style.height = `${title.scrollHeight}px`;
+  }
+  window.addEventListener('resize',growTitle);
   function titleChanged() { return Boolean(currentNote) && get('title').value !== currentNote.title; }
   function syncEditActions() { get('note-edit-actions').hidden = !(editing || titleChanged()); }
   // The editor replaces the rendered text in place. Fields and the save handler are the old edit form's.
@@ -54,7 +62,7 @@
     setEditing(true);
   });
   body.addEventListener('input',grow);
-  get('title').addEventListener('input',syncEditActions);
+  get('title').addEventListener('input',() => { growTitle(); syncEditActions(); });
   get('note-edit-cancel').onclick = cancelEditing;
   get('edit-form').addEventListener('keydown',event => {
     if (event.target !== get('title') && event.target !== body) return;
@@ -68,7 +76,7 @@
   });
   // app.js renders again after a save or a note switch, so the editor closes with fresh text.
   let refocus = false;
-  document.addEventListener('beresta:note-rendered',() => { refocus = editing; setEditing(false,false); });
+  document.addEventListener('beresta:note-rendered',() => { refocus = editing; setEditing(false,false); growTitle(); });
   // Controls are locked while saving, so focus returns to "Изменить" only once they are free again.
   document.addEventListener('beresta:note-idle',() => {
     if (!refocus) return;
@@ -101,7 +109,7 @@
     }
   }
   for(const button of get('capture-tabs').querySelectorAll('button'))button.onclick=()=>showCapture(button.dataset.captureView);
-  get('new-note').addEventListener('click',()=>{if(!get('capture-card').hidden)showCapture('capture-form');});
+  get('new-note').addEventListener('click',()=>{if(get('capture-card').hidden)return;showCapture('capture-form');if(!get('thought').disabled)get('thought').focus();});
   function categoriesNavigation() {
     const list=get('category-navigation');list.replaceChildren();
     for(const option of get('category-filter').options) {
@@ -140,7 +148,7 @@
     if(!payload.subject || !payload.description){get('feedback-status').textContent='Заполните тему и описание.';return;}
     const session=feedbackSession;
     const serialized=JSON.stringify(payload);
-    if(!pendingFeedback || pendingFeedback.serialized!==serialized)pendingFeedback={serialized,key:crypto.randomUUID()};
+    if(!pendingFeedback || pendingFeedback.serialized!==serialized)pendingFeedback={serialized,key:window.berestaId()};
     const fields=[...get('feedback-form').querySelectorAll('input,textarea,select')];fields.forEach(field=>field.disabled=true);
     button.disabled=true;get('feedback-status').textContent='Отправляем…';
     try {
@@ -151,5 +159,18 @@
     }catch(error){if(session!==feedbackSession)return;get('feedback-status').textContent=`${error.message} Текст сохранён в форме. Попробуйте отправить ещё раз.`;}
     finally{button.disabled=false;fields.forEach(field=>field.disabled=false);}
   };
+  // On phones the three secondary actions live behind one menu button next to the category chips.
+  const navMore = get('nav-more'), navMenu = get('nav-menu');
+  function setNavMenu(open) {
+    navMenu.classList.toggle('is-open',open); navMore.setAttribute('aria-expanded',String(open));
+  }
+  navMore.onclick = () => setNavMenu(!navMenu.classList.contains('is-open'));
+  navMenu.addEventListener('click',event => { if (event.target.closest('button')) setNavMenu(false); });
+  document.addEventListener('click',event => {
+    if (navMenu.classList.contains('is-open') && !event.target.closest('.nav-row')) setNavMenu(false);
+  });
+  document.addEventListener('keydown',event => {
+    if (event.key === 'Escape' && navMenu.classList.contains('is-open')) { setNavMenu(false); navMore.focus(); }
+  });
   showCapture('capture-form');showPanel('');setEditing(false,false);categoriesNavigation();syncNote();
 })();

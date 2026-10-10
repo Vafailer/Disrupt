@@ -57,22 +57,6 @@
 #note-card #reminders-panel{margin-top:0}
 #reminders-panel .muted{margin:0 0 8px}
 #items>p{margin:0 0 10px}
-#items .item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px;align-items:start;margin:6px 0;padding:10px 12px;border-radius:12px;background:#fff}
-#items .item>*{grid-column:2/-1}
-#items .item>.item-done{grid-column:1;grid-row:1;width:20px;height:20px;margin:8px 0 0;padding:0;accent-color:var(--accent);cursor:pointer}
-#items .item>textarea{grid-column:2;grid-row:1;min-height:38px;padding:8px 10px;border-color:transparent;background:transparent;font-size:15px;line-height:1.5;resize:vertical}
-#items .item>textarea:hover{background:#f6f8f1}
-#items .item>textarea:focus{background:#fff}
-#items .item>select[id^=kind-]{grid-column:3;grid-row:1;width:auto;max-width:130px;height:36px;padding-top:0;padding-bottom:0;font-size:13px}
-#items .item.is-done>textarea{color:#8c998f;text-decoration:line-through}
-#items .item .muted{margin:0;font-size:12px}
-#items .item details{margin:0;padding:0;border:0}
-#items .item .item-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0}
-#items .item .item-actions button{min-height:30px;margin:0;padding:0 11px;font-size:12px}
-#item-form{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:start;margin-top:14px;padding-top:0;border-top:0}
-#item-form select{width:auto;height:40px;padding-top:0;padding-bottom:0;font-size:13px}
-#item-form textarea{min-height:40px;padding:9px 12px;font-size:15px;resize:vertical}
-#item-form button{margin:0;min-height:40px}
 
 /* Secondary panels open inline, one at a time */
 .note-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:36px;padding-top:20px;border-top:1px solid var(--line)}
@@ -93,11 +77,6 @@
   #note-card .note-preview,#note-card #markdown{font-size:16px}
   .note-edit-actions button{flex:1 1 auto}
   .note-edit-hint{flex:1 1 100%}
-  #items .item{grid-template-columns:auto minmax(0,1fr);padding:10px}
-  #items .item>select[id^=kind-]{grid-column:2;grid-row:2;max-width:none}
-  #items .item>*{grid-column:2}
-  #item-form{grid-template-columns:1fr}
-  #item-form select{width:100%}
   #note-toolbar button{flex:1 1 auto;justify-content:center}
   .note-panel{padding:14px}
 }
