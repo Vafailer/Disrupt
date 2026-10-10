@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -14,6 +15,54 @@ class StrictModel(BaseModel):
 class Credentials(StrictModel):
     username: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     password: str = Field(min_length=10, max_length=128)
+
+
+class Registration(Credentials):
+    # Consent is checked in the route so that the message can say what is missing.
+    accept_policy: bool = False
+    policy_version: str | None = Field(default=None, max_length=32)
+
+
+class TelegramLoginStart(StrictModel):
+    accept_policy: bool = False
+    policy_version: str | None = Field(default=None, max_length=32)
+
+
+class RecoveryRequest(StrictModel):
+    # No username pattern: every input gets the same answer, so older accounts are not singled out.
+    username: str = Field(min_length=1, max_length=64)
+
+
+class PasswordReset(StrictModel):
+    token: str = Field(min_length=1, max_length=200)
+    password: str = Field(min_length=10, max_length=128)
+
+
+class TokenBody(StrictModel):
+    token: str = Field(min_length=1, max_length=200)
+
+
+class AcceptPolicy(StrictModel):
+    policy_version: str = Field(min_length=1, max_length=32)
+
+
+class DeletionRequest(StrictModel):
+    password: str = Field(min_length=1, max_length=128)
+
+
+EMAIL_PATTERN = re.compile(r"[^@\s\x00-\x1f]{1,64}@[^@\s\x00-\x1f]+\.[^@\s\x00-\x1f]{2,}")
+
+
+class EmailBody(StrictModel):
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def valid_email(cls, value):
+        value = value.strip().lower()
+        if len(value) > 254 or not EMAIL_PATTERN.fullmatch(value):
+            raise ValueError("Invalid email address")
+        return value
 
 
 class TextCapture(StrictModel):
@@ -338,6 +387,12 @@ class TelegramOperation(StrictModel):
 
 class TelegramText(TelegramOperation, TextCapture):
     pass
+
+
+class TelegramLoginConfirm(TelegramOperation):
+    token: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]+$")
+    telegram_username: str | None = Field(default=None, max_length=32, pattern=r"^[A-Za-z0-9_]+$")
+    first_name: str | None = Field(default=None, max_length=128)
 
 
 class TelegramLink(TelegramOperation):

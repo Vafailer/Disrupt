@@ -10,7 +10,7 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import delete, select, text
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -22,13 +22,16 @@ from app.db import make_database
 from app.error_logging import log_error
 from app.integration import IntegrationRejection
 from app.limits import daily_state
-from app.models import Capture, Job, LoginSession, Note, ProviderBudget, Revision, User
+from app.mailer import build_mailer
+from app.models import Capture, Job, Note, ProviderBudget, Revision, User
+from app.policy import POLICY_VERSION, require_consent
 from app.providers import DEMO_TEXT
 from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
 from app.routes.admin import build_router as admin_router
 from app.routes.assistant import build_router as assistant_router
 from app.routes.audio import build_router as audio_router
+from app.routes.auth_flows import build_router as auth_flows_router
 from app.routes.brain import build_router as brain_router
 from app.routes.feedback import build_router as feedback_router
 from app.routes.internal import build_router as internal_router
@@ -42,6 +45,7 @@ from app.schemas import (
     NoteEdit,
     NoteResponse,
     NoteSummary,
+    Registration,
     TextCapture,
 )
 from app.security import (
@@ -50,7 +54,6 @@ from app.security import (
     check_origin,
     get_login_session,
     hash_password,
-    hash_token,
     throttle,
     verify_password,
 )
@@ -65,6 +68,7 @@ from app.services import (
     owned_note,
     search_notes,
 )
+from app.sessions import create_session, user_payload
 from app.worker import Worker
 
 STATIC = Path(__file__).parent / "static"
@@ -128,7 +132,9 @@ class BodyLimit:
         await self.app(scope, replay, send)
 
 
-def create_app(settings: Settings | None = None, provider=None, *, audio_storage=None, speech_provider=None):
+def create_app(
+    settings: Settings | None = None, provider=None, *, audio_storage=None, speech_provider=None, mailer=None,
+):
     settings = settings or Settings.from_env()
     if audio_storage is None:
         audio_storage = AudioStorage(
@@ -184,6 +190,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     app.state.sessions = sessions
     app.state.engine = engine
     app.state.audio_storage = audio_storage
+    app.state.mailer = mailer if mailer is not None else build_mailer(settings)
     app.add_middleware(BodyLimit)
     # Outside the private network the admin screen, its assets and its API simply do not exist (404).
     admin_networks = parse_networks(settings.admin_allowed_networks)
@@ -271,6 +278,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     app.include_router(transcripts_router(database))
     app.include_router(brain_router(database, settings))
     app.include_router(assistant_router(database, settings))
+    app.include_router(auth_flows_router(database, settings))
 
     @app.get("/health")
     def health(db=Depends(database)):
@@ -282,43 +290,20 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
         return {"text": DEMO_TEXT, "simulation": settings.provider == "mock"}
 
     def issue_session(db, response, user, request):
-        # Rotate the current browser session on login/registration.
-        old = request.cookies.get(COOKIE_NAME)
-        if old:
-            db.execute(delete(LoginSession).where(LoginSession.token_hash == hash_token(old)))
-        db.execute(delete(LoginSession).where(LoginSession.expires_at < time.time()))
-        token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-        if user.first_login_at is None:
-            user.first_login_at = time.time()
-        record_event(db, user.id, "login", hash_token(token))
-        db.add(
-            LoginSession(
-                token_hash=hash_token(token),
-                user_id=user.id,
-                csrf_token=csrf,
-                expires_at=time.time() + settings.session_seconds,
-            )
-        )
-        db.commit()
-        response.set_cookie(
-            COOKIE_NAME,
-            token,
-            httponly=True,
-            secure=settings.secure_cookies,
-            samesite="lax",
-            max_age=settings.session_seconds,
-            path="/",
-        )
-        return {"id": user.id, "username": user.username, "csrf_token": csrf}
+        return create_session(db, response, user, request, settings)
 
     @app.post("/api/v1/auth/register", status_code=201)
-    def register(body: Credentials, request: Request, response: Response, db=Depends(database)):
+    def register(body: Registration, request: Request, response: Response, db=Depends(database)):
         check_origin(request)
         if not settings.allow_registration:
             raise HTTPException(403, "Регистрация закрыта")
+        require_consent(body.accept_policy, body.policy_version)
         ip = request.client.host if request.client else "unknown"
         throttle(db, "register:" + ip)
-        user = User(username=body.username.lower(), password_hash=hash_password(body.password))
+        user = User(
+            username=body.username.lower(), password_hash=hash_password(body.password),
+            policy_version=POLICY_VERSION, policy_accepted_at=time.time(),
+        )
         db.add(user)
         try:
             db.flush()
@@ -345,7 +330,7 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     def me(request: Request, db=Depends(database)):
         session = get_login_session(request, db)
         user = db.get(User, session.user_id)
-        return {"id": user.id, "username": user.username, "csrf_token": session.csrf_token}
+        return user_payload(user, session.csrf_token)
 
     @app.get("/api/v1/provider/usage")
     def provider_usage(request: Request, db=Depends(database)):
@@ -494,5 +479,9 @@ def create_app(settings: Settings | None = None, provider=None, *, audio_storage
     @app.get("/", include_in_schema=False)
     def index():
         return FileResponse(STATIC / "index.html")
+
+    @app.get("/privacy", include_in_schema=False)
+    def privacy():
+        return FileResponse(STATIC / "privacy.html")
 
     return app

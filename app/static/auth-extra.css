@@ -1,0 +1,37 @@
+/* Telegram sign-in, recovery, privacy consent and account deletion. Tokens come from workspace.css. */
+.consent{display:flex;align-items:flex-start;gap:10px;margin:18px 0 0;font-size:14px;line-height:1.45;font-weight:500;color:var(--ink);cursor:pointer}
+.consent input[type=checkbox]{flex:none;width:20px;height:20px;min-height:0;margin:1px 0 0;padding:0;accent-color:var(--accent);cursor:pointer}
+.consent a{color:var(--accent);text-underline-offset:3px}
+#consent-hint{margin:6px 0 0 30px}
+.auth-extra{margin:12px 0 0;text-align:center}
+.text-link{min-height:36px;padding:0 6px;border:0;background:transparent;color:#4d6a56;font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-color:#b9cbb0;cursor:pointer}
+.text-link:hover:not(:disabled){background:transparent;color:#24372d;text-decoration-color:currentColor}
+.text-link:disabled{opacity:.5}
+.auth-alt{margin-top:6px}
+.auth-or{display:flex;align-items:center;gap:12px;margin:10px 0;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.telegram-login{display:block;width:100%;min-height:46px;border:1px solid #c5d2bf;border-radius:10px;background:#fff;color:var(--accent);font-size:15px;font-weight:650;cursor:pointer}
+.telegram-login:hover:not(:disabled){background:#eef2e8}
+.telegram-login:disabled{opacity:.6;cursor:default}
+.tg-login-box{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#f6f8f1}
+.tg-login-box .button-link{display:block;text-align:center}
+.tg-login-box .field-hint{margin:10px 0 0}
+.tg-login-box .quiet{margin-top:8px}
+.auth-info{margin:14px 0 0;padding:10px 12px;border:1px solid #cddac4;border-radius:8px;background:#eef3e9;color:#2f4a37;font-size:14px}
+.notice-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 28px;border-bottom:1px solid var(--line);background:#fbf6e3;color:#5b4a14;font-size:14px}
+.notice-bar p{margin:0}
+.notice-bar a{color:inherit}
+.notice-bar button{min-height:38px;padding:0 18px}
+.notice-bar[hidden],.tg-login-box[hidden],.auth-info[hidden]{display:none}
+.landing-footer{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 14px;padding:28px 0 12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.landing-footer a{color:var(--muted);text-underline-offset:3px}
+.landing-footer a:hover{color:var(--ink)}
+a.nav-action{display:block;text-decoration:none;box-sizing:border-box;border-radius:8px;padding:10px 12px;line-height:1.4;color:#526353}
+a.nav-action:hover{background:#e3eadc}
+.delete-telegram{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+#delete-telegram-box{margin-top:10px}
+#delete-telegram-box .button-link{display:block;text-align:center}
+.danger{background:#8c3b2b;color:#fff}
+button.danger:hover:not(:disabled){background:#732f22!important}
+#delete-status:not(:empty),#reset-status:not(:empty){padding:10px 12px;border-radius:8px;background:#edf3e7}
+@media(max-width:640px){.notice-bar{padding:10px 16px}.notice-bar button{flex:1 1 auto}}

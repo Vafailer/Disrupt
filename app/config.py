@@ -2,6 +2,7 @@
 
 import ipaddress
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -74,8 +75,23 @@ class Settings:
     admin_allowed_networks: str = DEFAULT_ADMIN_NETWORKS
     admin_cookie_secure: bool = True
 
+    telegram_bot_username: str = "beresta_ru_bot"
+    # Mail stays off until the owner configures an SMTP account. See docs/auth-telegram-v1.md.
+    mail_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password_file: str = ""
+    mail_from: str = ""
+
     def __post_init__(self):
         parse_networks(self.admin_allowed_networks)
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{4,31}", self.telegram_bot_username):
+            raise ValueError("NOTES_TELEGRAM_BOT_USERNAME must be a Telegram bot username without @")
+        if self.mail_enabled and (not self.smtp_host or not self.mail_from):
+            raise ValueError("Mail needs NOTES_SMTP_HOST and NOTES_MAIL_FROM")
+        if not 1 <= self.smtp_port <= 65535:
+            raise ValueError("NOTES_SMTP_PORT must be a valid port")
         if self.analytics_pseudonym_key and len(self.analytics_pseudonym_key) < 32:
             raise ValueError("Analytics pseudonym key must contain at least 32 characters")
         if not 30 <= self.delivery_lease_seconds <= 300:
@@ -159,4 +175,11 @@ class Settings:
             audio_storage_path=os.environ.get("NOTES_AUDIO_STORAGE_PATH", cls.audio_storage_path),
             audio_ffmpeg_path=os.environ.get("NOTES_AUDIO_FFMPEG_PATH", cls.audio_ffmpeg_path),
             audio_ffprobe_path=os.environ.get("NOTES_AUDIO_FFPROBE_PATH", cls.audio_ffprobe_path),
+            telegram_bot_username=os.environ.get("NOTES_TELEGRAM_BOT_USERNAME", cls.telegram_bot_username),
+            mail_enabled=flag("NOTES_MAIL_ENABLED", False),
+            smtp_host=os.environ.get("NOTES_SMTP_HOST", ""),
+            smtp_port=int(os.environ.get("NOTES_SMTP_PORT", "587")),
+            smtp_user=os.environ.get("NOTES_SMTP_USER", ""),
+            smtp_password_file=os.environ.get("NOTES_SMTP_PASSWORD_FILE", ""),
+            mail_from=os.environ.get("NOTES_MAIL_FROM", ""),
         )

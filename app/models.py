@@ -29,7 +29,10 @@ def new_id():
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),)
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),
+        Index("uq_users_email", "email", unique=True),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     username: Mapped[str] = mapped_column(String(64), unique=True)
     password_hash: Mapped[str] = mapped_column(String(256))
@@ -42,6 +45,12 @@ class User(Base):
     assistant_recommendations_enabled: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(),
     )
+    # Always stored lowercased. Empty until the owner of the address confirms it.
+    email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    email_verified_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    policy_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    policy_accepted_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    deletion_requested_at: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class LoginSession(Base):
@@ -232,8 +241,12 @@ class Outbox(Base):
     __table_args__ = (
         UniqueConstraint("reminder_id", "generation"),
         UniqueConstraint("job_id", name="uq_outbox_processing_job"),
-        CheckConstraint("(reminder_id IS NOT NULL AND job_id IS NULL) OR "
-                        "(reminder_id IS NULL AND job_id IS NOT NULL)", name="ck_outbox_target"),
+        CheckConstraint(
+            "(reminder_id IS NOT NULL AND job_id IS NULL AND message_kind IS NULL) OR "
+            "(reminder_id IS NULL AND job_id IS NOT NULL AND message_kind IS NULL) OR "
+            "(reminder_id IS NULL AND job_id IS NULL AND message_kind IS NOT NULL)",
+            name="ck_outbox_target",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     reminder_id: Mapped[str | None] = mapped_column(ForeignKey("reminders.id"), index=True, nullable=True)
@@ -251,6 +264,55 @@ class Outbox(Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     retry_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     result_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    # Account messages (for example a password reset link). The text is erased once the attempt is final.
+    message_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    message_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class TelegramLogin(Base):
+    """One browser sign-in (or deletion confirmation) answered by the bot. Only hashes are stored."""
+
+    __tablename__ = "telegram_logins"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('login', 'delete')", name="ck_telegram_logins_purpose"),
+        CheckConstraint(
+            "status IN ('pending', 'confirmed', 'consumed')", name="ck_telegram_logins_status",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    purpose: Mapped[str] = mapped_column(String(16), default="login", server_default="login")
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    binding_hash: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    policy_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    bot_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    telegram_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    telegram_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    expires_at: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    confirmed_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    consumed_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class EmailVerification(Base):
+    """A one-time token for confirming an address or resetting a password. Only the hash is stored."""
+
+    __tablename__ = "email_verifications"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('verify', 'reset')", name="ck_email_verifications_purpose"),
+        CheckConstraint("channel IN ('email', 'telegram')", name="ck_email_verifications_channel"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String(16))
+    channel: Mapped[str] = mapped_column(String(16), default="email", server_default="email")
+    email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[float] = mapped_column(Float)
+    used_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
 
 

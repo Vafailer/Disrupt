@@ -158,6 +158,14 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
       authCalls.push({url,body:JSON.parse(options.body)});
       return reply({detail:'Synthetic auth result'},401);
     };
+    // Registration needs the privacy consent box. Password sign-in does not.
+    login.value = 'abc'; $('password').value = 'test-only-password-123'; $('accept-policy').checked = false;
+    await $('auth-form').onsubmit({preventDefault(){},target:$('auth-form'),submitter:{value:'register'}});
+    assert.equal(authCalls.length,0);
+    assert.match($('auth-message').textContent,/политику конфиденциальности/);
+    await $('auth-form').onsubmit({preventDefault(){},target:$('auth-form'),submitter:{value:'login'}});
+    assert.equal(authCalls.length,1); authCalls.length = 0;
+    $('accept-policy').checked = true;
     for (const action of ['register','login']) {
       for (const name of ['abc','User.Name_123-X','A'.repeat(64),'ab','a'.repeat(65),'Марк','MarkМ','Ёжик','abc\n',' abc','abc ','café','abc@']) {
         const valid = ['abc','User.Name_123-X','A'.repeat(64)].includes(name);
@@ -172,6 +180,8 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
         delete login.value;
         assert.equal(authCalls.length,before + Number(valid),name);
         if (valid) assert.equal(authCalls.at(-1).body.username,name);
+        if (valid && action === 'register') assert.deepEqual([authCalls.at(-1).body.accept_policy,authCalls.at(-1).body.policy_version],[true,'2026-10-10']);
+        if (valid && action === 'login') assert.equal('accept_policy' in authCalls.at(-1).body,false);
         else assert.match($('auth-message').textContent,/Латинские буквы/);
       }
     }
@@ -180,6 +190,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     await require('./web_note_ux.cjs')();
     await require('./web_focus.cjs')();
     await require('./web_onboarding.cjs')();
+    await require('./web_auth.cjs')();
     await require('./web_brain.cjs')();
     console.log('Web DOM checks passed: drafts, conflicts, version, XSS, search, pagination, events and category rename.');
   } finally { dom.window.close(); }
