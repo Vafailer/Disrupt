@@ -79,6 +79,7 @@ async function until(condition) {
   }
   throw new Error(`UI did not settle. ${$('message').textContent}`);
 }
+function press(el,key,extra = {}) { el.dispatchEvent(new w.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true,...extra})); }
 function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true})); }
 
 (async () => {
@@ -86,15 +87,17 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     w.eval(fs.readFileSync(path.join(staticRoot, 'app.js'), 'utf8'));
     await until(() => $('notes').querySelector('button'));
     $('notes').querySelector('button').click();
-    await until(() => $('items').querySelector('textarea') && !$('title').disabled);
+    await until(() => $('items').querySelector('.item-text') && !$('title').disabled);
     assert.equal($('preview').querySelector('script'),null);
     assert.ok($('preview').textContent.includes('<script>'));
     assert.equal(calls.filter(c => c.url.pathname.endsWith('/opened')).length,1);
 
+    $('items').querySelector('.item-text').click();
     let editor = $('items').querySelector('textarea');
+    assert.ok(editor,'A click on the text opens the inline editor');
     editor.value = 'Уточнить время звонка';
     pauseItem = true;
-    submit($('items').querySelector('form'));
+    press(editor,'Enter');
     await until(() => completeItem !== null);
     assert.equal($('title').disabled,true);
     assert.equal(editor.disabled,true);
@@ -103,9 +106,11 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     assert.equal($('message').textContent,'Дождитесь сохранения.');
     completeItem();
     await until(() => $('note-mode').textContent.includes('v2') && !$('title').disabled);
-    assert.equal($('items').querySelector('textarea').value,'Уточнить время звонка');
+    assert.equal($('items').querySelector('textarea'),null,'The editor closes after a save');
+    assert.equal($('items').querySelector('.item-text').textContent,'Уточнить время звонка');
     assert.equal($('confirm-structure').disabled,true);
 
+    $('items').querySelector('.item-text').click();
     editor = $('items').querySelector('textarea');
     editor.value = 'Не терять эту правку';
     const readsBefore = calls.filter(c => c.url.pathname === `/api/v1/notes/${note.id}`).length;
@@ -114,7 +119,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     assert.equal(calls.filter(c => c.url.pathname === `/api/v1/notes/${note.id}`).length,readsBefore);
     assert.equal(editor.value,'Не терять эту правку');
     pauseItem = false; conflictNextItem = true;
-    submit($('items').querySelector('form'));
+    press(editor,'Enter');
     await until(() => $('message').textContent.includes('уже изменена') && !editor.disabled);
     assert.equal(editor.value,'Не терять эту правку');
     assert.ok($('note-mode').textContent.includes('v2'));
