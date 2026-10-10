@@ -1,6 +1,7 @@
 import math
 import re
 import time
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -9,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.analytics import record_event
 from app.audio_contracts import AUDIO_MEDIA_TYPES, MAX_AUDIO_BYTES, MAX_AUDIO_SECONDS, StoredAudioLike
+from app.config import Settings
 from app.integration import IntegrationRejection
 from app.limits import LIMIT_OUTCOME, capture_cost, within_daily_limit
 from app.models import (
@@ -25,6 +27,7 @@ from app.models import (
     User,
     new_id,
 )
+from app.reminder_proposals import propose_reminder
 
 MAX_CATEGORIES = 100
 MAX_ITEMS = 30
@@ -282,9 +285,31 @@ def edit_note(db, note, expected_version, **changes):
     return note
 
 
-def note_view(db, note):
+def reminder_proposals(db, user_id, items, settings=None, now=None):
+    """{item_id: proposal} for open tasks whose quoted deadline parses and that have no reminder yet.
+
+    Nothing is stored. The user confirms through the ordinary reminder form. `items` are item_view dicts.
+    """
+    tasks = [i for i in items if i["kind"] == "task" and i["status"] == "open" and i["due_text"]]
+    if not tasks:
+        return {}
+    taken = set(db.scalars(select(Reminder.item_id).where(
+        Reminder.user_id == user_id, Reminder.item_id.in_([i["id"] for i in tasks]),
+        Reminder.status != "cancelled",
+    )))
+    zone = (settings.limit_timezone if settings else Settings.limit_timezone)
+    now = now or datetime.now(UTC)
+    proposals = {}
+    for item in tasks:
+        proposal = None if item["id"] in taken else propose_reminder(item["due_text"], now, zone)
+        if proposal:
+            proposals[item["id"]] = proposal
+    return proposals
+
+
+def note_view(db, note, settings=None, now=None):
     capture = db.get(Capture, note.capture_id)
-    return {
+    view = {
         "id": note.id,
         "capture_id": note.capture_id,
         "channel": capture.channel,
@@ -296,6 +321,10 @@ def note_view(db, note):
         "created_at": note.created_at,
         "updated_at": note.updated_at,
     }
+    proposals = reminder_proposals(db, note.user_id, view["items"], settings, now)
+    for item in view["items"]:
+        item["proposed_reminder"] = proposals.get(item["id"])
+    return view
 
 
 def audio_metadata(db, capture):
@@ -371,7 +400,11 @@ def category_view(category):
     return {"id": category.id, "name": category.name, "version": category.version}
 
 
-def ensure_category(db, user_id, name, *, proposed=False):
+def ensure_category(db, user_id, name, *, best_effort=False):
+    """Return the user's category with this name or create it. It is a normal, renamable category.
+
+    The worker passes best_effort=True: at the 100 category cap the note simply stays uncategorized.
+    """
     lock_account(db, user_id)
     name = name.strip()
     categories = db.scalars(select(Category).where(Category.user_id == user_id).order_by(Category.id)).all()
@@ -379,7 +412,7 @@ def ensure_category(db, user_id, name, *, proposed=False):
         if category.name.casefold() == name.casefold():
             return category
     if len(categories) >= MAX_CATEGORIES:
-        if proposed:
+        if best_effort:
             return None
         raise HTTPException(429, "Можно создать не больше 100 категорий")
     category = Category(user_id=user_id, name=name, version=1)

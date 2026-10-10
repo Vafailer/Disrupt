@@ -268,6 +268,12 @@ class NoteOpened(UserAction):
     )
 
 
+class ProposedReminder(StrictModel):
+    local_time: str
+    timezone: str
+    label: str
+
+
 class ItemResponse(StrictModel):
     id: str
     note_id: str
@@ -278,6 +284,7 @@ class ItemResponse(StrictModel):
     source_quote: str | None
     due_text: str | None
     due_at: float | None
+    proposed_reminder: ProposedReminder | None = None
 
 
 class CategoryResponse(StrictModel):

@@ -252,7 +252,7 @@ class Worker:
                             select(Category).where(Category.id == existing_id, Category.user_id == user_id)
                         )
                         if existing_id
-                        else ensure_category(db, user_id, result.category_name, proposed=True)
+                        else ensure_category(db, user_id, result.category_name, best_effort=True)
                     )
                     note.category_id = category.id if category else None
                 db.add(note)
