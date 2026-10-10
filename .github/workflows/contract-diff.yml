@@ -37,5 +37,5 @@ jobs:
           node-version: '22'
       - run: npm install --prefix "$RUNNER_TEMP/w" --no-audit --no-fund --ignore-scripts jsdom@26.0.0
       - run: |
-          for t in web_reminders; do echo "== $t"; NODE_PATH=$RUNNER_TEMP/w/node_modules timeout 90 node tests/$t.cjs; echo "exit $?"; done > js.txt 2>&1 || true
+          for t in web_reminders; do echo "== $t"; for k in 1 2 3 4 5; do NODE_PATH=$RUNNER_TEMP/w/node_modules timeout 90 node tests/$t.cjs; echo "exit $?"; done; done > js.txt 2>&1 || true
           python -c "d=open('js.txt').read()[-30000:];print('::error title=jsdom::'+d.replace('%','%25').replace('\r','').replace('\n','%0A'))"
