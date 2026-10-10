@@ -3,6 +3,7 @@
 import argparse
 import fcntl
 import hashlib
+import io
 import json
 import os
 import re
@@ -303,6 +304,7 @@ def restore(args):
             # Compare every referenced original with its DB digest, not just tar integrity.
             rows = run(command + ["exec", "-T", "db", "psql", "-XAt", "-U", "notes", "-d", "notes", "-c",
                                   "SELECT coalesce(audio_key,'missing') || ' ' || coalesce(audio_sha256,'missing') FROM captures WHERE input_kind='audio'"]).stdout.decode().splitlines()
+            validated_rows = []
             for row in rows:
                 parts = row.split(" ")
                 if len(parts) != 2:
@@ -310,9 +312,29 @@ def restore(args):
                 key, checksum = parts
                 if not re.fullmatch(r"[0-9a-f-]{36}\.audio", key) or not re.fullmatch(r"[0-9a-f]{64}", checksum):
                     raise Failure("invalid_audio_metadata")
-                actual = run(command + ["run", "--rm", "--no-deps", "-T", "--entrypoint", "sha256sum", "files", "/audio/" + key]).stdout.decode().split()[0]
-                if actual != checksum:
-                    raise Failure("referenced_original_missing_or_changed")
+                validated_rows.append([key, checksum])
+            data_key_file = getattr(args, "data_key_file", None)
+            verifier_image = getattr(args, "audio_verifier_image", None)
+            if data_key_file:
+                path = Path(data_key_file).resolve()
+                if not path.is_file() or any(char in str(path) for char in ":\r\n") or not verifier_image:
+                    raise Failure("invalid_audio_verifier_configuration")
+                with io.BytesIO(json.dumps(validated_rows).encode()) as source:
+                    result = run([
+                        "docker", "run", "--rm", "-i", "--network", "none", "--read-only",
+                        "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+                        "--memory", "128m", "--pids-limit", "32", "--user", "1000:1000",
+                        "-v", args.project + "_restore-audio:/audio:ro",
+                        "-v", str(path) + ":/run/secrets/data_key:ro", "--entrypoint", "python",
+                        verifier_image, "-m", "app.recovery_verify",
+                    ], source=source)
+                if json.loads(result.stdout).get("audio_verified") != len(rows):
+                    raise Failure("restored_audio_verification_failed")
+            else:
+                for key, checksum in validated_rows:
+                    actual = run(command + ["run", "--rm", "--no-deps", "-T", "--entrypoint", "sha256sum", "files", "/audio/" + key]).stdout.decode().split()[0]
+                    if actual != checksum:
+                        raise Failure("referenced_original_missing_or_changed_or_data_key_required")
             print(json.dumps({"restored_project": args.project, "audio_verified": len(rows), "applications_started": False}))
         except Exception:
             run(command + ["stop", "db"], check=False)
@@ -387,6 +409,8 @@ def main():
     sub.add_argument("--bundle", required=True)
     sub.add_argument("--identity", required=True)
     sub.add_argument("--work-dir", required=True)
+    sub.add_argument("--data-key-file", help="Separate application encryption key; never included in the bundle")
+    sub.add_argument("--audio-verifier-image", help="Locally built application image, used only offline to verify originals")
     args = parser.parse_args()
     os.umask(0o077)
     try:
