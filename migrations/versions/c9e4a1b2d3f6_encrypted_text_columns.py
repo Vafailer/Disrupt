@@ -23,7 +23,15 @@ COLUMNS = (
 )
 
 
+def sqlite():
+    # SQLite does not enforce VARCHAR length. Rebuilding notes there would also change its foreign keys
+    # and break older downgrades, so the change is only made where it matters.
+    return op.get_bind().dialect.name == "sqlite"
+
+
 def upgrade():
+    if sqlite():
+        return
     for table, column, length, nullable in COLUMNS:
         with op.batch_alter_table(table) as batch:
             batch.alter_column(
@@ -32,6 +40,8 @@ def upgrade():
 
 
 def downgrade():
+    if sqlite():
+        return
     # После шифрования значения длиннее исходных. Вернуть короткий тип можно только до `encrypt-existing`.
     for table, column, length, nullable in COLUMNS:
         with op.batch_alter_table(table) as batch:
