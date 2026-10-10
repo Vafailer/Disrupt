@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import delete, select
 
-from app import totp
+from app import crypto, totp
 from app.admin_auth import audit
 from app.admin_models import AdminAccount, AdminSession
 from app.config import Settings
@@ -152,7 +152,9 @@ def build_parser():
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
-    engine, sessions = make_database(Settings.from_env().database_url)
+    settings = Settings.from_env()
+    crypto.configure_from_settings(settings)
+    engine, sessions = make_database(settings.database_url)
     try:
         with sessions() as db:
             args.handler(db, args, parser)

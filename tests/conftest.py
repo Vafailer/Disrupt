@@ -10,7 +10,7 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app import totp
+from app import crypto, totp
 from app.admin_models import AdminAccount
 from app.config import Settings
 from app.main import create_app
@@ -57,7 +57,26 @@ def no_network(monkeypatch):
 
 
 @pytest.fixture
-def app_factory(tmp_path, monkeypatch):
+def data_key_file(tmp_path):
+    """Файл тестового ключа шифрования. Настоящих секретов в тестах нет."""
+    path = tmp_path / "test-data.key"
+    path.write_text(crypto.generate_key() + "\n", encoding="ascii")
+    return path
+
+
+@pytest.fixture(autouse=True)
+def data_encryption(data_key_file, monkeypatch):
+    """Каждый тест идёт с включённым шифрованием, как на production."""
+    monkeypatch.setenv("NOTES_DATA_ENCRYPTION", "required")
+    monkeypatch.setenv("NOTES_DATA_KEY_FILE", str(data_key_file))
+    monkeypatch.delenv("NOTES_DATA_OLD_KEY_FILES", raising=False)
+    crypto.configure("required", str(data_key_file))
+    yield
+    crypto.reset()
+
+
+@pytest.fixture
+def app_factory(tmp_path, monkeypatch, data_key_file):
     database_url = "sqlite:///" + (tmp_path / "test.db").as_posix()
     monkeypatch.setenv("NOTES_DATABASE_URL", database_url)
     monkeypatch.setenv("NOTES_PROVIDER", "mock")
@@ -66,7 +85,7 @@ def app_factory(tmp_path, monkeypatch):
     # Tests talk to the app over plain HTTP, so the admin cookie cannot be Secure here.
     settings = Settings(
         database_url=database_url, auto_worker=False, audio_storage_path=str(tmp_path / "audio"),
-        admin_cookie_secure=False,
+        admin_cookie_secure=False, data_encryption="required", data_key_file=str(data_key_file),
     )
     apps = []
 

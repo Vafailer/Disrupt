@@ -7,6 +7,7 @@ import time
 from pydantic import ValidationError
 from sqlalchemy import select, update
 
+from app import crypto
 from app.analytics import record_event
 from app.assistant import run_assistant_once
 from app.audio_contracts import AUDIO_MEDIA_TYPES, AudioReader, SpeechProvider
@@ -297,6 +298,7 @@ class Worker:
 
 def main():
     settings = Settings.from_env()
+    crypto.configure_from_settings(settings)
     engine, sessions = make_database(settings.database_url)
     stopping = threading.Event()
     def request_stop(signum, frame):

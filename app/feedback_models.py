@@ -2,10 +2,11 @@
 import time
 import uuid
 
-from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.encrypted_types import EncryptedText
 
 
 class Feedback(Base):
@@ -20,11 +21,11 @@ class Feedback(Base):
     idempotency_key: Mapped[str] = mapped_column(String(100))
     payload_hash: Mapped[str] = mapped_column(String(64))
     kind: Mapped[str] = mapped_column(String(16))
-    subject: Mapped[str] = mapped_column(String(160))
-    description: Mapped[str] = mapped_column(Text)
-    steps: Mapped[str] = mapped_column(Text)
-    expected: Mapped[str] = mapped_column(Text)
-    contact: Mapped[str] = mapped_column(String(200))
+    subject: Mapped[str] = mapped_column(EncryptedText('feedback.subject'))
+    description: Mapped[str] = mapped_column(EncryptedText('feedback.description'))
+    steps: Mapped[str] = mapped_column(EncryptedText('feedback.steps'))
+    expected: Mapped[str] = mapped_column(EncryptedText('feedback.expected'))
+    contact: Mapped[str] = mapped_column(EncryptedText('feedback.contact'))
     status: Mapped[str] = mapped_column(String(16), default='new')
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[float] = mapped_column(Float, default=time.time, index=True)

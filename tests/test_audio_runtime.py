@@ -37,7 +37,8 @@ def test_app_worker_reads_original_and_commits_transcript_before_llm(app_factory
             with app.state.sessions() as db:
                 capture = db.scalar(select(Capture).where(Capture.input_kind == "audio"))
                 assert capture.transcript == capture.original_text == text == DEMO_TEXT
-                assert (app.state.audio_storage.root / capture.audio_key).read_bytes() == wav()
+                with app.state.audio_storage.open_original(capture.audio_key) as source:
+                    assert source.read() == wav()
             inputs.append(text)
             return super().structure(text, categories=categories)
 

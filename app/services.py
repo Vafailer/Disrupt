@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.analytics import record_event
@@ -562,45 +562,29 @@ def search_notes(db, user_id, *, q=None, category_id=None, channel=None, input_k
     elif category_id is not None:
         owned_category(db, category_id, user_id)
         statement = statement.where(Note.category_id == category_id)
-    if channel or input_kind or (q and q.strip()):
+    needle = q.strip().casefold() if q else ""
+    if channel or input_kind or needle:
         statement = statement.join(Capture, Capture.id == Note.capture_id).where(Capture.user_id == user_id)
     if channel:
         statement = statement.where(Capture.channel == channel)
     if input_kind:
         statement = statement.where(Capture.input_kind == input_kind)
-    if q and q.strip():
-        value = q.strip()
-        if db.bind.dialect.name == "sqlite":
-
-            def contains(column):
-                return func.unicode_casefold(column).contains(value.casefold(), autoescape=True)
-        else:
-            pattern = "%" + value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-
-            def contains(column):
-                return column.ilike(pattern, escape="\\")
-
-        item_match = (
-            select(Item.id)
-            .where(
-                Item.note_id == Note.id,
-                Item.user_id == user_id,
-                contains(Item.text),
-            )
-            .exists()
-        )
-        statement = statement.where(
-            or_(
-                contains(Note.title),
-                contains(Note.markdown),
-                contains(Capture.original_text),
-                contains(Capture.transcript),
-                item_match,
-            ),
-        )
-    return db.scalars(
-        statement.order_by(Note.updated_at.desc(), Note.id).offset(offset).limit(limit + 1)
-    ).all()
+    statement = statement.order_by(Note.updated_at.desc(), Note.id)
+    if not needle:
+        return db.scalars(statement.offset(offset).limit(limit + 1)).all()
+    # Тексты зашифрованы в базе, поэтому SQL по ним искать нельзя. Фильтруем в Python после расшифровки.
+    item_texts = {}
+    for note_id, text in db.execute(select(Item.note_id, Item.text).where(Item.user_id == user_id)):
+        item_texts.setdefault(note_id, []).append(text)
+    wanted, found = offset + limit + 1, []
+    rows = db.execute(statement.add_columns(Capture.original_text, Capture.transcript))
+    for note, original_text, transcript in rows:
+        fields = (note.title, note.markdown, original_text, transcript, *item_texts.get(note.id, ()))
+        if any(field is not None and needle in field.casefold() for field in fields):
+            found.append(note)
+            if len(found) >= wanted:
+                break
+    return found[offset:wanted]
 
 
 def saved_audio_view(db, capture):
