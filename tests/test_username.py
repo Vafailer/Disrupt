@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models import User
+from app.policy import POLICY_VERSION
 from app.security import hash_password
 from tests.conftest import register
 
@@ -21,6 +22,7 @@ def test_username_case_does_not_create_second_account(client):
     first = register(client, 'User.Name_123-X')
     duplicate = client.post('/api/v1/auth/register', json={
         'username': 'USER.NAME_123-X', 'password': 'test-only-password-123',
+        'accept_policy': True, 'policy_version': POLICY_VERSION,
     })
     assert duplicate.status_code == 409
     assert client.get('/api/v1/auth/me').json()['id'] == first['id']

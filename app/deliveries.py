@@ -74,6 +74,19 @@ def attempt_id(row):
     return row.id + ":" + (row.lease_token_hash[:16] if row.lease_token_hash else "untracked")
 
 
+MESSAGE_TTL = 900  # Account messages carry one-time links that die after 15 minutes.
+
+
+def message_deliverable(db, row, now):
+    """An account message goes only to the chat it was addressed to, while it is fresh."""
+    if row.message_text is None or now - row.created_at > MESSAGE_TTL:
+        return False
+    return db.scalar(select(TelegramIdentity.id).where(
+        TelegramIdentity.user_id == row.user_id, TelegramIdentity.bot_id == row.bot_id,
+        TelegramIdentity.chat_id == row.chat_id, TelegramIdentity.delivery_status == "available",
+    )) is not None
+
+
 def expire_authorization(db, row):
     row.status, row.error_code = "unknown", "delivery_lease_expired"
     reminder = db.get(Reminder, row.reminder_id) if row.reminder_id is not None else None
@@ -82,6 +95,9 @@ def expire_authorization(db, row):
         and reminder.generation == row.generation and reminder.status == "confirmed"
     ):
         reminder.status = "unknown"
+    if row.message_kind is not None:
+        row.message_text = None  # Never resent, so the one-time link must not stay in the database.
+        return
     event = "processing_reply_failed" if row.job_id is not None else "reminder_failed"
     record_event(db, row.user_id, event, attempt_id(row), "telegram", outcome="unknown")
 
@@ -173,9 +189,22 @@ def claim_deliveries(db, body, settings):
             ),
         ).order_by(Outbox.user_id, Outbox.created_at, Outbox.id).limit(body.limit)
     ).all()
+    ready_messages = db.execute(
+        select(Outbox.id, Outbox.user_id, Outbox.created_at)
+        .where(
+            Outbox.bot_id == body.bot_id, Outbox.message_kind.is_not(None),
+            or_(
+                and_(Outbox.status == "pending", Outbox.authorized_at.is_(None)),
+                and_(Outbox.status == "retryable", Outbox.result_hash.is_not(None), Outbox.retry_at <= now),
+                and_(Outbox.status == "leased", Outbox.authorized_at.is_(None), Outbox.lease_until <= now),
+            ),
+        ).order_by(Outbox.user_id, Outbox.created_at, Outbox.id).limit(body.limit)
+    ).all()
     results = []
     # All account locks follow the same order, including expired attempts.
-    candidates = sorted({(row.user_id, row.created_at, row.id) for row in [*expired, *ready, *ready_replies]})
+    candidates = sorted({
+        (row.user_id, row.created_at, row.id) for row in [*expired, *ready, *ready_replies, *ready_messages]
+    })
     for _, _, delivery_id in candidates:
         row = locked_delivery(db, delivery_id)
         now = time.time()
@@ -190,10 +219,17 @@ def claim_deliveries(db, body, settings):
             or row.status == "leased" and row.authorized_at is None and row.lease_until <= now
         ):
             continue
-        target = current_target(db, row, now)
-        if target is None:
-            continue
-        reminder, note = target
+        message = row.message_kind is not None
+        if message:
+            if not message_deliverable(db, row, now):
+                row.status, row.error_code, row.message_text = "cancelled", "delivery_invalid", None
+                continue
+            reminder = note = None
+        else:
+            target = current_target(db, row, now)
+            if target is None:
+                continue
+            reminder, note = target
         lease = secrets.token_urlsafe(32)
         callback = secrets.token_urlsafe(32) if reminder is not None and reminder.item_id is not None else None
         row.status, row.lease_token_hash = "leased", hash_token(lease)
@@ -202,9 +238,11 @@ def claim_deliveries(db, body, settings):
         row.callback_token_hash = hash_token(callback) if callback else None
         results.append({
             "delivery_id": row.id, "lease_token": lease, "generation": row.generation,
-            "chat_id": row.chat_id, "text": reminder.text if reminder is not None
+            "chat_id": row.chat_id,
+            "text": row.message_text if message else reminder.text if reminder is not None
             else processing_reply_text(note, reminder_hint(db, note, settings)),
-            "note_url": settings.public_origin + "/?capture=" + note.capture_id
+            "note_url": settings.public_origin + "/" if message else settings.public_origin
+                        + "/?capture=" + note.capture_id
                         + ("&reminder=" + reminder.id if reminder is not None else ""), "callback_token": callback,
         })
     db.flush()
@@ -219,8 +257,12 @@ def authorize_delivery(db, delivery_id, body, settings):
         or row.lease_until is None or row.lease_until <= now
     ):
         return {"send": False}
-    if current_target(db, row, now) is None:
+    deliverable = message_deliverable(db, row, now) if row.message_kind is not None else (
+        current_target(db, row, now) is not None
+    )
+    if not deliverable:
         row.status, row.error_code = "cancelled", "delivery_invalid"
+        row.message_text = None
         return {"send": False}
     row.status, row.authorized_at = "authorized", now
     row.lease_until = now + settings.delivery_lease_seconds
@@ -254,6 +296,10 @@ def record_delivery_result(db, delivery_id, body):
         ))
         if identity:
             identity.delivery_status = "blocked"
+    if row.message_kind is not None:
+        if body.status != "retryable":
+            row.message_text = None  # The attempt is final: keep no one-time link.
+        return {"status": "recorded"}
     prefix = "processing_reply" if row.job_id is not None else "reminder"
     record_event(
         db, row.user_id, prefix + ("_sent" if body.status == "sent" else "_failed"),

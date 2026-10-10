@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from app.policy import POLICY_VERSION
 
 
 @pytest.fixture(autouse=True)
@@ -56,9 +57,10 @@ def app_factory(tmp_path, monkeypatch):
     settings = Settings(database_url=database_url, auto_worker=False, audio_storage_path=str(tmp_path / "audio"))
     apps = []
 
-    def factory(*, llm_provider=None, audio_storage=None, speech_provider=None, **changes):
+    def factory(*, llm_provider=None, audio_storage=None, speech_provider=None, mailer=None, **changes):
         app = create_app(
             replace(settings, **changes), llm_provider, audio_storage=audio_storage, speech_provider=speech_provider,
+            mailer=mailer,
         )
         apps.append(app)
         return app
@@ -81,7 +83,11 @@ def client(app):
 
 def register(client, username="tester"):
     response = client.post(
-        "/api/v1/auth/register", json={"username": username, "password": "test-only-password-123"}
+        "/api/v1/auth/register",
+        json={
+            "username": username, "password": "test-only-password-123",
+            "accept_policy": True, "policy_version": POLICY_VERSION,
+        },
     )
     assert response.status_code == 201, response.text
     client.headers["X-CSRF-Token"] = response.json()["csrf_token"]

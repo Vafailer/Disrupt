@@ -1,0 +1,13 @@
+body{background:#f5f6f0;color:#24372d}
+header{max-width:none;padding:18px 32px;border-bottom:1px solid #e0e5dc;background:#fffefa}
+.doc{max-width:720px;margin:0 auto;padding:40px 24px 80px;line-height:1.7}
+.doc h1{font-size:clamp(28px,4vw,38px);line-height:1.15;letter-spacing:-.02em;margin:0 0 8px}
+.doc h2{font-size:20px;margin:36px 0 10px}
+.doc p,.doc li{font-size:16px}
+.doc ul{padding-left:22px}
+.doc li{margin:6px 0}
+.doc a{color:#345943;text-underline-offset:3px}
+.doc-meta{margin:0 0 16px;font-size:14px;color:#728075}
+.doc-lead{font-size:18px}
+.doc-back{margin-top:40px}
+@media(max-width:640px){header{padding:14px 18px}.doc{padding:28px 16px 64px}}
