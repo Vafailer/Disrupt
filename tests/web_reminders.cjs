@@ -91,9 +91,10 @@ w.fetch = async (input,options={}) => {
   throw new Error(`Unexpected request ${method} ${url.pathname}`);
 };
 async function until(condition) {
-  for (let n=0;n<150;n++) {
+  // Debounced work runs on timers, so also give real time a chance, not only immediates.
+  for (let n=0;n<400;n++) {
     if (condition()) return;
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => n % 10 === 9 ? setTimeout(resolve,5) : setImmediate(resolve));
   }
   throw new Error(`UI did not settle: ${$('reminders-message').textContent} ${$('message').textContent}`);
 }
