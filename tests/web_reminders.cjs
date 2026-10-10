@@ -308,5 +308,9 @@ function row(id) { return [...$('reminders-list').querySelectorAll('article')].f
     $('reminder-new').click(); assert.equal($('reminder-target-wrap').hidden,true); assert.equal($('reminder-target').value,'');
     $('reminder-discard').click();
     console.log('Reminder DOM checks passed: quick picks, automatic debounced resolve, past time, hidden target, zone confirmation, task targets, draft guards, lost-response replay, edit reconciliation, generation conflict, unknown warning, cancellation, DST choice, pagination and stale responses.');
-  } finally { dom.window.close(); }
+  } finally {
+    // Let in-flight list requests settle before the document goes away.
+    for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve));
+    dom.window.close();
+  }
 })().catch(error => {console.error(error);process.exitCode = 1;});
