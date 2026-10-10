@@ -8,6 +8,7 @@ import time
 
 from sqlalchemy import and_, or_, select
 
+from app import crypto
 from app.config import Settings
 from app.db import make_database
 from app.models import Item, Note, Outbox, Reminder, TelegramIdentity
@@ -77,7 +78,9 @@ def main():
         signal.signal(name, lambda *_: stop.set())
     engine = None
     try:
-        engine, sessions = make_database(Settings.from_env().database_url)
+        settings = Settings.from_env()
+        crypto.configure_from_settings(settings)
+        engine, sessions = make_database(settings.database_url)
         scheduler = Scheduler(sessions)
         while not stop.is_set():
             try:

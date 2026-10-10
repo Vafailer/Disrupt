@@ -17,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.encrypted_types import EncryptedText
 
 
 def new_id():
@@ -30,7 +31,7 @@ class AdminAccount(Base):
     username: Mapped[str] = mapped_column(String(64))
     password_hash: Mapped[str] = mapped_column(String(256))
     # Shown once by the CLI and never returned by any API.
-    totp_secret: Mapped[str] = mapped_column(String(64))
+    totp_secret: Mapped[str] = mapped_column(EncryptedText("admin_accounts.totp_secret"))
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     last_totp_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
