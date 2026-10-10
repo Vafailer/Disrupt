@@ -7,7 +7,7 @@
   let note = null, bridge = null, generation = 0, listRequest = 0, timeRequest = 0;
   let locked = false, busy = false, editing = null, baseline = '', preview = null, comparison = null, conflicted = false;
   let pendingCreate = null, uncertainEdit = null, rows = [], more = false, timer = null;
-  let resolveTimer = null, pick = '', rememberedZone = '';
+  let resolveTimer = null, pick = '', rememberedZone = '', telegram = {linked:null,error:false};
   const labels = {confirmed:'Подтверждено',sent:'Отправлено',blocked:'Telegram недоступен',
     unknown:'Результат отправки неизвестен',cancelled:'Отменено'};
   const deliveryLabels = {pending:'Ожидает отправки',leased:'Готовится к отправке',authorized:'Отправляется',
@@ -190,7 +190,7 @@
   }
   function drawRows() {
     $('reminders-list').replaceChildren();
-    if (!rows.length) $('reminders-list').append(node('p','Напоминаний пока нет.','muted'));
+    if (!rows.length) $('reminders-list').append(node('p','Напоминаний нет','muted reminders-empty'));
     for (const row of rows) {
       const card = node('article','','reminder-row'); card.dataset.id = row.id;
       if (row.status === 'cancelled') card.classList.add('is-cancelled');
@@ -211,7 +211,18 @@
       cancel.disabled = row.status === 'cancelled'; cancel.onclick = () => cancelReminder(row);
       actions.append(edit,cancel); card.append(actions); $('reminders-list').append(card);
     }
-    controls();
+    drawTelegram(); controls();
+  }
+  // The Telegram line shows only when something needs the person's attention.
+  function drawTelegram() {
+    const problem = rows.some(row => ['blocked','unknown'].includes(row.status) ||
+      ['blocked','unknown','retryable'].includes(row.delivery_status));
+    let text = '';
+    if (telegram.error) text = 'Не удалось проверить Telegram.';
+    else if (telegram.linked === false) text = 'Telegram не подключён. Напоминания не придут.';
+    else if (problem) text = 'Есть напоминание с проблемой доставки. Проверьте Telegram.';
+    $('reminder-telegram-text').textContent = text;
+    $('reminder-telegram').hidden = !text; $('reminder-link').hidden = !text;
   }
   async function refresh(append = false, silent = false) {
     if (!note || (silent && (busy || locked || document.visibilityState === 'hidden'))) return;
@@ -237,17 +248,12 @@
     try {
       const data = await bridge.request('/api/v1/telegram/links');
       if (view !== generation) return;
-      const linked = data.identities.some(i => i.notifications_enabled && i.delivery_status === 'available');
-      $('reminder-telegram').textContent = linked
-        ? 'Telegram подключён. Статус отправки появится в списке.'
-        : 'Для доставки нужен доступный Telegram. Напоминание можно сохранить сейчас, затем подключить бота.';
-      $('reminder-link').hidden = linked;
+      telegram = {linked:data.identities.some(i => i.notifications_enabled && i.delivery_status === 'available'),error:false};
     } catch (_) {
-      if (view === generation) {
-        $('reminder-telegram').textContent = 'Не удалось проверить подключение Telegram. Проверьте его перед сроком напоминания.';
-        $('reminder-link').hidden = false;
-      }
+      if (view !== generation) return;
+      telegram = {linked:null,error:true};
     }
+    drawTelegram();
   }
   async function checkTime() {
     if (!note || pendingCreate || uncertainEdit) return;
@@ -306,7 +312,7 @@
     const body = pendingCreate?.body || {scheduled_at:choice.scheduled_at,timezone:fields().timezone,text:fields().text,
       ...(editing ? {generation:editing.generation} : {item_id:fields().item_id})};
     const view = generation, id = note.id, edit = editing;
-    if (!edit && !pendingCreate) pendingCreate = {body,key:crypto.randomUUID()};
+    if (!edit && !pendingCreate) pendingCreate = {body,key:window.berestaId()};
     setWork(true); say();
     try {
       const row = await bridge.request(edit ? `/api/v1/reminders/${encodeURIComponent(edit.id)}`
@@ -356,7 +362,7 @@
     clearInterval(timer); timer = null; clearForm();
   }
   function show(value, callbacks) {
-    hide(); note = value; bridge = callbacks; targets();
+    hide(); note = value; bridge = callbacks; targets(); telegram = {linked:null,error:false}; drawTelegram();
     $('reminders-list').replaceChildren(node('p','Загружаем напоминания…','muted')); more = false; controls();
     refresh(); linkStatus(); timer = setInterval(() => refresh(false,true),15000);
   }
