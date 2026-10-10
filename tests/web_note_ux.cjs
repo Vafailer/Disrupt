@@ -185,12 +185,15 @@ async function tagsAndFilters() {
   try {
     const rows = [...t.$('notes').querySelectorAll('button')];
     assert.equal(rows.length, 3);
-    assert.equal(rows[0].querySelector('.tag-telegram').textContent, 'Telegram');
-    assert.ok(rows[0].querySelector('.tag-telegram svg'), 'paper plane icon');
-    assert.equal(rows[0].querySelector('.tag-voice'), null);
-    assert.equal(rows[1].querySelector('.tag-telegram') !== null && rows[1].querySelector('.tag-voice').textContent, 'Голос');
-    assert.ok(rows[1].querySelector('.tag-voice svg'), 'microphone icon');
-    assert.equal(rows[2].querySelector('.tag'), null, 'web text notes carry no tag');
+    const marks = row => [...row.querySelectorAll('.note-meta .note-mark')].map(m => m.getAttribute('aria-label'));
+    assert.deepEqual(marks(rows[0]), ['Из Telegram']);
+    assert.ok(rows[0].querySelector('.note-mark svg'), 'paper plane icon');
+    assert.deepEqual(marks(rows[1]), ['Из Telegram', 'Голос']);
+    assert.ok(rows[1].querySelector('.note-mark-voice svg'), 'microphone icon');
+    assert.deepEqual(marks(rows[2]), [], 'web text notes carry no mark');
+    assert.equal(rows[0].querySelector('.tag'), null, 'no tag pills in the library');
+    assert.equal(rows[0].querySelector('.note-row-title').textContent, 'Из Telegram');
+    assert.equal(rows[0].querySelector('.note-meta').lastElementChild.classList.contains('note-mark'), true, 'icons end the meta line');
 
     const chips = [...t.$('source-filter').querySelectorAll('button')];
     assert.deepEqual(chips.map(c => c.textContent), ['Все', 'Telegram', 'Голос', 'Текст']);
@@ -319,8 +322,90 @@ async function noteScreen() {
   } finally { await new Promise(resolve => w.setTimeout(resolve, 10)); t.dom.window.close(); }
 }
 
+async function liveSearchAndCapture() {
+  const t = boot({list: params => params.get('q') === 'нет' ? [] : summaries}); await settled();
+  const {w, $} = t;
+  try {
+    t.w.searchDebounceMs = 20;
+    const wait = ms => new Promise(resolve => w.setTimeout(resolve, ms));
+    const events = () => t.state.calls.filter(c => c.url.pathname === '/api/v1/search/events').length;
+    const type = value => { $('search-query').value = value; $('search-query').dispatchEvent(new w.Event('input', {bubbles: true})); };
+    assert.equal($('clear-search').hidden, true, 'clear button is hidden for an empty field');
+    assert.equal($('clear-search').getAttribute('aria-label'), 'Очистить поиск');
+    // Typing searches by itself after the pause, and only the last text is sent.
+    type('н'); type('не'); type('нет');
+    await wait(5); assert.equal(events(), 0, 'nothing is sent before the pause');
+    assert.equal($('clear-search').hidden, false);
+    await wait(80); await settled();
+    assert.equal(events(), 1);
+    assert.equal(lastList(t.state).get('q'), 'нет');
+    assert.ok($('notes').querySelector('[data-empty=search]'));
+    // The clear button resets the field and the list.
+    $('clear-search').click(); await settled();
+    assert.equal($('search-query').value, ''); assert.equal(lastList(t.state).get('q'), null);
+    assert.equal($('notes').querySelectorAll('button').length, 3); assert.equal($('clear-search').hidden, true);
+    // An empty field after a search shows everything again.
+    type('нет'); await wait(60); await settled();
+    type(''); await wait(60); await settled();
+    assert.equal(lastList(t.state).get('q'), null); assert.equal($('notes').querySelectorAll('button').length, 3);
+    // Enter still submits at once, through the same path.
+    const before = events(); $('search-query').value = 'нет';
+    $('search-form').dispatchEvent(new w.Event('submit', {bubbles: true, cancelable: true})); await settled();
+    assert.equal(events(), before + 1); assert.equal(lastList(t.state).get('q'), 'нет');
+    // The Find button stays for assistive tech but is not shown.
+    assert.equal($('search-form').querySelector('button[type=submit]').classList.contains('sr-only'), true);
+  } finally { t.dom.window.close(); }
+
+  const c = boot(); await settled();
+  try {
+    // The switch drives the hidden select.
+    assert.equal(c.$('processing-mode').hidden, true);
+    assert.equal(c.$('ai-switch').checked, true); assert.equal(c.$('ai-switch').getAttribute('role'), 'switch');
+    c.$('ai-switch').checked = false; c.$('ai-switch').dispatchEvent(new c.w.Event('change', {bubbles: true}));
+    assert.equal(c.$('processing-mode').value, 'manual');
+    c.$('ai-switch').checked = true; c.$('ai-switch').dispatchEvent(new c.w.Event('change', {bubbles: true}));
+    assert.equal(c.$('processing-mode').value, 'ai');
+    assert.equal(c.w.document.querySelector('[data-capture-view=capture-jobs]').textContent, 'История');
+    assert.equal(c.$('capture-submit').textContent, 'Сохранить');
+    // New record focuses the text field.
+    c.$('new-note').click(); await settled();
+    assert.equal(c.w.document.activeElement, c.$('thought'));
+    // Ctrl+Enter submits the form, plain Enter does not.
+    let sent = 0; c.$('capture-form').addEventListener('submit', () => { sent++; });
+    c.$('thought').value = 'Текст';
+    key(c.w, c.$('thought'), {key: 'Enter'}); await settled(); assert.equal(sent, 0);
+    key(c.w, c.$('thought'), {key: 'Enter', ctrlKey: true}); await settled(); assert.equal(sent, 1);
+    key(c.w, c.$('thought'), {key: 'Enter', metaKey: true}); await settled(); assert.equal(sent, 2);
+  } finally { c.dom.window.close(); }
+
+  // An exhausted daily limit turns the switch off and locks it.
+  const spent = boot({usage: {...cloudUsage, daily_unit_limit: 30, daily_units_used: 30, daily_units_remaining: 0}}); await settled();
+  try {
+    assert.equal(spent.$('ai-switch').checked, false); assert.equal(spent.$('ai-switch').disabled, true);
+    assert.equal(spent.$('processing-mode').value, 'manual'); assert.equal(spent.$('ai-limit-note').hidden, false);
+  } finally { spent.dom.window.close(); }
+}
+
+async function idFallback() {
+  const t = boot(); await settled();
+  try {
+    const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    Object.defineProperty(t.w.crypto, 'randomUUID', {value: undefined, configurable: true});
+    const first = t.w.berestaId(), second = t.w.berestaId();
+    assert.match(first, pattern); assert.match(second, pattern); assert.notEqual(first, second);
+    // Without crypto.getRandomValues it still returns a valid id.
+    Object.defineProperty(t.w.crypto, 'getRandomValues', {value: undefined, configurable: true});
+    assert.match(t.w.berestaId(), pattern);
+    // A stub that appears later is used, so tests can control ids.
+    Object.defineProperty(t.w.crypto, 'randomUUID', {value: () => 'stub-id', configurable: true});
+    assert.equal(t.w.berestaId(), 'stub-id');
+  } finally { t.dom.window.close(); }
+}
+
 module.exports = async () => {
   await usageHints();
+  await liveSearchAndCapture();
+  await idFallback();
   await tagsAndFilters();
   await noteScreen();
   console.log('Note UX checks passed: quiet banner, AI limit hints, source tags and filters, inline editing, panels.');
