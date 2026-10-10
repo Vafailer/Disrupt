@@ -77,7 +77,13 @@ def test_unusable_telegram_username_is_not_sent(settings, username):
 )
 def test_malformed_login_link_never_reaches_the_login_call(settings, argument):
     async def scenario():
-        bot, c, t, calls, replies, _ = await session(settings, [start_update(argument)], lambda request: confirmed())
+        def core(request):
+            # Some of these strings are still valid link codes, so they go to the ordinary linking call.
+            if request.url.path.endswith("/link-request"):
+                return httpx.Response(200, json={"status": "pending", "link_request_id": "test-request"})
+            return confirmed()
+
+        bot, c, t, calls, replies, _ = await session(settings, [start_update(argument)], core)
         async with c, t:
             await bot.poll_once()
             assert all(not call.url.path.endswith("/login-confirm") for call in calls)

@@ -25,8 +25,8 @@
 
 - Поля `users.email` (уникальное, в нижнем регистре), `users.email_verified_at`, таблица `email_verifications`.
 - Эндпоинты `POST /api/v1/account/email` и `POST /api/v1/account/email/verify`. Адрес привязывается только после подтверждения.
-- `app/mailer.py`: протокол `Mailer`, `DisabledMailer`, `SmtpMailer` (STARTTLS).
-- Переменные: `NOTES_MAIL_ENABLED`, `NOTES_SMTP_HOST`, `NOTES_SMTP_PORT`, `NOTES_SMTP_USER`, `NOTES_SMTP_PASSWORD_FILE`, `NOTES_MAIL_FROM`. В `compose.production.yaml` они проброшены, по умолчанию выключено.
+- `app/mailer.py`: протокол `Mailer`, `DisabledMailer`, `SmtpBzMailer` (HTTPS API SMTP.BZ, `POST https://api.smtp.bz/v1/smtp/send`, ключ в заголовке `Authorization`) и `SmtpMailer` (STARTTLS, запасной вариант). Ответ сервиса и адрес получателя в ошибки и логи не попадают. Живой SMTP.BZ не проверялся, только подменённый HTTP-транспорт.
+- Переменные: `NOTES_MAIL_ENABLED`, `NOTES_MAIL_TRANSPORT` (`smtp_bz` по умолчанию или `smtp`), `NOTES_SMTP_BZ_API_KEY_FILE`, `NOTES_SMTP_HOST`, `NOTES_SMTP_PORT`, `NOTES_SMTP_USER`, `NOTES_SMTP_PASSWORD_FILE`, `NOTES_MAIL_FROM`. В `compose.production.yaml` они проброшены, по умолчанию выключено.
 
 ## Политика и согласие
 
@@ -49,7 +49,7 @@
 1. Заполнить оператора в `app/static/privacy.html` вместо «[Оператор: ФИО/ИП, контакт]».
 2. Показать текст юристу. Заметки для него лежат в HTML-комментарии в начале файла.
 3. При смене текста политики поднять версию в трёх местах: `app/policy.py`, `data-policy-version` в `index.html` и в `privacy.html`. Пользователи увидят баннер заново.
-4. Чтобы включить почту позже: положить пароль SMTP в секрет, смонтировать его в контейнер backend в `compose.production.yaml`, указать путь в `NOTES_SMTP_PASSWORD_FILE`, заполнить остальные переменные и поставить `NOTES_MAIL_ENABLED=true`.
+4. Чтобы включить почту: ключ SMTP.BZ уже лежит на ядре в `secrets/smtp_bz_api_key.txt`. Смонтировать его в контейнер api как secret в `compose.production.yaml`, указать путь в `NOTES_SMTP_BZ_API_KEY_FILE`, в `NOTES_MAIL_FROM` написать адрес отправителя без имени (домен должен быть подтверждён в SMTP.BZ) и поставить `NOTES_MAIL_ENABLED=true`. Первое настоящее письмо отправляет владелец сам.
 5. Проверить `NOTES_TELEGRAM_BOT_USERNAME`, если бот называется иначе.
 
 ## Что не сделано

@@ -53,7 +53,7 @@ def test_other_addresses_get_404_everywhere_in_the_admin(app, host):
             # Same answer as for a page that does not exist, so the admin cannot be discovered.
             assert response.status_code == 404 and response.json() == missing.json(), path
         for method in ("post", "patch", "put", "delete"):
-            assert getattr(client, method)("/admin-api/v1/login", json={}).status_code == 404
+            assert client.request(method.upper(), "/admin-api/v1/login", json={}).status_code == 404
         assert client.get("/health").status_code == 200
         assert client.get("/static/styles.css").status_code == 200  # The public site is untouched.
 
