@@ -9,6 +9,7 @@ import getpass
 import json
 import os
 import re
+import secrets
 import sys
 from pathlib import Path
 
@@ -21,10 +22,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("create", "confirm"))
     parser.add_argument("username")
+    parser.add_argument("--generate-password", action="store_true")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-z0-9_.-]{3,64}", args.username):
         parser.error("Invalid administrator username")
-    raw = sys.stdin.buffer.read(4097)
+    if args.generate_password and args.command != "create":
+        parser.error("Password generation is only allowed for creation")
+    raw = sys.stdin.buffer.read(4097) if not args.generate_password else b"{}"
     if len(raw) > 4096:
         parser.error("Input too large")
     try:
@@ -33,6 +37,8 @@ def main():
         parser.error("Invalid input")
     if not isinstance(payload, dict):
         parser.error("Invalid input")
+    if args.generate_password:
+        payload["password"] = secrets.token_urlsafe(24)
     if args.command == "confirm":
         code = payload.get("code", "")
         if not isinstance(code, str) or not re.fullmatch(r"[0-9]{6}", code):
@@ -52,6 +58,8 @@ def main():
         nonlocal exported
         bundle = (
             "Beresta administrator: " + admin.username + "\n\n"
+            + ("Password:\n" + password + "\n\n" if args.generate_password else "")
+            +
             "Authenticator setup URI:\n" + totp.otpauth_uri(secret, admin.username) + "\n\n"
             "Manual setup key:\n" + secret + "\n\n"
             "Keep this file in your password manager, separately from backups.\n"
