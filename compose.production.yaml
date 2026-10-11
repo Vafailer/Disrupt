@@ -13,6 +13,12 @@ x-backend-environment: &backend-environment
   NOTES_LIVE_CALL_LIMIT: ${NOTES_LIVE_CALL_LIMIT:-100}
   NOTES_LIVE_USER_CALL_LIMIT: ${NOTES_LIVE_USER_CALL_LIMIT:-10}
   NOTES_DAILY_UNIT_LIMIT: ${NOTES_DAILY_UNIT_LIMIT:-30}
+  # Аккаунт моложе суток тратит ИИ не больше этого числа единиц в день. 0 отключает потолок.
+  NOTES_NEW_ACCOUNT_UNIT_LIMIT: ${NOTES_NEW_ACCOUNT_UNIT_LIMIT:-10}
+  # Сколько аккаунтов можно создать с одного адреса за сутки.
+  NOTES_REGISTRATIONS_PER_IP_PER_DAY: ${NOTES_REGISTRATIONS_PER_IP_PER_DAY:-20}
+  # /docs, /redoc и /openapi.json закрыты. Открывайте только на время отладки.
+  NOTES_API_DOCS_ENABLED: ${NOTES_API_DOCS_ENABLED:-false}
   NOTES_TEXT_UNIT_COST: ${NOTES_TEXT_UNIT_COST:-1}
   NOTES_AUDIO_UNIT_BASE: ${NOTES_AUDIO_UNIT_BASE:-2}
   NOTES_AUDIO_UNIT_PER_MINUTE: ${NOTES_AUDIO_UNIT_PER_MINUTE:-1}

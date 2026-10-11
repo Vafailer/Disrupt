@@ -83,14 +83,21 @@
       authMessage('Чтобы войти через Telegram, дайте согласие на обработку персональных данных.');
       box.focus(); return;
     }
+    const age = el('confirm-age');
+    if (!age.checked) {
+      authMessage('Чтобы войти через Telegram, подтвердите, что вам исполнилось 18 лет.');
+      age.focus(); return;
+    }
     authMessage(); info(); resetLogin();
     loginButton.disabled = true;
     try {
-      const start = await send('/api/v1/auth/telegram/start', {accept_policy: true, policy_version: box.dataset.policyVersion});
+      const start = await send('/api/v1/auth/telegram/start', {
+        accept_policy: true, policy_version: box.dataset.policyVersion, confirm_age: true,
+      });
       if (!botLink(start.deep_link)) throw new Error('Не удалось начать вход. Попробуйте ещё раз.');
       el('tg-login-link').href = start.deep_link;
       loginBox.hidden = false;
-      say('tg-login-status', 'Ждём подтверждения в Telegram…');
+      say('tg-login-status', 'Ждём подтверждения в Telegram. Нажмите там «Запустить», затем «Да, это я».');
       loginPoller.start({
         id: start.login_id,
         expires: Date.parse(start.expires_at),
@@ -219,7 +226,7 @@
       if (!botLink(start.deep_link)) throw new Error('Не удалось начать подтверждение. Попробуйте ещё раз.');
       el('delete-telegram-link').href = start.deep_link;
       el('delete-telegram-box').hidden = false;
-      say('delete-status', 'Откройте Telegram и нажмите «Запустить». Ждём подтверждения…');
+      say('delete-status', 'Откройте Telegram, нажмите «Запустить», затем «Да, это я». Ждём подтверждения…');
       deletePoller.start({
         id: start.login_id,
         expires: Date.parse(start.expires_at),

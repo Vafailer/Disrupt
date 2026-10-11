@@ -49,14 +49,14 @@ def verify_password(password: str, encoded: str) -> bool:
 DUMMY_PASSWORD_HASH = hash_password("not-an-account-password")
 
 
-def throttle(db, identifier: str, limit: int = 10):
+def throttle(db, identifier: str, limit: int = 10, window: int = 60):
     now = time.time()
     key = hash_token(identifier)
     insert = sqlite_insert if db.bind.dialect.name == "sqlite" else pg_insert
     db.execute(insert(LoginThrottle).values(key=key, window_start=now, attempts=0).on_conflict_do_nothing())
     db.execute(
         update(LoginThrottle)
-        .where(LoginThrottle.key == key, LoginThrottle.window_start <= now - 60)
+        .where(LoginThrottle.key == key, LoginThrottle.window_start <= now - window)
         .values(window_start=now, attempts=0)
     )
     accepted = db.execute(
@@ -68,6 +68,11 @@ def throttle(db, identifier: str, limit: int = 10):
     db.execute(delete(LoginThrottle).where(LoginThrottle.window_start < now - 86400))
     db.commit()
     if not accepted:
+        if window > 60:
+            raise HTTPException(
+                429, "С вашего адреса сегодня создано слишком много аккаунтов. Попробуйте завтра.",
+                headers={"Retry-After": str(window)},
+            )
         raise HTTPException(429, "Слишком много попыток. Подождите минуту.", headers={"Retry-After": "60"})
 
 

@@ -32,6 +32,23 @@ def message(update_id=10, text="  Моя исходная мысль\nбез и�
     }
 
 
+def callback(update_id=10, data="opaque-token"):
+    return {
+        "update_id": update_id,
+        "callback_query": {
+            "id": "callback-" + str(update_id),
+            "from": {"id": 101, "is_bot": False},
+            "message": {"chat": {"id": 101, "type": "private"}},
+            "data": data,
+        },
+    }
+
+
+def texts(replies):
+    """Messages the bot sent. answerCallbackQuery bodies carry no text."""
+    return [item for item in replies if "text" in item]
+
+
 @pytest.fixture
 def settings(tmp_path):
     return Settings(TOKEN, "s" * 32, "http://core.test", "https://example.test", tmp_path / "offset.json")
@@ -260,15 +277,20 @@ def test_manual_mode_and_link_request(settings):
             return httpx.Response(200, json=SAVED)
 
         bot, c, t, calls, replies, _ = await session(
-            settings, [message(10, "/save  исходник"), message(11, "/start " + "a" * 22)], core
+            settings,
+            [message(10, "/save  исходник"), message(11, "/start " + "a" * 22), callback(12, "link:" + "a" * 22)],
+            core,
         )
         async with c, t:
             await bot.poll_once()
             assert json.loads(calls[0].content)["processing_mode"] == "manual"
             assert json.loads(calls[0].content)["text"] == " исходник"
+            assert len(calls) == 2
             assert calls[1].url.path.endswith("/link-request")
-            assert "Подтверждаю" in replies[1]["text"]
-            assert replies[1]["reply_markup"]["inline_keyboard"][0][0]["url"] == (
+            sent = texts(replies)
+            assert "Подключить этот Telegram" in sent[1]["text"]
+            assert "Подтверждаю" in sent[2]["text"]
+            assert sent[2]["reply_markup"]["inline_keyboard"][0][0]["url"] == (
                 "https://example.test/#telegram-confirm"
             )
             await bot.close()

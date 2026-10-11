@@ -25,7 +25,7 @@ from app.integration import IntegrationRejection
 from app.limits import daily_state
 from app.mailer import build_mailer
 from app.models import Capture, Job, Note, ProviderBudget, Revision, User
-from app.policy import POLICY_VERSION, require_consent
+from app.policy import POLICY_VERSION, require_adult, require_consent
 from app.providers import DEMO_TEXT
 from app.routes.account import build_router as account_router
 from app.routes.admin import ProtectedStaticFiles
@@ -187,6 +187,10 @@ def create_app(
         title="Умные заметки",
         version="0.1.0",
         lifespan=lifespan,
+        # The API map stays private by default. app.openapi() still builds the schema for the contract export.
+        docs_url="/docs" if settings.api_docs_enabled else None,
+        redoc_url="/redoc" if settings.api_docs_enabled else None,
+        openapi_url="/openapi.json" if settings.api_docs_enabled else None,
         description="Структурирование мыслей. По умолчанию работает имитация ИИ без сетевых запросов.",
     )
     app.state.settings = settings
@@ -305,8 +309,10 @@ def create_app(
         if settings.email_registration_enabled:
             raise HTTPException(403, "Создайте аккаунт через почту или Telegram")
         require_consent(body.accept_policy, body.policy_version)
+        require_adult(body.confirm_age)
         ip = request.client.host if request.client else "unknown"
         throttle(db, "register:" + ip)
+        throttle(db, "register-day:" + ip, limit=settings.registrations_per_ip_per_day, window=86400)
         user = User(
             username=body.username.lower(), password_hash=hash_password(body.password),
             policy_version=POLICY_VERSION, policy_accepted_at=time.time(),
@@ -494,6 +500,10 @@ def create_app(
     @app.get("/terms", include_in_schema=False)
     def terms():
         return FileResponse(STATIC / "terms.html")
+
+    @app.get("/cookies", include_in_schema=False)
+    def cookies():
+        return FileResponse(STATIC / "cookies.html")
 
     @app.get("/data-deletion", include_in_schema=False)
     def data_deletion():

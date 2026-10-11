@@ -1,7 +1,7 @@
 /* Telegram sign-in, recovery, privacy consent and account deletion. Tokens come from workspace.css. */
 .consent{display:flex;align-items:flex-start;gap:10px;margin:18px 0 0;font-size:14px;line-height:1.45;font-weight:500;color:var(--ink);cursor:pointer}
 .consent input[type=checkbox]{flex:none;width:20px;height:20px;min-height:0;margin:1px 0 0;padding:0;accent-color:var(--accent);cursor:pointer}
-.consent a{color:var(--accent);text-underline-offset:3px}
+.consent a,#consent-hint a{color:var(--accent);text-underline-offset:3px}
 #consent-hint{margin:6px 0 0 30px}
 .auth-extra{margin:12px 0 0;text-align:center}
 .text-link{min-height:36px;padding:0 6px;border:0;background:transparent;color:#4d6a56;font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-color:#b9cbb0;cursor:pointer}

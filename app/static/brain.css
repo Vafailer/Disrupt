@@ -1,6 +1,6 @@
 /* Second brain screens. Loaded last, so it refines the other sheets without editing them.
    Chart color #5f8f6e on the paper #fffefa is 3.7:1, enough for marks. Text keeps the ink tokens. */
-:root{--br-bar:#5f8f6e;--br-bar-soft:#d5dfcf;--br-panel:#fbfcf8;--br-ink:#1f3328;--br-soft:#5f7265}
+:root{--br-bar:#5f8f6e;--br-bar-soft:#d5dfcf;--br-panel:#fbfcf8;--br-ink:#1f3328;--br-soft:#5c6f62}
 
 /* Navigation entries */
 .nav-views{display:flex;flex-direction:column;gap:2px;margin-top:10px}
@@ -123,7 +123,7 @@
 .br-chip{display:inline-flex;align-items:center;max-width:100%;min-height:26px;padding:0 10px;border:1px solid var(--note-chip-line,#d5dfcf);border-radius:999px;background:#fff;color:#38523f;font-size:12.5px;font-weight:600;line-height:1.2;overflow-wrap:anywhere;text-align:left}
 button.br-chip:hover:not(:disabled){background:#eef2e8;filter:none}
 .br-chip.is-static{background:#eef2e8;border-color:transparent}
-.br-chip.is-tiny{min-height:20px;padding:0 7px;border-color:transparent;background:#eef2e8;color:#527d53;font-size:11.5px;font-weight:500}
+.br-chip.is-tiny{min-height:20px;padding:0 7px;border-color:transparent;background:#eef2e8;color:#4c744d;font-size:11.5px;font-weight:500}
 .br-card-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .br-tasks ul{list-style:none;margin:0;padding:0}
 .br-tasks li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -135,7 +135,7 @@ button.br-chip:hover:not(:disabled){background:#eef2e8;filter:none}
 .br-history-kind{font-size:12.5px;font-weight:650;color:#3f5547}
 .br-history-text{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .br-history-when{font-size:12.5px;color:var(--muted);white-space:nowrap}
-.br-history-status{font-size:12px;font-weight:650;color:#527d53;white-space:nowrap}
+.br-history-status{font-size:12px;font-weight:650;color:#4c744d;white-space:nowrap}
 .br-history-status.is-failed{color:#8a5a12}
 .br-history-status.is-queued,.br-history-status.is-running{color:var(--muted)}
 
@@ -147,7 +147,7 @@ button.br-chip:hover:not(:disabled){background:#eef2e8;filter:none}
 .br-rel-title{font-size:15px;font-weight:600;overflow-wrap:anywhere}
 #view-related{margin-top:30px}
 .br-propose{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:6px;padding:6px 10px;border-radius:10px;background:#eef3e9;color:#41584a;font-size:13px}
-.br-propose svg{flex:none;color:#527d53}
+.br-propose svg{flex:none;color:#4c744d}
 .br-propose-text{margin-right:4px}
 .br-propose .br-mini{min-height:28px;background:#fff}
 

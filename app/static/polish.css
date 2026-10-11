@@ -27,12 +27,12 @@ button:not(.secondary):not(.quiet):not(.category-button):not(.nav-action):not(.c
 .secondary:hover:not(:disabled){background:#dde8d5}
 .quiet:hover:not(:disabled){background:#eef2e8;border-color:#c3d0bd}
 input,textarea,select{transition:border-color .15s,box-shadow .15s}
-input:focus,textarea:focus,select:focus{outline:none;border-color:var(--ring);box-shadow:0 0 0 3px #6f9a7938}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#345943;box-shadow:0 0 0 3px #6f9a7938}
 :focus-visible{outline:2px solid #527d53;outline-offset:3px}
 input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 select{appearance:none;-webkit-appearance:none;padding-right:40px;cursor:pointer;background-color:#fff;background-image:linear-gradient(45deg,transparent 50%,#58705e 50%),linear-gradient(135deg,#58705e 50%,transparent 50%);background-position:calc(100% - 20px) 55%,calc(100% - 14px) 55%;background-size:6px 6px,6px 6px;background-repeat:no-repeat}
-input,select,textarea{border-color:#cdd6c9}
-::placeholder{color:#8c998f}
+input,select,textarea{border-color:#7b8e7f}
+::placeholder{color:#636d66}
 .field-hint{margin:6px 0 0}
 
 /* Search: input and actions read as one control */
@@ -48,7 +48,7 @@ input,select,textarea{border-color:#cdd6c9}
 #notes{display:flex;flex-direction:column;gap:2px;margin-top:20px}
 #notes button{display:block;width:100%;margin:0;padding:11px 12px;font-size:14px;line-height:1.4;text-align:left;color:#2f4636;border-radius:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #notes button[aria-current=true]{box-shadow:inset 3px 0 0 var(--accent);font-weight:650}
-#notes>.empty-hint{margin:0;padding:18px 14px;border:1px dashed #cfd9ca;border-radius:12px;background:#fcfdf9;font-size:13px;line-height:1.55;color:#65766a;white-space:normal}
+#notes>.empty-hint{margin:0;padding:18px 14px;border:1px dashed #cfd9ca;border-radius:12px;background:#fcfdf9;font-size:13px;line-height:1.55;color:#5e6e63;white-space:normal}
 #more-notes{width:100%;margin-top:8px}
 .workspace-nav{padding:22px 16px!important}
 .workspace-nav>.eyebrow{margin:0 10px 12px}
@@ -137,7 +137,7 @@ input,select,textarea{border-color:#cdd6c9}
 #feedback-form select{height:44px}
 
 /* Footer */
-footer{flex:none;padding:14px 20px;border-top:1px solid var(--line);background:var(--paper);font-size:12px;color:#7f8c82}
+footer{flex:none;padding:14px 20px;border-top:1px solid var(--line);background:var(--paper);font-size:12px;color:#636d65}
 
 /* Desktop: the workspace fills the viewport and each column scrolls on its own */
 @media(min-width:1100px){
@@ -216,4 +216,4 @@ footer{flex:none;padding:14px 20px;border-top:1px solid var(--line);background:v
 }
 @media(min-width:1100px){.workspace{grid-template-columns:224px 292px minmax(0,1fr)}.nav-action{padding:8px 10px}}
 
-.note-meta{display:block;margin-top:2px;font-size:12px;font-weight:400;color:#7a897d;overflow:hidden;text-overflow:ellipsis}
+.note-meta{display:block;margin-top:2px;font-size:12px;font-weight:400;color:#626e64;overflow:hidden;text-overflow:ellipsis}

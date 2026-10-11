@@ -13,6 +13,7 @@
     mode = next; registration = null;
     el('email-auth-title').textContent = mode === 'register' ? 'Регистрация по почте' : 'Войти по почте';
     el('email-auth-consent-label').hidden = mode !== 'register';
+    el('email-auth-age-label').hidden = mode !== 'register';
     el('email-auth-recover').hidden = mode !== 'login';
     el('email-auth-send').textContent = mode === 'register' ? 'Получить код' : 'Войти';
     el('email-auth-password').autocomplete = mode === 'register' ? 'new-password' : 'current-password';
@@ -43,8 +44,9 @@
   el('email-auth-form').onsubmit = async event => {
     event.preventDefault(); if (busy) return;
     if (mode === 'register' && !el('email-auth-consent').checked) return say('Дайте согласие на обработку персональных данных.');
+    if (mode === 'register' && !el('email-auth-age').checked) return say('Подтвердите, что вам исполнилось 18 лет.');
     const body = {email:el('email-auth-address').value,password:el('email-auth-password').value};
-    if (mode === 'register') Object.assign(body, {accept_policy:true,policy_version:el('accept-policy').dataset.policyVersion});
+    if (mode === 'register') Object.assign(body, {accept_policy:true,policy_version:el('accept-policy').dataset.policyVersion,confirm_age:true});
     lock(true); say('');
     try {
       const result = await post(mode === 'register' ? 'registration/start' : 'login', body);

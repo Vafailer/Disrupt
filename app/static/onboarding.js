@@ -7,14 +7,15 @@
   if (!column || !get('capture-card') || !get('notes')) return;
   const KEY = 'beresta.onboarding.dismissed.v1';
   let dismissedInMemory = false, emptyLibrary = false, telegramLinked = false, panel = null, telegramChecked = false;
-  // Storage can be blocked or throw (private mode, site data off). Never let that break the page.
+  // The dismissal is an optional convenience. cookie-consent.js keeps it in localStorage only after
+  // "Принять все", otherwise for this tab. Without that script it stays in memory.
   function readDismissed() {
     if (dismissedInMemory) return true;
-    try { return window.localStorage.getItem(KEY) === '1'; } catch { return false; }
+    try { return window.berestaConsent?.read(KEY) === '1'; } catch { return false; }
   }
   function writeDismissed() {
     dismissedInMemory = true;
-    try { window.localStorage.setItem(KEY, '1'); } catch { /* remembered for this page only */ }
+    try { window.berestaConsent?.write(KEY, '1'); } catch { /* remembered for this page only */ }
   }
   function node(tag, className, text) {
     const el = document.createElement(tag);
@@ -45,7 +46,7 @@
     section.setAttribute('aria-labelledby', 'onboarding-title');
     const head = node('div', 'onboarding-head'), titles = node('div');
     const title = node('h2', '', 'Добро пожаловать в beresta'); title.id = 'onboarding-title';
-    titles.append(title, node('p', 'onboarding-lead', 'Пока записей нет. Вот с чего начать.'));
+    titles.append(title, node('p', 'onboarding-lead', 'Пока записей нет. Вот с чего начать.'), node('p', 'onboarding-note', 'beresta бесплатна. ИИ работает с дневным лимитом: текст стоит 1 единицу, голос от 2. Остаток виден под полем записи. Когда он кончается, записи сохраняются без ИИ.'));
     const hide = button('Скрыть', 'quiet', () => { writeDismissed(); render(); });
     hide.id = 'onboarding-dismiss'; hide.setAttribute('aria-label', 'Скрыть первые шаги');
     head.append(titles, hide);

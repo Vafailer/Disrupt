@@ -26,7 +26,7 @@ from app.models import (
     User,
     new_id,
 )
-from app.policy import POLICY_VERSION, require_consent
+from app.policy import POLICY_VERSION, require_adult, require_consent
 from app.schemas import (
     AcceptPolicy,
     DeletionRequest,
@@ -186,6 +186,7 @@ def build_router(database, settings):
         check_origin(request)
         throttle(db, "tg-login-start:" + client_ip(request), limit=10)
         require_consent(body.accept_policy, body.policy_version)
+        require_adult(body.confirm_age)
         row, token, binding = new_login(db, "login", policy_version=body.policy_version)
         response.set_cookie(
             BINDING_COOKIE, binding, httponly=True, secure=settings.secure_cookies, samesite="lax",
@@ -211,6 +212,14 @@ def build_router(database, settings):
             return {"status": "expired"}
         if row.status == "pending":
             return {"status": "pending", "expires_at": iso(row.expires_at)}
+        if db.scalar(select(TelegramIdentity).where(
+            TelegramIdentity.bot_id == row.bot_id, TelegramIdentity.telegram_user_id == row.telegram_user_id,
+        )) is None:
+            # A new account is about to appear. The sign-in stays confirmed, so the person can retry later.
+            throttle(
+                db, "register-day:" + client_ip(request),
+                limit=settings.registrations_per_ip_per_day, window=86400,
+            )
         changed = db.execute(
             update(TelegramLogin)
             .where(TelegramLogin.id == row.id, TelegramLogin.status == "confirmed", TelegramLogin.expires_at > now)

@@ -7,7 +7,7 @@ existing users to accept it again on their next visit.
 
 from fastapi import HTTPException
 
-POLICY_VERSION = "2026-10-11"
+POLICY_VERSION = "2026-10-12"
 
 
 def require_consent(accepted, version):
@@ -16,3 +16,9 @@ def require_consent(accepted, version):
         raise HTTPException(422, "Чтобы продолжить, дайте согласие на обработку персональных данных")
     if version != POLICY_VERSION:
         raise HTTPException(422, "Политика обработки данных обновилась. Обновите страницу и подтвердите согласие ещё раз")
+
+
+def require_adult(confirmed):
+    """Accounts are for people who are 18 or older. The answer is not stored."""
+    if confirmed is not True:
+        raise HTTPException(422, "Чтобы продолжить, подтвердите, что вам исполнилось 18 лет")

@@ -40,6 +40,20 @@ HELP_TEXT = (
     "ИИ на день есть лимит. Текст стоит 1, голос 2 и ещё 1 за минуту. Когда лимит кончится, "
     "записи сохраню без ИИ."
 )
+LOGIN_TEXT = (
+    "Подтвердите действие в beresta. Нажмите «Да, это я», только если вы сами нажали «Войти через Telegram» "
+    "или «Подтвердить через Telegram» на сайте beresta в последние минуты. "
+    "Если ссылку прислал кто-то другой, нажмите «Нет, не я» и никому её не пересылайте."
+)
+LINK_TEXT = (
+    "Подключить этот Telegram к аккаунту beresta? "
+    "Нажимайте «Да», только если вы сами начали подключение на сайте beresta."
+)
+LOGIN_PREFIX, LINK_PREFIX = "login:", "link:"
+LOGIN_DECLINE, LINK_DECLINE = "login-no", "link-no"
+LOGIN_TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
+# callback_data is limited to 64 bytes, so a longer code cannot travel through a button.
+LINK_CODE = re.compile(r"[A-Za-z0-9_-]{22,%d}" % (64 - len(LINK_PREFIX)))
 MANUAL_TTL = 600
 WATCH_TTL = 600
 WATCH_INTERVAL = 3.0
@@ -155,16 +169,17 @@ class Bot:
                 token = callback.get("data")
                 if not isinstance(token, str) or not 1 <= len(token.encode()) <= 64:
                     return
+                if token.startswith((LOGIN_PREFIX, LINK_PREFIX)) or token in {LOGIN_DECLINE, LINK_DECLINE}:
+                    # Answer first so the button stops spinning even when the core refuses.
+                    await self.answer_callback(callback)
+                    await self.answer_buttons(chat_id, identity, token, sender)
+                    return
                 payload = {k: v for k, v in identity.items() if k != "chat_id"}
                 result = await self.core.post("/telegram/actions", {**payload, "callback_token": token})
                 if result.get("status") not in {"completed", "already_completed"}:
                     raise RemoteFailure("core_invalid_response")
                 await self.notify(chat_id, "Задача выполнена.")
-                try:
-                    await self.telegram.call("answerCallbackQuery", {"callback_query_id": callback["id"]})
-                except RemoteFailure as error:
-                    if error.fatal:
-                        raise
+                await self.answer_callback(callback)
                 return
             text = message.get("text", "")
             command, _, argument = text.partition(" ") if isinstance(text, str) else ("", "", "")
@@ -180,26 +195,21 @@ class Bot:
                     await self.notify(chat_id, "Привет! Кнопки внизу, выбирай.", reply_markup=MAIN_MENU)
                 return
             if command == "/start" and re.fullmatch(r"login_[A-Za-z0-9_-]{43}", argument):
-                await self.confirm_login(chat_id, identity, argument[len("login_"):], sender)
+                # A link can be forwarded by someone else, so nothing reaches the core before the person says yes.
+                keyboard = [[
+                    {"text": "Да, это я", "callback_data": LOGIN_PREFIX + argument[len("login_"):]},
+                    {"text": "Нет, не я", "callback_data": LOGIN_DECLINE},
+                ]]
+                await self.notify(chat_id, LOGIN_TEXT, reply_markup={"inline_keyboard": keyboard})
                 return
             if command == "/start":
-                if not re.fullmatch(r"[A-Za-z0-9_-]{22,64}", argument):
+                if not LINK_CODE.fullmatch(argument):
                     raise Rejected("invalid_link")
-                result = await self.core.post("/telegram/link-request", {**identity, "code": argument})
-                link_id = result.get("link_request_id")
-                if (
-                    result.get("status") != "pending"
-                    or not isinstance(link_id, str)
-                    or not re.fullmatch(r"[A-Za-z0-9-]{1,64}", link_id)
-                ):
-                    raise RemoteFailure("core_invalid_response")
-                await self.notify(
-                    chat_id,
-                    "Почти готово. Подтверждаю подключение в beresta…",
-                    self.web + "/#telegram-confirm",
-                    button="Открыть beresta",
-                )
-                self.start_watch(chat_id, sender["id"], link_id)
+                keyboard = [[
+                    {"text": "Да, подключить", "callback_data": LINK_PREFIX + argument},
+                    {"text": "Нет", "callback_data": LINK_DECLINE},
+                ]]
+                await self.notify(chat_id, LINK_TEXT, reply_markup={"inline_keyboard": keyboard})
                 return
             if isinstance(text, str) and text:
                 mode = "manual" if command == "/save" else "ai"
@@ -239,6 +249,46 @@ class Bot:
             await self.notify(chat_id, saved, url)
         except Rejected as error:
             await self.notify(chat_id, REJECTIONS[str(error)], self.settings.web_url)
+
+    async def answer_callback(self, callback):
+        try:
+            await self.telegram.call("answerCallbackQuery", {"callback_query_id": callback["id"]})
+        except RemoteFailure as error:
+            if error.fatal:
+                raise
+
+    async def answer_buttons(self, chat_id, identity, token, sender):
+        """Buttons of the sign-in and linking questions. Only the explicit yes reaches the core."""
+        if token == LOGIN_DECLINE:
+            await self.notify(chat_id, "Хорошо, вход не подтверждён. Если это были не вы, просто закройте ссылку.")
+        elif token == LINK_DECLINE:
+            await self.notify(chat_id, "Хорошо, Telegram не подключён.")
+        elif token.startswith(LOGIN_PREFIX):
+            if not LOGIN_TOKEN.fullmatch(token[len(LOGIN_PREFIX):]):
+                raise Rejected("invalid_login")
+            await self.confirm_login(chat_id, identity, token[len(LOGIN_PREFIX):], sender)
+        else:
+            code = token[len(LINK_PREFIX):]
+            if not LINK_CODE.fullmatch(code):
+                raise Rejected("invalid_link")
+            await self.request_link(chat_id, identity, sender, code)
+
+    async def request_link(self, chat_id, identity, sender, code):
+        result = await self.core.post("/telegram/link-request", {**identity, "code": code})
+        link_id = result.get("link_request_id")
+        if (
+            result.get("status") != "pending"
+            or not isinstance(link_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9-]{1,64}", link_id)
+        ):
+            raise RemoteFailure("core_invalid_response")
+        await self.notify(
+            chat_id,
+            "Почти готово. Подтверждаю подключение в beresta…",
+            self.web + "/#telegram-confirm",
+            button="Открыть beresta",
+        )
+        self.start_watch(chat_id, sender["id"], link_id)
 
     async def confirm_login(self, chat_id, identity, token, sender):
         """Browser sign-in or account deletion. The core decides what the press means; the bot only reports it."""

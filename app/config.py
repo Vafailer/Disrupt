@@ -59,6 +59,10 @@ class Settings:
     live_user_call_limit: int = 0
     max_pending_per_user: int = 10
     daily_unit_limit: int = 30
+    # Новый аккаунт моложе суток тратит ИИ осторожнее. 0 отключает этот потолок.
+    new_account_unit_limit: int = 10
+    registrations_per_ip_per_day: int = 20
+    api_docs_enabled: bool = False
     text_unit_cost: int = 1
     audio_unit_base: int = 2
     audio_unit_per_minute: int = 1
@@ -114,6 +118,8 @@ class Settings:
             raise ValueError("Delivery lease must be between 30 and 300 seconds")
         if self.internal_api_token and len(self.internal_api_token) < 32:
             raise ValueError("Internal API secret must contain at least 32 characters")
+        if min(self.new_account_unit_limit, self.registrations_per_ip_per_day) < 0:
+            raise ValueError("New account unit limit and registrations per day must not be negative")
         if min(self.daily_unit_limit, self.text_unit_cost, self.audio_unit_base, self.audio_unit_per_minute) < 0:
             raise ValueError("Daily unit limit and unit costs must not be negative")
         try:
@@ -185,6 +191,13 @@ class Settings:
             live_call_limit=int(os.environ.get("NOTES_LIVE_CALL_LIMIT", "0")),
             live_user_call_limit=int(os.environ.get("NOTES_LIVE_USER_CALL_LIMIT", "0")),
             daily_unit_limit=int(os.environ.get("NOTES_DAILY_UNIT_LIMIT", str(cls.daily_unit_limit))),
+            new_account_unit_limit=int(
+                os.environ.get("NOTES_NEW_ACCOUNT_UNIT_LIMIT", str(cls.new_account_unit_limit))
+            ),
+            registrations_per_ip_per_day=int(
+                os.environ.get("NOTES_REGISTRATIONS_PER_IP_PER_DAY", str(cls.registrations_per_ip_per_day))
+            ),
+            api_docs_enabled=flag("NOTES_API_DOCS_ENABLED", False),
             text_unit_cost=int(os.environ.get("NOTES_TEXT_UNIT_COST", str(cls.text_unit_cost))),
             audio_unit_base=int(os.environ.get("NOTES_AUDIO_UNIT_BASE", str(cls.audio_unit_base))),
             audio_unit_per_minute=int(os.environ.get("NOTES_AUDIO_UNIT_PER_MINUTE", str(cls.audio_unit_per_minute))),
