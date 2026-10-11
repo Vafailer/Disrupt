@@ -7,7 +7,7 @@ existing users to accept it again on their next visit.
 
 from fastapi import HTTPException
 
-POLICY_VERSION = "2026-10-11"
+POLICY_VERSION = "2026-10-12"
 
 
 def require_consent(accepted, version):

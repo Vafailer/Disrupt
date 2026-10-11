@@ -32,7 +32,11 @@ function landing(){
 async function firstRun({storage='ok',notes=[],preset=false}={}){
  const {dom,w,$}=open();
  if(storage==='throws')for(const method of ['getItem','setItem'])Object.defineProperty(w.Storage.prototype,method,{configurable:true,value(){throw new Error('blocked');}});
- else if(preset)w.localStorage.setItem('beresta.onboarding.dismissed.v1','1');
+ else{
+  // Optional storage is written to localStorage only after "Принять все", so start from that choice.
+  w.localStorage.setItem('beresta.cookie-consent.v1',JSON.stringify({choice:'all',version:1,at:'2026-10-12T09:00:00.000Z'}));
+  if(preset)w.localStorage.setItem('beresta.onboarding.dismissed.v1','1');
+ }
  w.fetch=async(input)=>{
   const url=new URL(input,w.location.href);
   if(url.pathname==='/health'||url.pathname==='/api/v1/provider/usage')return reply({simulation:true});
@@ -43,7 +47,7 @@ async function firstRun({storage='ok',notes=[],preset=false}={}){
   if(url.pathname==='/api/v1/telegram/links')return reply({pending:[],identities:[]});
   throw new Error('Unexpected '+url.pathname);
  };
- w.eval(read('app.js')+'\n'+read('workspace.js')+'\n'+read('onboarding.js')+'\n'+read('focus.js'));await settled();
+ w.eval(read('cookie-consent.js')+'\n'+read('app.js')+'\n'+read('workspace.js')+'\n'+read('onboarding.js')+'\n'+read('focus.js'));await settled();
  return {dom,w,$};
 }
 module.exports=async()=>{

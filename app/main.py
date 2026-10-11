@@ -501,6 +501,10 @@ def create_app(
     def terms():
         return FileResponse(STATIC / "terms.html")
 
+    @app.get("/cookies", include_in_schema=False)
+    def cookies():
+        return FileResponse(STATIC / "cookies.html")
+
     @app.get("/data-deletion", include_in_schema=False)
     def data_deletion():
         return FileResponse(STATIC / "data-deletion.html")

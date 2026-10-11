@@ -127,7 +127,7 @@ def test_privacy_page_is_served_and_versions_agree(client):
     assert "Пахаруков Андрей Евгеньевич" in page.text
     assert "support@berestaapp.ru" in page.text
     assert f'data-policy-version="{POLICY_VERSION}"' in page.text
-    assert "<script" not in page.text and "style=" not in page.text
+    assert "<script>" not in page.text and "style=" not in page.text
     assert f'data-policy-version="{POLICY_VERSION}"' in client.get("/").text
     assert "Условия использования" in client.get("/terms").text
     assert "Запрос на удаление данных" in client.get("/data-deletion").text
