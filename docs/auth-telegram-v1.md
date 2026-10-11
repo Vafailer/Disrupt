@@ -6,9 +6,9 @@
 
 Без сторонних виджетов, только ссылка на бота.
 
-1. Браузер вызывает `POST /api/v1/auth/telegram/start` с `accept_policy` и `policy_version`. Лимит по IP. Ответ: `login_id`, `deep_link` вида `https://t.me/beresta_ru_bot?start=login_<token>`, `expires_at` (5 минут).
+1. Браузер вызывает `POST /api/v1/auth/telegram/start` с `accept_policy`, `policy_version` и `confirm_age` (мне исполнилось 18 лет). Лимит по IP. Ответ: `login_id`, `deep_link` вида `https://t.me/beresta_ru_bot?start=login_<token>`, `expires_at` (5 минут).
 2. В базе лежит только хеш токена и хеш секрета привязки. Сам секрет уходит в HttpOnly cookie `notes_tg_login`.
-3. Человек открывает ссылку, бот получает `/start login_<token>` и вызывает `POST /internal/v1/telegram/login-confirm` через `process_update`. Формат токена проверяется строго (43 символа).
+3. Человек открывает ссылку, бот получает `/start login_<token>` и только спрашивает «Да, это я» или «Нет, не я». Ссылку мог прислать посторонний, поэтому ядро бот не трогает. После «Да, это я» (callback `login:<token>`) бот вызывает `POST /internal/v1/telegram/login-confirm` через `process_update`. «Нет, не я» (`login-no`) ничего не вызывает. Формат токена проверяется строго (43 символа).
 4. Браузер раз в 2 секунды спрашивает `GET /api/v1/auth/telegram/status/{login_id}`. Если cookie не совпадает, ответ 404.
 5. Если Telegram уже привязан, создаётся сессия. Если нет, создаётся новый аккаунт: имя из Telegram или `tg<id>`, непригодный пароль, привязка сразу. Вход одноразовый, повтор не работает. В аналитике событие `login` с методом `telegram`.
 

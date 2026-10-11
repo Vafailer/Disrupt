@@ -16,3 +16,9 @@ def require_consent(accepted, version):
         raise HTTPException(422, "Чтобы продолжить, дайте согласие на обработку персональных данных")
     if version != POLICY_VERSION:
         raise HTTPException(422, "Политика обработки данных обновилась. Обновите страницу и подтвердите согласие ещё раз")
+
+
+def require_adult(confirmed):
+    """Accounts are for people who are 18 or older. The answer is not stored."""
+    if confirmed is not True:
+        raise HTTPException(422, "Чтобы продолжить, подтвердите, что вам исполнилось 18 лет")

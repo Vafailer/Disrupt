@@ -86,6 +86,8 @@ def app_factory(tmp_path, monkeypatch, data_key_file):
     settings = Settings(
         database_url=database_url, auto_worker=False, audio_storage_path=str(tmp_path / "audio"),
         admin_cookie_secure=False, data_encryption="required", data_key_file=str(data_key_file),
+        # The ceiling for new accounts has its own tests. Other tests use whole fresh accounts.
+        new_account_unit_limit=0,
     )
     apps = []
 
@@ -118,7 +120,7 @@ def register(client, username="tester"):
         "/api/v1/auth/register",
         json={
             "username": username, "password": "test-only-password-123",
-            "accept_policy": True, "policy_version": POLICY_VERSION,
+            "accept_policy": True, "policy_version": POLICY_VERSION, "confirm_age": True,
         },
     )
     assert response.status_code == 201, response.text

@@ -14,7 +14,7 @@ from app.analytics import record_event
 from app.mailer import MAIL_DISABLED_TEXT, MailError
 from app.models import EmailRegistrationPending as Pending
 from app.models import User
-from app.policy import POLICY_VERSION, require_consent
+from app.policy import POLICY_VERSION, require_adult, require_consent
 from app.schemas import EmailCredentials, EmailRegistrationConfirm, EmailRegistrationStart
 from app.security import (
     DUMMY_PASSWORD_HASH,
@@ -76,6 +76,7 @@ def build_router(database, settings):
         if not settings.allow_registration:
             raise HTTPException(403, "Регистрация закрыта")
         require_consent(body.accept_policy, body.policy_version)
+        require_adult(body.confirm_age)
         mailer = request.app.state.mailer
         if not mailer.enabled:
             raise HTTPException(503, MAIL_DISABLED_TEXT)
@@ -144,6 +145,10 @@ def build_router(database, settings):
             raise HTTPException(400, INVALID_CODE)
         if row.policy_version != POLICY_VERSION:
             raise HTTPException(409, "Политика обновилась. Начните регистрацию заново")
+        throttle(
+            db, "register-day:" + (request.client.host if request.client else "unknown"),
+            limit=settings.registrations_per_ip_per_day, window=86400,
+        )
         user = User(username=available_name(db, row.email), email=row.email, email_verified_at=now,
                     password_hash=row.password_hash, policy_version=row.policy_version, policy_accepted_at=now)
         retire(row, now)

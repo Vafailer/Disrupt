@@ -40,6 +40,7 @@ def stack(app_factory):
 def begin(client, email="owner@example.test"):
     return client.post(BASE + "/registration/start", json={
         "email": email, "password": PASSWORD, "accept_policy": True, "policy_version": POLICY_VERSION,
+        "confirm_age": True,
     })
 
 
@@ -177,6 +178,7 @@ def test_username_registration_cannot_bypass_email_confirmation(stack):
     _, client, _ = stack
     result = client.post("/api/v1/auth/register", json={
         "username": "unverified", "password": PASSWORD, "accept_policy": True, "policy_version": POLICY_VERSION,
+        "confirm_age": True,
     })
     assert result.status_code == 403
 
@@ -186,5 +188,7 @@ def test_registration_checks_consent_and_origin(stack):
     payload = {"email": "owner@example.test", "password": PASSWORD}
     assert client.post(BASE + "/registration/start", json=payload).status_code == 422
     payload.update(accept_policy=True, policy_version=POLICY_VERSION)
+    assert client.post(BASE + "/registration/start", json=payload).status_code == 422  # No age confirmation
+    payload.update(confirm_age=True)
     assert client.post(BASE + "/registration/start", json=payload, headers={"Origin": "https://evil.invalid"}).status_code == 403
     assert mail.sent == []

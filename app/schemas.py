@@ -21,11 +21,13 @@ class Registration(Credentials):
     # Consent is checked in the route so that the message can say what is missing.
     accept_policy: bool = False
     policy_version: str | None = Field(default=None, max_length=32)
+    confirm_age: bool = False
 
 
 class TelegramLoginStart(StrictModel):
     accept_policy: bool = False
     policy_version: str | None = Field(default=None, max_length=32)
+    confirm_age: bool = False
 
 
 class RecoveryRequest(StrictModel):
@@ -72,6 +74,7 @@ class EmailCredentials(EmailBody):
 class EmailRegistrationStart(EmailCredentials):
     accept_policy: bool = False
     policy_version: str | None = Field(default=None, max_length=32)
+    confirm_age: bool = False
 
 
 class EmailRegistrationConfirm(StrictModel):

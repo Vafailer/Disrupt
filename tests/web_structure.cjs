@@ -165,7 +165,13 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     assert.match($('auth-message').textContent,/согласие на обработку персональных данных/);
     await $('auth-form').onsubmit({preventDefault(){},target:$('auth-form'),submitter:{value:'login'}});
     assert.equal(authCalls.length,1); authCalls.length = 0;
-    $('accept-policy').checked = true;
+    $('accept-policy').checked = true; $('confirm-age').checked = false;
+    await $('auth-form').onsubmit({preventDefault(){},target:$('auth-form'),submitter:{value:'register'}});
+    assert.equal(authCalls.length,0);
+    assert.match($('auth-message').textContent,/18 лет/);
+    await $('auth-form').onsubmit({preventDefault(){},target:$('auth-form'),submitter:{value:'login'}});
+    assert.equal(authCalls.length,1); authCalls.length = 0;
+    $('confirm-age').checked = true;
     for (const action of ['register','login']) {
       for (const name of ['abc','User.Name_123-X','A'.repeat(64),'ab','a'.repeat(65),'Марк','MarkМ','Ёжик','abc\n',' abc','abc ','café','abc@']) {
         const valid = ['abc','User.Name_123-X','A'.repeat(64)].includes(name);
@@ -180,8 +186,8 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
         delete login.value;
         assert.equal(authCalls.length,before + Number(valid),name);
         if (valid) assert.equal(authCalls.at(-1).body.username,name);
-        if (valid && action === 'register') assert.deepEqual([authCalls.at(-1).body.accept_policy,authCalls.at(-1).body.policy_version],[true,'2026-10-11']);
-        if (valid && action === 'login') assert.equal('accept_policy' in authCalls.at(-1).body,false);
+        if (valid && action === 'register') assert.deepEqual([authCalls.at(-1).body.accept_policy,authCalls.at(-1).body.policy_version,authCalls.at(-1).body.confirm_age],[true,'2026-10-11',true]);
+        if (valid && action === 'login') assert.equal('accept_policy' in authCalls.at(-1).body || 'confirm_age' in authCalls.at(-1).body,false);
         if (!valid) assert.match($('auth-message').textContent,/Латинские буквы/);
       }
     }

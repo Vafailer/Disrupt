@@ -6402,6 +6402,11 @@
               }
             ],
             "title": "Policy Version"
+          },
+          "confirm_age": {
+            "type": "boolean",
+            "title": "Confirm Age",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -7462,6 +7467,11 @@
               }
             ],
             "title": "Policy Version"
+          },
+          "confirm_age": {
+            "type": "boolean",
+            "title": "Confirm Age",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -7971,6 +7981,11 @@
               }
             ],
             "title": "Policy Version"
+          },
+          "confirm_age": {
+            "type": "boolean",
+            "title": "Confirm Age",
+            "default": false
           }
         },
         "additionalProperties": false,

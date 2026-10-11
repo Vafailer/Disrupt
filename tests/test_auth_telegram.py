@@ -41,7 +41,7 @@ def service(app_factory):
 
 
 def start(client, **changes):
-    body = {"accept_policy": True, "policy_version": POLICY_VERSION, **changes}
+    body = {"accept_policy": True, "policy_version": POLICY_VERSION, "confirm_age": True, **changes}
     return client.post("/api/v1/auth/telegram/start", json=body)
 
 
@@ -92,7 +92,8 @@ def test_registration_requires_current_consent(app, client):
         assert expected in response.json()["detail"]
     assert rows(app, User) == []
     ok = client.post(
-        "/api/v1/auth/register", json={**body, "accept_policy": True, "policy_version": POLICY_VERSION},
+        "/api/v1/auth/register",
+        json={**body, "accept_policy": True, "policy_version": POLICY_VERSION, "confirm_age": True},
     )
     assert ok.status_code == 201 and ok.json()["policy_current"] is True
     user = rows(app, User)[0]
@@ -162,7 +163,7 @@ def test_start_is_rate_limited_per_address(client):
 
 
 def test_start_rejects_foreign_origin(client):
-    body = {"accept_policy": True, "policy_version": POLICY_VERSION}
+    body = {"accept_policy": True, "policy_version": POLICY_VERSION, "confirm_age": True}
     response = client.post("/api/v1/auth/telegram/start", json=body, headers={"Origin": "https://evil.example"})
     assert response.status_code == 403
 
@@ -332,13 +333,18 @@ def test_bot_and_browser_end_to_end(service, tmp_path):
         core_http, telegram_http, core, telegram = await clients(app, settings, handler)
         async with core_http, telegram_http:
             bot = Bot(settings, core, telegram, OffsetStore(settings.state_file, settings.bot_id))
-            await bot.handle({"update_id": 31, "message": {
-                "from": {"id": BASE["telegram_user_id"], "is_bot": False, "username": "Ivan_Petrov"},
-                "chat": {"id": BASE["chat_id"], "type": "private"}, "text": "/start login_" + token,
+            sender = {"id": BASE["telegram_user_id"], "is_bot": False, "username": "Ivan_Petrov"}
+            chat = {"id": BASE["chat_id"], "type": "private"}
+            await bot.handle({"update_id": 31, "message": {"from": sender, "chat": chat, "text": "/start login_" + token}})
+            # The link alone confirms nothing. The person has to press the button.
+            assert poll(client, started).json()["status"] == "pending"
+            await bot.handle({"update_id": 32, "callback_query": {
+                "id": "synthetic-callback", "from": sender, "message": {"chat": chat}, "data": "login:" + token,
             }})
 
     asyncio.run(scenario())
-    assert len(replies) == 1 and "аккаунт" in replies[0]["text"]
+    sent = [item for item in replies if "text" in item]
+    assert len(sent) == 2 and "Да, это я" in sent[0]["text"] and "аккаунт" in sent[1]["text"]
     done = poll(client, started)
     assert done.json()["username"] == "ivan_petrov"
 

@@ -14,7 +14,7 @@ from telegram_adapter.bot import (
     BUTTONS,
     MAIN_MENU,
 )
-from tests.telegram_adapter.test_adapter import message, session
+from tests.telegram_adapter.test_adapter import callback, message, session, texts
 from tests.telegram_adapter.test_adapter import settings as settings
 
 LINK_ID = "00000000-0000-4000-8000-000000000001"
@@ -123,11 +123,14 @@ def test_start_with_code_replies_with_confirm_url_and_watcher_sends_welcome(sett
                 return httpx.Response(200, json=next(statuses))
             return httpx.Response(200, json={"status": "pending", "link_request_id": LINK_ID})
 
-        bot, c, t, calls, replies, _ = await session(settings, [message(10, "/start " + "a" * 22)], core)
+        bot, c, t, calls, replies, _ = await session(
+            settings, [message(10, "/start " + "a" * 22), callback(11, "link:" + "a" * 22)], core
+        )
         bot.watch_interval = 0
         async with c, t:
             await bot.poll_once()
-            button = replies[0]["reply_markup"]["inline_keyboard"][0][0]
+            assert calls[0].url.path.endswith("/link-request")
+            button = texts(replies)[1]["reply_markup"]["inline_keyboard"][0][0]
             assert button == {"text": "Открыть beresta", "url": "https://example.test/#telegram-confirm"}
             await asyncio.wait_for(bot.watchers[101], 2)
             assert [g.url.path for g in gets] == ["/internal/v1/telegram/link-requests/" + LINK_ID] * 2
@@ -149,12 +152,14 @@ def test_watcher_stops_on_expired_or_missing(settings, status):
                 return httpx.Response(status, json={"status": "expired", "username": None})
             return httpx.Response(200, json={"status": "pending", "link_request_id": LINK_ID})
 
-        bot, c, t, _, replies, _ = await session(settings, [message(10, "/start " + "a" * 22)], core)
+        bot, c, t, _, replies, _ = await session(
+            settings, [message(10, "/start " + "a" * 22), callback(11, "link:" + "a" * 22)], core
+        )
         bot.watch_interval = 0
         async with c, t:
             await bot.poll_once()
             await asyncio.wait_for(bot.watchers[101], 2)
-            assert len(replies) == 1
+            assert len(texts(replies)) == 2  # The question and the "almost done" line, no welcome.
 
     asyncio.run(scenario())
 
@@ -165,7 +170,9 @@ def test_new_watcher_replaces_older_one(settings):
             return httpx.Response(200, json={"status": "pending", "link_request_id": LINK_ID})
 
         bot, c, t, _, _, _ = await session(
-            settings, [message(10, "/start " + "a" * 22), message(11, "/start " + "b" * 22)], core
+            settings,
+            [callback(10, "link:" + "a" * 22), callback(11, "link:" + "b" * 22)],
+            core,
         )
         async with c, t:
             await bot.poll_once()
