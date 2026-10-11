@@ -88,7 +88,8 @@ def test_registration_requires_current_consent(app, client):
     ):
         response = client.post("/api/v1/auth/register", json={**body, **extra})
         assert response.status_code == 422, extra
-        assert "олитик" in response.json()["detail"]
+        expected = "согласие" if not extra.get("accept_policy") else "Политика"
+        assert expected in response.json()["detail"]
     assert rows(app, User) == []
     ok = client.post(
         "/api/v1/auth/register", json={**body, "accept_policy": True, "policy_version": POLICY_VERSION},
