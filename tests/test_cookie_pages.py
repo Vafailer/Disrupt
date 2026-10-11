@@ -36,3 +36,17 @@ def test_every_public_page_loads_the_banner_without_inline_code(client):
         assert 'href="/cookies"' in client.get(path).text
     assert client.get("/static/cookie-consent.js").status_code == 200
     assert client.get("/static/cookie-consent.css").status_code == 200
+
+
+def test_policy_mentions_cookies_age_and_current_version(client):
+    from app.policy import POLICY_VERSION
+
+    page = client.get("/privacy").text
+    assert POLICY_VERSION == "2026-10-12" and f"Версия {POLICY_VERSION}" in page
+    assert 'href="/cookies"' in page and "старше 18 лет" in page
+
+
+def test_landing_explains_the_ai_allowance_up_front(client):
+    page = client.get("/").text
+    assert 'id="landing-ai-allowance"' in page and "30 единиц" in page and "бесплатна" in page
+    assert "Ваши записи видите только вы" not in page
