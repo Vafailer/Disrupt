@@ -162,7 +162,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     login.value = 'abc'; $('password').value = 'test-only-password-123'; $('accept-policy').checked = false;
     await $('auth-form').onsubmit({preventDefault(){},target:$('auth-form'),submitter:{value:'register'}});
     assert.equal(authCalls.length,0);
-    assert.match($('auth-message').textContent,/политику конфиденциальности/);
+    assert.match($('auth-message').textContent,/согласие на обработку персональных данных/);
     await $('auth-form').onsubmit({preventDefault(){},target:$('auth-form'),submitter:{value:'login'}});
     assert.equal(authCalls.length,1); authCalls.length = 0;
     $('accept-policy').checked = true;
@@ -180,7 +180,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
         delete login.value;
         assert.equal(authCalls.length,before + Number(valid),name);
         if (valid) assert.equal(authCalls.at(-1).body.username,name);
-        if (valid && action === 'register') assert.deepEqual([authCalls.at(-1).body.accept_policy,authCalls.at(-1).body.policy_version],[true,'2026-10-10']);
+        if (valid && action === 'register') assert.deepEqual([authCalls.at(-1).body.accept_policy,authCalls.at(-1).body.policy_version],[true,'2026-10-11']);
         if (valid && action === 'login') assert.equal('accept_policy' in authCalls.at(-1).body,false);
         if (!valid) assert.match($('auth-message').textContent,/Латинские буквы/);
       }

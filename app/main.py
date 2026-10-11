@@ -491,4 +491,12 @@ def create_app(
     def privacy():
         return FileResponse(STATIC / "privacy.html")
 
+    @app.get("/terms", include_in_schema=False)
+    def terms():
+        return FileResponse(STATIC / "terms.html")
+
+    @app.get("/data-deletion", include_in_schema=False)
+    def data_deletion():
+        return FileResponse(STATIC / "data-deletion.html")
+
     return app

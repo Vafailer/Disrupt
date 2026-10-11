@@ -445,7 +445,7 @@ $('auth-form').onsubmit = async event => {
   if (action === 'register') {
     const consent = $('accept-policy');
     if (!consent.checked) {
-      authMessage('Чтобы создать аккаунт, примите политику конфиденциальности.');
+      authMessage('Чтобы создать аккаунт, дайте согласие на обработку персональных данных.');
       consent.focus(); return;
     }
     body.accept_policy = true; body.policy_version = consent.dataset.policyVersion;

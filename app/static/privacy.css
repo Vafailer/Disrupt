@@ -4,7 +4,7 @@ header{max-width:none;padding:18px 32px;border-bottom:1px solid #e0e5dc;backgrou
 .doc h1{font-size:clamp(28px,4vw,38px);line-height:1.15;letter-spacing:-.02em;margin:0 0 8px}
 .doc h2{font-size:20px;margin:36px 0 10px}
 .doc p,.doc li{font-size:16px}
-.doc ul{padding-left:22px}
+.doc ul,.doc ol{padding-left:22px}
 .doc li{margin:6px 0}
 .doc a{color:#345943;text-underline-offset:3px}
 .doc-meta{margin:0 0 16px;font-size:14px;color:#728075}

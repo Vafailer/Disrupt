@@ -80,7 +80,7 @@
   loginButton.onclick = async () => {
     const box = consent();
     if (!box.checked) {
-      authMessage('Чтобы войти через Telegram, примите политику конфиденциальности.');
+      authMessage('Чтобы войти через Telegram, дайте согласие на обработку персональных данных.');
       box.focus(); return;
     }
     authMessage(); info(); resetLogin();
