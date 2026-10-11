@@ -6,8 +6,8 @@
 .note-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px;margin:-6px 0 14px}
 #capture-card .note-top{margin:0 0 18px}
 #capture-card .note-top h1{margin:0}
-.note-save-status{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-width:0;margin:0;font-size:12.5px;line-height:1.4;color:#7f8f84}
-.note-save-status[data-state=failed],.note-save-status[data-state=invalid]{color:#946313}
+.note-save-status{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-width:0;margin:0;font-size:12.5px;line-height:1.4;color:#626e66}
+.note-save-status[data-state=failed],.note-save-status[data-state=invalid]{color:#916113}
 .note-save-status[data-state=conflict]{color:#9c3b2c}
 .note-save-status .note-reload{min-height:28px;padding:0 10px;font-size:12.5px}
 
@@ -40,7 +40,7 @@
 #pop-tasks,#pop-reminders{width:min(480px,calc(100vw - 32px))}
 .pop-head{display:flex;flex:none;align-items:center;justify-content:space-between;gap:8px;padding:10px 10px 4px 18px}
 .pop-title{font-size:13px;font-weight:700;letter-spacing:.02em;color:#5a7060}
-.tool-pop .pop-close.quiet{display:grid;place-items:center;width:32px;height:32px;min-height:0;padding:0;border:0;border-radius:9px;background:transparent;color:#6b7d70;font-size:22px;line-height:1}
+.tool-pop .pop-close.quiet{display:grid;place-items:center;width:32px;height:32px;min-height:0;padding:0;border:0;border-radius:9px;background:transparent;color:#5e6e63;font-size:22px;line-height:1}
 .tool-pop .pop-close.quiet:hover:not(:disabled){background:var(--tool-hover);color:var(--note-ink)}
 .pop-body{padding:4px 18px 18px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .pop-scrim{display:none}
@@ -90,7 +90,7 @@
 .note-body{display:block;margin-top:6px}
 #note-card #markdown{display:block;width:100%;min-height:max(320px,56vh);margin:0;padding:8px 0 40px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#2a3b30;font:inherit;font-size:18px;line-height:1.8;resize:none;overflow:hidden;overflow-wrap:anywhere}
 #note-card #markdown:focus,#note-card #markdown:hover{border:0;background:transparent;box-shadow:none}
-#note-card #markdown::placeholder{color:#9aa79d}
+#note-card #markdown::placeholder{color:#646d66}
 
 /* Import */
 #capture-import .actions{margin-top:12px}

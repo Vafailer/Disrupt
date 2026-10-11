@@ -74,7 +74,7 @@
     const title = node('p', 'cookie-title', 'Файлы cookie и память браузера'); title.id = 'cookie-consent-title';
     const text = node('p', 'cookie-text');
     text.id = 'cookie-consent-text';
-    text.append('Для входа нужны служебные cookie, они работают всегда. Остальное необязательно, это запомненный часовой пояс напоминаний и скрытые подсказки. Рекламы и аналитики нет. ');
+    text.append('Для входа нужны служебные cookie, они работают при любом выборе. Остальное необязательно, это запомненный часовой пояс напоминаний и скрытые подсказки. Рекламы и аналитики нет. ');
     const link = node('a', '', 'Подробнее о cookie'); link.href = '/cookies';
     text.append(link, '.');
     copy.append(title, text);

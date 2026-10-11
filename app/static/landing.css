@@ -21,7 +21,7 @@
 .auth-card .actions button{min-height:46px;font-size:15px}
 .auth-card #auth-message{margin:14px 0 0}
 .landing-section{padding:clamp(48px,7vw,84px) 0;border-top:1px solid var(--line)}
-.landing-kicker{margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#59735e}
+.landing-kicker{margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#57715c}
 .landing-section>h2{font-size:clamp(26px,3.2vw,38px);line-height:1.15;letter-spacing:-.03em;margin:0 0 36px;max-width:22em;text-wrap:balance}
 .steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
 .steps li{position:relative;padding:26px 24px 24px;background:var(--paper);border:1px solid var(--line);border-radius:16px}
@@ -31,7 +31,7 @@
 .sample{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1.1fr);gap:20px;align-items:stretch;margin-top:28px}
 .sample-in,.sample-out{padding:24px;border-radius:16px;border:1px solid var(--line)}
 .sample-in{background:#f1f3ea}.sample-out{background:var(--paper);box-shadow:0 18px 40px -28px #24372d55}
-.sample-label{margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6a7c6e}
+.sample-label{margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#5e6e62}
 .sample-text{margin:0;font-size:17px;line-height:1.7;color:#33463a;font-style:italic}
 .sample-arrow{align-self:center;width:14px;height:14px;border-top:2px solid #9fb19b;border-right:2px solid #9fb19b;transform:rotate(45deg)}
 .sample-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
@@ -51,7 +51,7 @@
 .landing-beta p{color:#c9d7c8;font-size:16px;line-height:1.65;max-width:38em;margin:0 0 26px}
 .landing-beta .cta-primary{background:#f4f6ee;color:#1f3328;border-color:#f4f6ee;box-shadow:none}
 .landing-beta .cta-primary:hover{background:#fff}
-.cta-channel{color:#fff;border:1px solid #6d8a74;background:transparent}
+.cta-channel{color:#fff;border:1px solid #7f9d86;background:transparent}
 .cta-channel:hover{background:#ffffff14}
 .landing a:focus-visible,.landing button:focus-visible{outline:3px solid #7aa583;outline-offset:3px}
 .landing-beta a:focus-visible,.landing-beta button:focus-visible{outline-color:#cfe3cf}

@@ -46,7 +46,7 @@
     section.setAttribute('aria-labelledby', 'onboarding-title');
     const head = node('div', 'onboarding-head'), titles = node('div');
     const title = node('h2', '', 'Добро пожаловать в beresta'); title.id = 'onboarding-title';
-    titles.append(title, node('p', 'onboarding-lead', 'Пока записей нет. Вот с чего начать.'));
+    titles.append(title, node('p', 'onboarding-lead', 'Пока записей нет. Вот с чего начать.'), node('p', 'onboarding-note', 'beresta бесплатна. ИИ работает с дневным лимитом: текст стоит 1 единицу, голос от 2. Остаток виден под полем записи. Когда он кончается, записи сохраняются без ИИ.'));
     const hide = button('Скрыть', 'quiet', () => { writeDismissed(); render(); });
     hide.id = 'onboarding-dismiss'; hide.setAttribute('aria-label', 'Скрыть первые шаги');
     head.append(titles, hide);

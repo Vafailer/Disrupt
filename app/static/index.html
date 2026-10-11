@@ -32,7 +32,7 @@
     </div>
   </header>
   <div id="mode" class="banner">Проверяем состояние приложения…</div>
-  <div id="policy-banner" class="notice-bar" role="region" aria-label="Политика конфиденциальности" hidden><p>Мы обновили политике обработки данных. <a href="/privacy" target="_blank" rel="noopener noreferrer">Прочитать<span class="sr-only"> (откроется в новой вкладке)</span></a></p><button id="policy-accept" type="button">Принимаю</button></div>
+  <div id="policy-banner" class="notice-bar" role="region" aria-label="Политика конфиденциальности" hidden><p>Мы обновили политику обработки данных. <a href="/privacy" target="_blank" rel="noopener noreferrer">Прочитать<span class="sr-only"> (откроется в новой вкладке)</span></a>. Если не согласны, можно выйти и <a href="/data-deletion" target="_blank" rel="noopener noreferrer">запросить удаление данных<span class="sr-only"> (откроется в новой вкладке)</span></a>.</p><button id="policy-accept" type="button">Принимаю</button></div>
   <div id="deletion-banner" class="notice-bar" role="region" aria-label="Запрос на удаление аккаунта" hidden><p>Вы попросили удалить аккаунт. Оператор обработает запрос вручную в срок, предусмотренный законом. Подробности на странице «Удаление данных».</p><button id="deletion-cancel" type="button" class="secondary">Отменить запрос</button></div>
   <p id="message" role="status" aria-live="polite"></p>
   <main>
@@ -41,12 +41,13 @@
         <div class="landing-hero">
           <p class="landing-badge"><span>Бета</span>Ранняя версия, дорабатываем вместе с вами</p>
           <h1 id="landing-title">Пишите и говорите как есть. beresta наведёт порядок</h1>
-          <p class="landing-lead">Бросьте мысли текстом или голосом. beresta соберёт из них заметку, задачи и напоминания. Исходная запись всегда остаётся у вас, а дополнения ИИ показываются отдельно.</p>
+          <p class="landing-lead">Бросьте мысли текстом или голосом. beresta соберёт из них заметку, задачи и напоминания. Исходная запись сохраняется до обработки, а дополнения ИИ показываются отдельно.</p>
           <div class="landing-cta">
             <button type="button" id="landing-register" class="cta-primary">Создать аккаунт</button>
             <button type="button" id="landing-login" class="cta-quiet">Войти</button>
           </div>
-          <p class="landing-note">Можно войти через Telegram или создать аккаунт с именем и паролем. Почта не нужна.</p>
+          <p class="landing-note">Можно войти через Telegram или создать аккаунт с именем и паролем. Почта не нужна. beresta для людей старше 18 лет.</p>
+          <p class="landing-note" id="landing-ai-allowance">beresta бесплатна. ИИ работает с дневным лимитом: в день даётся 30 единиц, текст стоит 1, голос от 2. У нового аккаунта лимит поначалу меньше. Остаток виден рядом с кнопкой «Сохранить». Когда единицы кончаются, записи сохраняются без ИИ, а на следующий день лимит обновляется.</p>
         </div>
         <div class="auth-card" id="auth-card">
           <h2 id="auth-title">Войти в beresta</h2>
@@ -79,8 +80,8 @@
         <h2 id="how-title">Три шага от мысли до дела</h2>
         <ol class="steps">
           <li><span class="step-number" aria-hidden="true">1</span><h3>Запишите</h3><p>Текстом или голосом, в вебе или в Telegram. Без оформления, как думается.</p></li>
-          <li><span class="step-number" aria-hidden="true">2</span><h3>Получите порядок</h3><p>beresta разложит запись на заметку, задачи и идеи. Структуру можно поправить.</p></li>
-          <li><span class="step-number" aria-hidden="true">3</span><h3>Вернитесь вовремя</h3><p>Напоминание придёт в Telegram в нужное время.</p></li>
+          <li><span class="step-number" aria-hidden="true">2</span><h3>Получите порядок</h3><p>beresta попробует разложить запись на заметку, задачи и идеи. ИИ может ошибиться, структуру можно поправить.</p></li>
+          <li><span class="step-number" aria-hidden="true">3</span><h3>Вернитесь вовремя</h3><p>Напоминание приходит в Telegram в выбранное время. Для этого нужно подключить бота.</p></li>
         </ol>
         <div class="sample" role="group" aria-label="Пример: что вы пишете и что получаете">
           <div class="sample-in">
@@ -103,12 +104,12 @@
       </section>
       <section class="landing-section" aria-labelledby="values-title">
         <p class="landing-kicker">Принципы</p>
-        <h2 id="values-title">Вы всегда понимаете, что произошло с записью</h2>
+        <h2 id="values-title">Видно, что произошло с записью</h2>
         <ul class="values">
-          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg></span><h3>Оригинал всегда рядом</h3><p>Исходная запись сохраняется до обработки. Открыть её можно в любой момент.</p></li>
-          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg></span><h3>ИИ не переписывает молча</h3><p>Дополнения ИИ показываются отдельно. Принять их или отклонить решаете вы.</p></li>
+          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg></span><h3>Оригинал сохраняется</h3><p>Исходная запись сохраняется до обработки. Открыть её можно из готовой заметки.</p></li>
+          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg></span><h3>ИИ предлагает, вы решаете</h3><p>Дополнения ИИ показываются отдельно. Принять их или отклонить решаете вы.</p></li>
           <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m21 3-6 18-4-8-8-4 18-6Zm-10 10 5-5"/></svg></span><h3>Telegram для быстрой записи</h3><p>Бот <a href="https://t.me/beresta_ru_bot" target="_blank" rel="noopener noreferrer">@beresta_ru_bot<span class="sr-only"> (откроется в новой вкладке)</span></a> принимает записи и присылает напоминания.</p></li>
-          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h3>Приватность</h3><p>Ваши записи видите только вы.</p></li>
+          <li><span class="value-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h3>Что с данными</h3><p>Записи хранятся на серверах в России и шифруются ключом сервера. Если включён ИИ, текст записи уходит внешней модели. Подробности в <a href="/privacy">политике</a>.</p></li>
         </ul>
       </section>
       <section class="landing-section landing-beta" aria-labelledby="beta-title">
@@ -132,6 +133,7 @@
               <div class="actions"><button id="audio-submit" type="submit" disabled="">Загрузить аудио</button><button id="audio-clear" type="button" class="quiet" disabled="">Убрать файл</button></div>
             </form></section></div></div></div><div class="tool" data-tool="import"><button type="button" class="tool-btn quiet" id="tool-import" data-tool-btn="import" aria-label="Импорт" data-tip="Импорт" aria-haspopup="dialog" aria-expanded="false" aria-controls="pop-import"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 16V4M7 9l5-5 5 5M4 16v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="tool-pop" id="pop-import" role="dialog" aria-label="Импорт" tabindex="-1" hidden><div class="pop-head"><span class="pop-title">Импорт</span><button type="button" class="pop-close quiet" aria-label="Закрыть окно">×</button></div><div class="pop-body"><section id="capture-import" class="capture-view"><p class="muted">Текст из файла .txt или .md попадёт в поле записи. Не больше 12000 знаков.</p><label for="import-file">Файл .txt или .md</label><input id="import-file" type="file" accept=".txt,.md,text/plain,text/markdown"><div class="actions"><button id="import-paste" type="button" class="secondary">Вставить из буфера</button></div><p id="import-status" class="muted" role="status" aria-live="polite"></p></section></div></div></div><div class="tool" data-tool="jobs"><button type="button" class="tool-btn quiet" id="tool-jobs" data-tool-btn="jobs" aria-label="История" data-tip="История" aria-haspopup="dialog" aria-expanded="false" aria-controls="pop-jobs"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 7v5l3 2M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="tool-pop" id="pop-jobs" role="dialog" aria-label="История" tabindex="-1" hidden><div class="pop-head"><span class="pop-title">История</span><button type="button" class="pop-close quiet" aria-label="Закрыть окно">×</button></div><div class="pop-body"><section id="capture-jobs" class="capture-view"><div id="jobs"></div></section></div></div></div></div></div>
           <form id="capture-form" class="capture-view"><label for="thought" class="sr-only">Ваши мысли</label><textarea id="thought" rows="9" maxlength="12000" required="" placeholder="Идея, задача, план на завтра…"></textarea><div class="capture-options"><label class="switch" id="ai-switch-label" for="ai-switch"><input id="ai-switch" type="checkbox" role="switch" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-text">Разобрать с ИИ</span></label><select id="processing-mode" hidden aria-hidden="true" tabindex="-1"><option value="ai">Структурировать с ИИ</option><option value="manual">Сохранить без ИИ</option></select><p id="ai-limit-counter" class="muted ai-limit-counter" hidden=""><span id="ai-limit-count"></span><span id="ai-limit-cost" class="ai-limit-cost"></span></p></div>
+          <p id="ai-privacy-note" class="muted ai-privacy-note">С ИИ текст записи уходит внешней модели. Выключите переключатель, и запись останется только у нас.</p>
           <p id="ai-limit-note" class="muted ai-limit-note" hidden=""><span id="ai-limit-text" role="status"></span> <span id="ai-limit-wait"></span> <span id="ai-limit-tail"></span></p><div class="actions"><button id="capture-submit" type="submit">Сохранить</button><span class="key-hint" aria-hidden="true">Ctrl+Enter</span><button id="example" type="button" class="text-button">Попробовать пример</button></div></form>
           <p id="job-status" aria-live="polite"></p>
         </section>
@@ -144,7 +146,7 @@
         </section>
         <section id="assistant-card" class="card brain-view" hidden aria-labelledby="assistant-title">
           <h1 id="assistant-title">Помощник</h1>
-          <p class="br-lead">Отвечает по вашим заметкам и ничего не выдумывает. Сами заметки он не меняет.</p>
+          <p class="br-lead">Отвечает по вашим заметкам. ИИ может ошибаться, поэтому важное проверяйте. Сами заметки помощник не меняет.</p>
           <section class="br-block" aria-labelledby="ask-title">
             <h2 id="ask-title">Спросить свои заметки</h2>
             <form id="ask-form">
@@ -166,7 +168,7 @@
             </div>
             <p id="rec-disabled" class="br-off" hidden>Рекомендации выключены. Включите переключатель выше, и помощник предложит следующие шаги по вашим заметкам.</p>
             <div id="rec-on">
-              <p class="muted br-hint">Смотрит заметки за 30 дней, открытые задачи и идеи. Предлагает до пяти шагов.</p>
+              <p class="muted br-hint">Смотрит заметки за 30 дней, открытые задачи и идеи. Предлагает до пяти шагов. Работает только когда вы нажимаете кнопку, сам ничего не отправляет.</p>
               <div class="actions"><button id="rec-run" type="button">Получить рекомендации</button></div>
               <p id="rec-cost" class="br-cost muted"></p>
               <p id="rec-status" class="br-status" role="status" aria-live="polite"></p>
