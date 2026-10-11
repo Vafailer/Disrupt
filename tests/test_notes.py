@@ -291,7 +291,18 @@ def test_static_page_and_health(client):
     assert client.get("/").status_code == 200
     assert "default-src 'self'" in client.get("/").headers["content-security-policy"]
     assert client.get("/static/app.js").status_code == 200
-    assert client.get("/openapi.json").json()["info"]["version"] == "0.1.0"
+
+
+def test_api_docs_are_closed_by_default_and_open_on_request(app_factory):
+    paths = ("/docs", "/redoc", "/openapi.json")
+    with TestClient(app_factory()) as closed:
+        assert [closed.get(path).status_code for path in paths] == [404, 404, 404]
+    with TestClient(app_factory()) as default:
+        # The contract export still works without the public route.
+        assert default.app.openapi()["info"]["version"] == "0.1.0"
+    with TestClient(app_factory(api_docs_enabled=True)) as opened:
+        assert opened.get("/openapi.json").json()["info"]["version"] == "0.1.0"
+        assert opened.get("/docs").status_code == 200
 
 
 def make_sources(app, client):

@@ -32,7 +32,11 @@ async function registration(){
   assert.equal(calls.length,1,'Consent is needed before sending');
   $('email-auth-consent').checked=true;
   await $('email-auth-form').onsubmit({preventDefault(){}});
-  assert.equal(calls.at(-1).body.policy_version,'2026-10-11');
+  assert.equal(calls.length,1,'Age confirmation is needed before sending');
+  assert.match($('email-auth-message').textContent,/18 лет/);
+  $('email-auth-age').checked=true;
+  await $('email-auth-form').onsubmit({preventDefault(){}});
+  assert.equal(calls.at(-1).body.policy_version,'2026-10-11');assert.equal(calls.at(-1).body.confirm_age,true);
   assert.equal($('email-auth-password').value,'');assert.equal($('email-auth-code-form').hidden,false);
   $('email-auth-code').value='000001';
   t.setError('<img src=x onerror=alert(1)>Код не подошёл');
@@ -47,13 +51,13 @@ async function registration(){
 async function retryAndLogin(){
  const t=await boot();const{$,calls,entered}=t;
  try{
-  $('landing-register-bottom').click();$('email-auth-consent').checked=true;
+  $('landing-register-bottom').click();$('email-auth-consent').checked=true;$('email-auth-age').checked=true;
   $('email-auth-address').value='owner@example.test';$('email-auth-password').value='synthetic-password-1';
   await $('email-auth-form').onsubmit({preventDefault(){}});
   const before=calls.length;$('email-auth-retry').click();
   assert.equal(calls.length,before,'No automatic email resend');assert.equal($('email-auth-form').hidden,false);
   $('email-auth-close').click();$('email-login').click();
-  assert.equal($('email-auth-consent-label').hidden,true);
+  assert.equal($('email-auth-consent-label').hidden,true);assert.equal($('email-auth-age-label').hidden,true);
   $('email-auth-address').value='owner@example.test';$('email-auth-password').value='synthetic-password-1';
   $('email-auth-recover').click();await settle();
   assert.ok(calls.at(-1).url.endsWith('/recovery/email'));

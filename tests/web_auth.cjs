@@ -51,8 +51,13 @@ async function telegramLogin(){
   assert.equal(callsTo(t,'/telegram/start').length,0,'no request without consent');
   t.$('accept-policy').checked=true;
   t.$('tg-login').click();await settled();
+  assert.match(t.$('auth-message').textContent,/18 лет/);
+  assert.equal(callsTo(t,'/telegram/start').length,0,'no request without the age confirmation');
+  t.$('confirm-age').checked=true;
+  t.$('tg-login').click();await settled();
   const start=callsTo(t,'/telegram/start')[0];
-  assert.deepEqual(start.body,{accept_policy:true,policy_version:VERSION});
+  assert.deepEqual(start.body,{accept_policy:true,policy_version:VERSION,confirm_age:true});
+  assert.match(t.$('tg-login-hint').textContent,/Запустить.*Да, это я/);
   assert.equal(t.$('tg-login-box').hidden,false);
   assert.equal(t.$('tg-login-link').href,'https://t.me/beresta_ru_bot?start=login_'+TOKEN);
   assert.equal(t.$('tg-login').disabled,true);
@@ -78,7 +83,7 @@ async function telegramLoginEnds(){
    '/api/v1/auth/telegram/status/*':()=>login.status==='404'?reply({detail:'Вход не найден. Начните заново'},404):reply({status:login.status}),
   }});
   try{
-   t.$('accept-policy').checked=true;t.$('tg-login').click();await settled();
+   t.$('accept-policy').checked=true;t.$('confirm-age').checked=true;t.$('tg-login').click();await settled();
    login.status=how==='404'?'404':'expired';await t.tick();
    assert.match(t.$('auth-message').textContent,expected,how);
    assert.equal(t.$('tg-login-box').hidden,true);assert.equal(t.$('tg-login').disabled,false);
@@ -90,7 +95,7 @@ async function telegramLoginEnds(){
   '/api/v1/auth/telegram/start':()=>reply({login_id:'login-3',deep_link:'https://t.me/beresta_ru_bot?start=login_'+TOKEN,expires_at:new Date(Date.now()-10000).toISOString()},201),
  }});
  try{
-  t.$('accept-policy').checked=true;t.$('tg-login').click();await settled();await t.tick();
+  t.$('accept-policy').checked=true;t.$('confirm-age').checked=true;t.$('tg-login').click();await settled();await t.tick();
   assert.match(t.$('auth-message').textContent,/Время вышло/);assert.equal(callsTo(t,'/status/login-3').length,0);
  }finally{t.closeAll();}
  // Cancel stops polling and a foreign link is never used.
@@ -98,7 +103,7 @@ async function telegramLoginEnds(){
   '/api/v1/auth/telegram/start':()=>reply({login_id:'login-4',deep_link:'javascript:alert(1)',expires_at:new Date(Date.now()+300000).toISOString()},201),
  }});
  try{
-  t.$('accept-policy').checked=true;t.$('tg-login').click();await settled();
+  t.$('accept-policy').checked=true;t.$('confirm-age').checked=true;t.$('tg-login').click();await settled();
   assert.equal(t.$('tg-login-box').hidden,true);assert.equal(t.timers.size,0);assert.equal(t.$('tg-login').disabled,false);
   assert.ok(t.$('auth-message').textContent.length>0);
  }finally{t.closeAll();}
@@ -106,7 +111,7 @@ async function telegramLoginEnds(){
   '/api/v1/auth/telegram/start':()=>reply({login_id:'login-5',deep_link:'https://t.me/beresta_ru_bot?start=login_'+TOKEN,expires_at:new Date(Date.now()+300000).toISOString()},201),
  }});
  try{
-  t.$('accept-policy').checked=true;t.$('tg-login').click();await settled();
+  t.$('accept-policy').checked=true;t.$('confirm-age').checked=true;t.$('tg-login').click();await settled();
   assert.equal(t.timers.size,1);t.$('tg-login-cancel').click();
   assert.equal(t.timers.size,0);assert.equal(t.$('tg-login-box').hidden,true);assert.equal(t.$('tg-login').disabled,false);
  }finally{t.closeAll();}
@@ -223,6 +228,11 @@ function staticChecks(){
  const consent=doc.getElementById('accept-policy');
  assert.equal(consent.type,'checkbox');assert.equal(consent.dataset.policyVersion,VERSION);
  assert.ok(consent.closest('label').querySelector('a[href="/privacy"]'),'consent links the policy');
+ const age=doc.getElementById('confirm-age');
+ assert.equal(age.type,'checkbox');assert.equal(age.checked,false,'age is not pre-checked');
+ assert.match(age.closest('label').textContent,/18 лет/);
+ assert.equal(age.closest('form').id,'auth-form');
+ assert.match(doc.getElementById('telegram-settings').textContent,/Да, подключить/);
  assert.ok(doc.querySelector('#landing-footer a[href="/privacy"]'),'landing footer links the policy');
  assert.ok(doc.querySelector('#nav-menu a[href="/privacy"]'),'account menu links the policy');
  assert.ok(doc.getElementById('open-delete'));

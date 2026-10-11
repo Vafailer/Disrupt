@@ -448,7 +448,12 @@ $('auth-form').onsubmit = async event => {
       authMessage('Чтобы создать аккаунт, дайте согласие на обработку персональных данных.');
       consent.focus(); return;
     }
-    body.accept_policy = true; body.policy_version = consent.dataset.policyVersion;
+    const age = $('confirm-age');
+    if (!age.checked) {
+      authMessage('Чтобы создать аккаунт, подтвердите, что вам исполнилось 18 лет.');
+      age.focus(); return;
+    }
+    body.accept_policy = true; body.policy_version = consent.dataset.policyVersion; body.confirm_age = true;
   }
   authMessage();
   const buttons = [...event.target.querySelectorAll('button')];

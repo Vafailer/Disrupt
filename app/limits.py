@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, select
 
-from app.models import AssistantRequest, Capture
+from app.models import AssistantRequest, Capture, User
 
 # Stored in the capture_saved event, so a replay of the same request knows it was saved without AI.
 LIMIT_OUTCOME = "ai_limit"
@@ -60,16 +60,32 @@ def units_used(db, settings, user_id, now=None):
     )
 
 
+NEW_ACCOUNT_SECONDS = 86400
+
+
+def effective_daily_limit(db, settings, user_id, now=None):
+    """Daily limit of this person. An account younger than a day gets the lower new account ceiling."""
+    limit = settings.daily_unit_limit
+    ceiling = settings.new_account_unit_limit
+    if limit <= 0 or ceiling <= 0 or ceiling >= limit:
+        return limit
+    created = db.scalar(select(User.created_at).where(User.id == user_id))
+    current = time.time() if now is None else now
+    if created is not None and current - created < NEW_ACCOUNT_SECONDS:
+        return ceiling
+    return limit
+
+
 def within_daily_limit(db, settings, user_id, cost, now=None):
     if settings.daily_unit_limit == 0:
         return True
-    return units_used(db, settings, user_id, now) + cost <= settings.daily_unit_limit
+    return units_used(db, settings, user_id, now) + cost <= effective_daily_limit(db, settings, user_id, now)
 
 
 def daily_state(db, settings, user_id, now=None):
     """Keys of GET /api/v1/provider/usage that belong to the daily limit."""
     used = units_used(db, settings, user_id, now)
-    limit = settings.daily_unit_limit
+    limit = effective_daily_limit(db, settings, user_id, now)
     return {
         "daily_unit_limit": limit,
         "daily_units_used": used,
