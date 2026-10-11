@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Файлы cookie · beresta</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/privacy.css">
+  <link rel="stylesheet" href="/static/cookie-consent.css">
+  <script src="/static/cookie-consent.js" defer></script>
+</head>
+<body>
+  <header><a href="/" class="brand">beresta<span>Умные заметки</span></a></header>
+  <main class="doc">
+    <h1>Файлы cookie и память браузера</h1>
+    <p class="doc-meta">Редакция от 12 октября 2026 года.</p>
+    <p class="doc-lead">Коротко. beresta не показывает рекламу, не ведёт веб-аналитику и не подключает чужие скрипты и cookie. Нужные для входа cookie работают всегда. Всё остальное необязательно, и вы выбираете сами.</p>
+    <h2>1. Что мы не используем</h2>
+    <ul>
+      <li>Рекламные и маркетинговые cookie.</li>
+      <li>Аналитические счётчики и сторонние cookie.</li>
+      <li>Скрипты, шрифты и картинки с чужих серверов. Всё загружается с нашего адреса.</li>
+    </ul>
+    <h2>2. Необходимые cookie</h2>
+    <p>Без них вход не работает, поэтому согласие на них не спрашивается. Они не читаются из JavaScript и нужны только для безопасности и входа.</p>
+    <div class="doc-table-wrap">
+      <table class="doc-table">
+        <thead><tr><th scope="col">Название</th><th scope="col">Зачем</th><th scope="col">Срок</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><code>notes_session</code></th><td>Держит вас в аккаунте после входа.</td><td>До 24 часов или до выхода из аккаунта.</td></tr>
+          <tr><th scope="row"><code>notes_tg_login</code></th><td>Привязывает вход через Telegram к тому браузеру, где вы его начали.</td><td>5 минут.</td></tr>
+          <tr><th scope="row"><code>notes_email_registration</code></th><td>Привязывает регистрацию по почте к тому браузеру, где вы её начали. Ставится, только если вы просите код на почту.</td><td>10 минут.</td></tr>
+          <tr><th scope="row"><code>beresta_admin</code></th><td>Вход оператора в служебную панель. Работает только из закрытой сети оператора, обычные пользователи его не получают.</td><td>До 8 часов.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h2>3. Память браузера</h2>
+    <p>Кроме cookie мы используем память браузера (localStorage). Это значения, которые остаются на вашем устройстве. На сервер они сами не отправляются.</p>
+    <div class="doc-table-wrap">
+      <table class="doc-table">
+        <thead><tr><th scope="col">Ключ</th><th scope="col">Зачем</th><th scope="col">Тип</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><code>beresta.cookie-consent.v1</code></th><td>Запоминает ваш выбор на этой странице, чтобы не спрашивать снова. Хранит выбор, версию и время.</td><td>Необходимый</td></tr>
+          <tr><th scope="row"><code>beresta.onboarding.dismissed.v1</code></th><td>Помнит, что вы скрыли подсказки первых шагов.</td><td>Необязательный</td></tr>
+          <tr><th scope="row"><code>beresta.reminderZone</code></th><td>Помнит часовой пояс, который вы выбрали для напоминаний.</td><td>Необязательный</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Пароли, коды входа и тексты заметок в память браузера не записываются.</p>
+    <h2>4. Ваш выбор</h2>
+    <p>При первом визите внизу страницы появляется панель с двумя равноценными кнопками.</p>
+    <ul>
+      <li><strong>Принять все.</strong> Необязательные значения сохраняются в localStorage и переживают закрытие браузера.</li>
+      <li><strong>Только необходимые.</strong> Необязательные значения в localStorage не пишутся, а ранее сохранённые удаляются. Подсказки и часовой пояс держатся только до закрытия вкладки.</li>
+    </ul>
+    <p>Выбор можно изменить в любой момент по ссылке <button type="button" class="cookie-settings-link" data-cookie-settings>Настройки cookie</button> в меню приложения и внизу страниц. Отказ не ограничивает работу сервиса. Вы также можете удалить cookie и данные сайта в настройках браузера, тогда придётся войти заново.</p>
+    <h2>5. Связь</h2>
+    <p>Вопросы о cookie и данных можно задать по адресу <a href="mailto:support@berestaapp.ru">support@berestaapp.ru</a>. Подробнее об обработке данных в <a href="/privacy">политике</a>.</p>
+    <p class="doc-back"><a href="/">Вернуться в beresta</a> · <a href="/privacy">Политика обработки данных</a> · <a href="/terms">Условия использования</a> · <a href="/data-deletion">Удаление данных</a> · <button type="button" class="cookie-settings-link" data-cookie-settings>Настройки cookie</button></p>
+  </main>
+</body>
+</html>

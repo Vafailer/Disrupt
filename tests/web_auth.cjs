@@ -6,7 +6,7 @@ const root=path.join(__dirname,'../app/static');
 const read=name=>fs.readFileSync(path.join(root,name),'utf8');
 const reply=(data,status=200)=>({ok:status<400,status,headers:new Headers(),json:async()=>structuredClone(data)});
 async function settled(){for(let i=0;i<25;i++)await new Promise(resolve=>setImmediate(resolve));}
-const VERSION='2026-10-11', TOKEN='R'.repeat(43);
+const VERSION='2026-10-12', TOKEN='R'.repeat(43);
 const user=(extra={})=>({id:'u1',username:'ivan',csrf_token:'csrf-1',policy_current:true,policy_version:VERSION,deletion_requested:false,...extra});
 
 async function open({hash='',me=null,routes={}}={}){

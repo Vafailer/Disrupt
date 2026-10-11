@@ -7,14 +7,15 @@
   if (!column || !get('capture-card') || !get('notes')) return;
   const KEY = 'beresta.onboarding.dismissed.v1';
   let dismissedInMemory = false, emptyLibrary = false, telegramLinked = false, panel = null, telegramChecked = false;
-  // Storage can be blocked or throw (private mode, site data off). Never let that break the page.
+  // The dismissal is an optional convenience. cookie-consent.js keeps it in localStorage only after
+  // "Принять все", otherwise for this tab. Without that script it stays in memory.
   function readDismissed() {
     if (dismissedInMemory) return true;
-    try { return window.localStorage.getItem(KEY) === '1'; } catch { return false; }
+    try { return window.berestaConsent?.read(KEY) === '1'; } catch { return false; }
   }
   function writeDismissed() {
     dismissedInMemory = true;
-    try { window.localStorage.setItem(KEY, '1'); } catch { /* remembered for this page only */ }
+    try { window.berestaConsent?.write(KEY, '1'); } catch { /* remembered for this page only */ }
   }
   function node(tag, className, text) {
     const el = document.createElement(tag);

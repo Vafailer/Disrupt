@@ -32,7 +32,7 @@ async function registration(){
   assert.equal(calls.length,1,'Consent is needed before sending');
   $('email-auth-consent').checked=true;
   await $('email-auth-form').onsubmit({preventDefault(){}});
-  assert.equal(calls.at(-1).body.policy_version,'2026-10-11');
+  assert.equal(calls.at(-1).body.policy_version,'2026-10-12');
   assert.equal($('email-auth-password').value,'');assert.equal($('email-auth-code-form').hidden,false);
   $('email-auth-code').value='000001';
   t.setError('<img src=x onerror=alert(1)>Код не подошёл');

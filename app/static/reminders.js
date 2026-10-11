@@ -25,14 +25,15 @@
   }
   function defaultZone() {
     let saved = rememberedZone;
-    if (!saved) { try { saved = localStorage.getItem(zoneKey) || ''; } catch (_) { saved = ''; } }
+    if (!saved) { try { saved = (window.berestaConsent && window.berestaConsent.read(zoneKey)) || ''; } catch (_) { saved = ''; } }
     if (saved && validZone(saved)) return saved;
     const browser = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return browser && validZone(browser) ? browser : 'Europe/Moscow';
   }
   function rememberZone(zone) {
     rememberedZone = zone;
-    try { localStorage.setItem(zoneKey,zone); } catch (_) { /* storage may be blocked */ }
+    // Written to localStorage only after "Принять все" (see cookie-consent.js), otherwise kept for this tab.
+    try { if (window.berestaConsent) window.berestaConsent.write(zoneKey,zone); } catch (_) { /* storage may be blocked */ }
   }
   function zoneShort(zone) { return zoneNames[zone] || zone; }
   function zoneLine(zone) { return zoneNames[zone] ? `${zoneNames[zone]} (${zone})` : zone; }

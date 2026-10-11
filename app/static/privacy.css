@@ -11,3 +11,10 @@ header{max-width:none;padding:18px 32px;border-bottom:1px solid #e0e5dc;backgrou
 .doc-lead{font-size:18px}
 .doc-back{margin-top:40px}
 @media(max-width:640px){header{padding:14px 18px}.doc{padding:28px 16px 64px}}
+
+.doc-table-wrap{overflow-x:auto;margin:12px 0}
+.doc-table{width:100%;border-collapse:collapse;font-size:15px;line-height:1.5}
+.doc-table th,.doc-table td{padding:10px 12px;border:1px solid #cfd8cb;text-align:left;vertical-align:top}
+.doc-table thead th{background:#eaf0e6}
+.doc-table tbody th{font-weight:600;overflow-wrap:anywhere}
+.doc code{font-size:14px}

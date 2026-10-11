@@ -180,7 +180,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
         delete login.value;
         assert.equal(authCalls.length,before + Number(valid),name);
         if (valid) assert.equal(authCalls.at(-1).body.username,name);
-        if (valid && action === 'register') assert.deepEqual([authCalls.at(-1).body.accept_policy,authCalls.at(-1).body.policy_version],[true,'2026-10-11']);
+        if (valid && action === 'register') assert.deepEqual([authCalls.at(-1).body.accept_policy,authCalls.at(-1).body.policy_version],[true,'2026-10-12']);
         if (valid && action === 'login') assert.equal('accept_policy' in authCalls.at(-1).body,false);
         if (!valid) assert.match($('auth-message').textContent,/Латинские буквы/);
       }
@@ -190,6 +190,7 @@ function submit(form) { form.dispatchEvent(new w.Event('submit',{bubbles:true,ca
     await require('./web_note_ux.cjs')();
     await require('./web_focus.cjs')();
     await require('./web_onboarding.cjs')();
+    await require('./web_cookies.cjs')();
     await require('./web_auth.cjs')();
     await require('./web_email_auth.cjs')();
     await require('./web_brain.cjs')();
