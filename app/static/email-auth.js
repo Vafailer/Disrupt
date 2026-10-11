@@ -42,7 +42,7 @@
   };
   el('email-auth-form').onsubmit = async event => {
     event.preventDefault(); if (busy) return;
-    if (mode === 'register' && !el('email-auth-consent').checked) return say('Примите политику конфиденциальности.');
+    if (mode === 'register' && !el('email-auth-consent').checked) return say('Дайте согласие на обработку персональных данных.');
     const body = {email:el('email-auth-address').value,password:el('email-auth-password').value};
     if (mode === 'register') Object.assign(body, {accept_policy:true,policy_version:el('accept-policy').dataset.policyVersion});
     lock(true); say('');

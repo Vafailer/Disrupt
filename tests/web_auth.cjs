@@ -6,7 +6,7 @@ const root=path.join(__dirname,'../app/static');
 const read=name=>fs.readFileSync(path.join(root,name),'utf8');
 const reply=(data,status=200)=>({ok:status<400,status,headers:new Headers(),json:async()=>structuredClone(data)});
 async function settled(){for(let i=0;i<25;i++)await new Promise(resolve=>setImmediate(resolve));}
-const VERSION='2026-10-10', TOKEN='R'.repeat(43);
+const VERSION='2026-10-11', TOKEN='R'.repeat(43);
 const user=(extra={})=>({id:'u1',username:'ivan',csrf_token:'csrf-1',policy_current:true,policy_version:VERSION,deletion_requested:false,...extra});
 
 async function open({hash='',me=null,routes={}}={}){
@@ -47,7 +47,7 @@ async function telegramLogin(){
  try{
   assert.equal(t.$('auth').hidden,false);
   t.$('tg-login').click();await settled();
-  assert.match(t.$('auth-message').textContent,/политику конфиденциальности/);
+  assert.match(t.$('auth-message').textContent,/согласие на обработку персональных данных/);
   assert.equal(callsTo(t,'/telegram/start').length,0,'no request without consent');
   t.$('accept-policy').checked=true;
   t.$('tg-login').click();await settled();
@@ -230,9 +230,8 @@ function staticChecks(){
  assert.equal(doc.getElementById('forgot-password').type,'button');
  const privacyDoc=new JSDOM(privacy).window.document;
  assert.equal(privacyDoc.querySelector('main').dataset.policyVersion,VERSION);
- assert.ok(privacy.indexOf('Черновик, требует проверки юристом')<privacy.indexOf('<html'),'the draft note stays in a comment');
- assert.equal(privacyDoc.body.textContent.includes('Черновик, требует проверки юристом'),false,'and is not visible');
- assert.ok(privacyDoc.body.textContent.includes('[Оператор: ФИО/ИП, контакт]'));
+ assert.ok(privacyDoc.body.textContent.includes('Пахаруков Андрей Евгеньевич'));
+ assert.ok(privacyDoc.body.textContent.includes('support@berestaapp.ru'));
  dom.window.close();privacyDoc.defaultView.close();
 }
 

@@ -88,7 +88,8 @@ def test_registration_requires_current_consent(app, client):
     ):
         response = client.post("/api/v1/auth/register", json={**body, **extra})
         assert response.status_code == 422, extra
-        assert "олитик" in response.json()["detail"]
+        expected = "согласие" if not extra.get("accept_policy") else "Политика"
+        assert expected in response.json()["detail"]
     assert rows(app, User) == []
     ok = client.post(
         "/api/v1/auth/register", json={**body, "accept_policy": True, "policy_version": POLICY_VERSION},
@@ -122,11 +123,13 @@ def test_existing_user_accepts_the_policy_once(app, client):
 def test_privacy_page_is_served_and_versions_agree(client):
     page = client.get("/privacy")
     assert page.status_code == 200 and page.headers["content-type"].startswith("text/html")
-    assert "[Оператор: ФИО/ИП, контакт]" in page.text
+    assert "Пахаруков Андрей Евгеньевич" in page.text
+    assert "support@berestaapp.ru" in page.text
     assert f'data-policy-version="{POLICY_VERSION}"' in page.text
-    assert page.text.index("Черновик, требует проверки юристом") < page.text.index("<html")
     assert "<script" not in page.text and "style=" not in page.text
     assert f'data-policy-version="{POLICY_VERSION}"' in client.get("/").text
+    assert "Условия использования" in client.get("/terms").text
+    assert "Запрос на удаление данных" in client.get("/data-deletion").text
 
 
 # Sign in through the bot

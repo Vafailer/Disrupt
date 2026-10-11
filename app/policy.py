@@ -7,12 +7,12 @@ existing users to accept it again on their next visit.
 
 from fastapi import HTTPException
 
-POLICY_VERSION = "2026-10-10"
+POLICY_VERSION = "2026-10-11"
 
 
 def require_consent(accepted, version):
     """Registration and Telegram sign-in both need an explicit, current acceptance."""
     if accepted is not True:
-        raise HTTPException(422, "Чтобы продолжить, примите политику конфиденциальности")
+        raise HTTPException(422, "Чтобы продолжить, дайте согласие на обработку персональных данных")
     if version != POLICY_VERSION:
-        raise HTTPException(422, "Политика конфиденциальности обновилась. Обновите страницу и примите её ещё раз")
+        raise HTTPException(422, "Политика обработки данных обновилась. Обновите страницу и подтвердите согласие ещё раз")
